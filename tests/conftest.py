@@ -1,14 +1,26 @@
-import asyncio
-from typing import AsyncGenerator
-import pytest
-import pytest_asyncio
+from collections.abc import AsyncGenerator
+
 from httpx import ASGITransport, AsyncClient
+import pytest_asyncio
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.compiler import compiles
 
 from cdb.api.deps import get_db
-from cdb.core.config import settings
 from cdb.main import app
 from cdb.models.base import Base
+
+
+# Teach SQLite how to compile PostgreSQL specific types during unit tests
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+
+@compiles(ARRAY, "sqlite")
+def compile_array_sqlite(type_, compiler, **kw):
+    return "TEXT"
+
 
 # Use an in-memory SQLite database for fast unit & endpoint testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
