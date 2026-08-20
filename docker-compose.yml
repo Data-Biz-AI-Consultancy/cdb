@@ -1,0 +1,94 @@
+services:
+  cdb-api:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    container_name: cdb-api
+    restart: unless-stopped
+    command: uvicorn cdb.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./src/backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - DATABASE_URL=postgresql+asyncpg://cdb:cdb@cdb-db:5432/cdb
+      - SYNC_DATABASE_URL=postgresql://cdb:cdb@cdb-db:5432/cdb
+      - REDIS_URL=redis://cdb-redis:6379/0
+      - CELERY_BROKER_URL=redis://cdb-redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://cdb-redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-development-secret-key-at-least-32-characters-long}
+      - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
+    depends_on:
+      cdb-db:
+        condition: service_healthy
+      cdb-redis:
+        condition: service_started
+    networks:
+      - cdb_network
+
+  cdb-worker:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    container_name: cdb-worker
+    restart: unless-stopped
+    command: celery -A cdb.workers.celery_app worker --loglevel=info
+    volumes:
+      - ./src/backend:/app
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql+asyncpg://cdb:cdb@cdb-db:5432/cdb
+      - SYNC_DATABASE_URL=postgresql://cdb:cdb@cdb-db:5432/cdb
+      - REDIS_URL=redis://cdb-redis:6379/0
+      - CELERY_BROKER_URL=redis://cdb-redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://cdb-redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-development-secret-key-at-least-32-characters-long}
+      - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
+    depends_on:
+      cdb-db:
+        condition: service_healthy
+      cdb-redis:
+        condition: service_started
+    networks:
+      - cdb_network
+
+  cdb-db:
+    image: postgres:16-alpine
+    container_name: cdb-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cdb
+      POSTGRES_USER: cdb
+      POSTGRES_PASSWORD: cdb
+    volumes:
+      - cdb_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432" # Host port 5433 avoids conflict with Jager default 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdb -d cdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cdb_network
+
+  cdb-redis:
+    image: redis:7-alpine
+    container_name: cdb-redis
+    restart: unless-stopped
+    volumes:
+      - cdb_redis_data:/data
+    ports:
+      - "6380:6379" # Host port 6380 avoids conflict with default 6379
+    networks:
+      - cdb_network
+
+volumes:
+  cdb_db_data:
+  cdb_redis_data:
+
+networks:
+  cdb_network:
+    driver: bridge

@@ -1,0 +1,33 @@
+name: Release — Promote to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA to promote (leave blank for latest main)"
+        required: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retag staging to production
+        run: |
+          SHA="${{ github.event.inputs.sha || github.sha }}"
+          docker pull ghcr.io/${{ github.repository }}:sha-${SHA}
+          docker tag  ghcr.io/${{ github.repository }}:sha-${SHA} \
+                      ghcr.io/${{ github.repository }}:production
+          docker push ghcr.io/${{ github.repository }}:production
