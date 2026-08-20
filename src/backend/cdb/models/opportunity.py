@@ -39,7 +39,7 @@ class Opportunity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     source_lead_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("leads.id", ondelete="SET NULL"),
+        ForeignKey("leads.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
     )
 
