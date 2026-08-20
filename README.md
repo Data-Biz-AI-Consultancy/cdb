@@ -143,10 +143,18 @@ cdb/
 │   │   │   ├── alembic/
 │   │   │   │   └── versions/
 │   │   │   └── alembic.ini
+│   │   ├── tests/                 # Pytest test suite (backend)
 │   │   ├── Dockerfile
 │   │   └── pyproject.toml
-│   └── frontend/                  # Next.js 15 Frontend (Phase 2)
-├── tests/                         # Pytest test suite
+│   └── frontend/                  # Next.js 15 App Router Frontend
+│       ├── src/
+│       │   ├── app/               # Page routes (persons, companies, activities, etc.)
+│       │   ├── components/        # Shared navigation & layout UI components
+│       │   ├── lib/               # API client and auth token storage
+│       │   └── test/              # Vitest setup & DOM polyfills
+│       ├── Dockerfile
+│       ├── package.json
+│       └── vitest.config.ts
 ├── docs/                          # Architecture & design specifications
 ├── docker-compose.yml
 ├── .env.example
