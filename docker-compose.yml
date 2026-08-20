@@ -85,6 +85,21 @@ services:
     networks:
       - cdb_network
 
+  cdb-frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    container_name: cdb-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - cdb-api
+    networks:
+      - cdb_network
+
 volumes:
   cdb_db_data:
   cdb_redis_data:
@@ -92,3 +107,4 @@ volumes:
 networks:
   cdb_network:
     driver: bridge
+
