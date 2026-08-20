@@ -31,6 +31,8 @@ jobs:
           ruff check .
 
       - name: Run Pytest
+        env:
+          PYTHONPATH: src/backend
         run: |
           pytest -v
 
