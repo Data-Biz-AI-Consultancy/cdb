@@ -30,13 +30,13 @@ async def test_register_and_login_flow(client: AsyncClient):
         "email": "alice@example.com",
         "password": "strongpassword123",
     }
-    response = await client.post("/api/v1/auth/login", json=login_payload)
-    assert response.status_code == 200
-    token_data = response.json()
+    login_response = await client.post("/api/v1/auth/login", json=login_payload)
+    assert login_response.status_code == 200
+    token_data = login_response.json()
     assert "access_token" in token_data
     assert token_data["token_type"] == "Bearer"
     assert token_data["user"]["email"] == "alice@example.com"
-    assert "refresh_token" in response.cookies
+    assert "refresh_token" in login_response.cookies
 
     # 4. Login with invalid password fails with 401 UNAUTHORIZED
     bad_login = {
@@ -64,9 +64,7 @@ async def test_register_and_login_flow(client: AsyncClient):
     error_data = response.json()
     assert error_data["error"]["code"] == "UNAUTHORIZED"
 
-    # 7. Refresh token flow
-    refresh_token = response.cookies.get("refresh_token") or token_data.get("refresh_token")
-    # Using the cookie from previous login
+    # 7. Refresh token flow (using cookie stored from login)
     response = await client.post("/api/v1/auth/refresh")
     assert response.status_code == 200
     new_token_data = response.json()

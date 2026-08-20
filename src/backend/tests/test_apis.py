@@ -127,6 +127,7 @@ async def test_activity_crud(client: AsyncClient, auth_headers: dict[str, str]):
     )
     assert act_resp.status_code == 201
     act_id = act_resp.json()["id"]
+    assert act_id is not None
 
     # List activities
     list_acts = await client.get(f"/api/v1/activities?person_id={person_id}", headers=auth_headers)
@@ -208,4 +209,5 @@ async def test_ingestion_and_er_queue(client: AsyncClient, auth_headers: dict[st
     persons_resp = await client.get("/api/v1/persons?q=Eva", headers=auth_headers)
     assert len(persons_resp.json()["data"]) == 1
     eva_id = persons_resp.json()["data"][0]["id"]
+    assert eva_id is not None
     assert persons_resp.json()["data"][0]["primary_email"] == "eva@green.com"

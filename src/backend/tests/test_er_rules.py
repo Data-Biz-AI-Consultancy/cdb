@@ -1,4 +1,3 @@
-import pytest
 from cdb.models.person import Person
 from cdb.services.entity_resolution.rules import evaluate_person_match
 
