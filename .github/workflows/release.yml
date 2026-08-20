@@ -1,33 +1,81 @@
-name: Release — Promote to Production
+name: Release & Semantic Versioning
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       sha:
-        description: "Commit SHA to promote (leave blank for latest main)"
+        description: "Commit SHA to promote/tag (leave blank for latest main)"
         required: false
 
 jobs:
   release:
+    name: Semantic Release & Image Publishing
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
+      issues: write
+      pull-requests: write
       packages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Semantic Release plugins
+        run: |
+          npm install --no-save \
+            semantic-release@^24.0.0 \
+            @semantic-release/commit-analyzer \
+            @semantic-release/release-notes-generator \
+            @semantic-release/changelog \
+            @semantic-release/exec \
+            @semantic-release/git \
+            @semantic-release/github
+
+      - name: Run Semantic Release
+        id: semantic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx semantic-release
 
       - name: Log in to GitHub Container Registry
+        if: steps.semantic.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Retag staging to production
+      - name: Retag & Push Production Images
+        if: steps.semantic.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           SHA="${{ github.event.inputs.sha || github.sha }}"
+          VERSION="${{ steps.semantic.outputs.new_release_version }}"
+          
+          # Pull existing staging/SHA build
           docker pull ghcr.io/${{ github.repository }}:sha-${SHA}
-          docker tag  ghcr.io/${{ github.repository }}:sha-${SHA} \
-                      ghcr.io/${{ github.repository }}:production
+          
+          # Tag as production and latest
+          docker tag ghcr.io/${{ github.repository }}:sha-${SHA} ghcr.io/${{ github.repository }}:production
+          docker tag ghcr.io/${{ github.repository }}:sha-${SHA} ghcr.io/${{ github.repository }}:latest
+          
+          if [ -n "$VERSION" ]; then
+            docker tag ghcr.io/${{ github.repository }}:sha-${SHA} ghcr.io/${{ github.repository }}:v${VERSION}
+            docker tag ghcr.io/${{ github.repository }}:sha-${SHA} ghcr.io/${{ github.repository }}:${VERSION}
+            docker push ghcr.io/${{ github.repository }}:v${VERSION}
+            docker push ghcr.io/${{ github.repository }}:${VERSION}
+          fi
+          
           docker push ghcr.io/${{ github.repository }}:production
+          docker push ghcr.io/${{ github.repository }}:latest

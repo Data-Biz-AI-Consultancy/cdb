@@ -201,6 +201,21 @@ cdb/
 
 ---
 
+## 🏷️ Releases & Versioning
+
+This repository uses [Semantic Release](https://github.com/semantic-release/semantic-release) and [Conventional Commits](https://www.conventionalcommits.org/) for automated version management and changelog generation.
+
+### Commit Conventions
+All commit messages to `main` must follow conventional commit specifications:
+- `fix:` -> Triggers a **PATCH** release (e.g., `v0.1.1`)
+- `feat:` -> Triggers a **MINOR** release (e.g., `v0.2.0`)
+- `feat!:`, `fix!:`, or `BREAKING CHANGE:` -> Triggers a **MAJOR** release (e.g., `v1.0.0`)
+- `docs:`, `chore:`, `style:`, `refactor:`, `test:` -> No release triggered.
+
+Automated releases update `CHANGELOG.md`, update versions in `pyproject.toml` and `package.json`, create a GitHub Release with tags (e.g. `v1.0.0`), and publish tagged Docker images to GitHub Container Registry.
+
+---
+
 ## 📄 License
 
 Distributed under the **Apache 2.0** License. See [LICENSE](LICENSE) for details.
