@@ -97,7 +97,7 @@ pip install -e ".[dev]"
 ### 2. Database Migrations
 Ensure PostgreSQL and Redis are running (or start only DB/Redis via `docker compose up -d cdb-db cdb-redis`), then run:
 ```bash
-alembic upgrade head
+alembic -c src/db/alembic.ini upgrade head
 ```
 
 ### 3. Run FastAPI with Live Reload
@@ -130,8 +130,6 @@ cdb/
 │       ├── ci.yml                 # Staging CI build & tests on push to main
 │       └── release.yml            # Manual production release promotion workflow
 ├── src/
-│   ├── alembic/                   # Database migrations
-│   │   └── versions/
 │   ├── app/
 │   │   ├── api/                   # API routers and dependency injection
 │   │   │   ├── deps.py            # JWT and API Key dependencies
@@ -141,6 +139,10 @@ cdb/
 │   │   ├── schemas/               # Pydantic v2 schemas
 │   │   ├── services/              # Business logic (ER engine, Ingestion)
 │   │   └── workers/               # Celery worker configuration
+│   ├── db/
+│   │   ├── alembic/               # Database migrations
+│   │   │   └── versions/
+│   │   └── alembic.ini            # Alembic configuration
 │   ├── Dockerfile
 │   └── pyproject.toml
 ├── tests/                         # Pytest test suite
