@@ -1,4 +1,5 @@
 import uuid
+
 from fastapi import APIRouter, Cookie, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -90,8 +91,8 @@ async def refresh_token_endpoint(
 
     try:
         payload = decode_token(refresh_token)
-    except Exception:
-        raise UnauthorizedError("Invalid or expired refresh token")
+    except Exception as exc:
+        raise UnauthorizedError("Invalid or expired refresh token") from exc
 
     if payload.get("type") != "refresh":
         raise UnauthorizedError("Invalid token type")
@@ -99,10 +100,10 @@ async def refresh_token_endpoint(
     user_id_str = payload.get("sub")
     try:
         user_id = uuid.UUID(user_id_str)
-    except Exception:
-        raise UnauthorizedError("Invalid token subject")
+    except Exception as exc:
+        raise UnauthorizedError("Invalid token subject") from exc
 
-    stmt = select(User).where(User.id == user_id, User.is_active == True)
+    stmt = select(User).where(User.id == user_id, User.is_active.is_(True))
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 

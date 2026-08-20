@@ -1,9 +1,9 @@
 import datetime
 import uuid
-from typing import Optional
+
 from sqlalchemy import Boolean, Date, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from cdb.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
@@ -26,7 +26,7 @@ class PersonCompanyRelationship(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
         index=True,
     )
-    title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
-    started_at: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
-    ended_at: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    started_at: Mapped[datetime.date | None] = mapped_column(Date, nullable=True)
+    ended_at: Mapped[datetime.date | None] = mapped_column(Date, nullable=True)

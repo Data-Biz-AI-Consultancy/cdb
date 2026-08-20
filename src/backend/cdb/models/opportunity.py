@@ -1,7 +1,8 @@
 import datetime
 import uuid
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any
+
 from sqlalchemy import CheckConstraint, Date, ForeignKey, Numeric, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -13,7 +14,7 @@ class Opportunity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "opportunities"
 
     title: Mapped[str] = mapped_column(String(512), nullable=False)
-    owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -27,23 +28,23 @@ class Opportunity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         index=True,
     )  # 'prospect' | 'qualified' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost'
 
-    value: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2), nullable=True)
-    currency: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)  # ISO 4217 e.g. 'EUR', 'USD'
-    probability: Mapped[Optional[int]] = mapped_column(
+    value: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)  # ISO 4217 e.g. 'EUR', 'USD'
+    probability: Mapped[int | None] = mapped_column(
         SmallInteger,
         CheckConstraint("probability BETWEEN 0 AND 100", name="ck_opportunities_probability_range"),
         nullable=True,
     )
-    expected_close_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    expected_close_date: Mapped[datetime.date | None] = mapped_column(Date, nullable=True)
 
-    source_lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    source_lead_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("leads.id", ondelete="SET NULL"),
         nullable=True,
     )
 
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    attributes: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
 
 class OpportunityPerson(Base):
@@ -59,7 +60,7 @@ class OpportunityPerson(Base):
         ForeignKey("persons.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    role: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # 'decision_maker', 'champion', etc.
+    role: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 'decision_maker', 'champion', etc.
 
 
 class OpportunityCompany(Base):
@@ -75,4 +76,4 @@ class OpportunityCompany(Base):
         ForeignKey("companies.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    role: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # 'client', 'partner', 'vendor'
+    role: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 'client', 'partner', 'vendor'

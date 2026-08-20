@@ -1,6 +1,7 @@
 import datetime
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
+
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -12,16 +13,16 @@ class IntakeLinkedInConnection(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "intake_linkedin_connections"
 
     connection_id: Mapped[str] = mapped_column(String(512), unique=True, nullable=False, index=True)
-    first_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    last_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    profile_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
-    email_address: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    company: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    position: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    connected_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    raw_payload: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    first_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    profile_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    email_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    position: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    connected_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")  # 'pending' | 'resolved' | 'error'
-    resolved_person_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    resolved_person_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("persons.id", ondelete="SET NULL"),
         nullable=True,
@@ -37,12 +38,12 @@ class IntakeLinkedInMessage(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "intake_linkedin_messages"
 
     conversation_id: Mapped[str] = mapped_column(String(512), unique=True, nullable=False, index=True)
-    participant_names: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    participant_names: Mapped[str | None] = mapped_column(Text, nullable=True)
     message_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    raw_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    raw_payload: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    raw_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
-    resolved_person_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    resolved_person_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("persons.id", ondelete="SET NULL"),
         nullable=True,
@@ -58,14 +59,14 @@ class IntakeNotionMeetingNote(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "intake_notion_meeting_notes"
 
     page_id: Mapped[str] = mapped_column(String(512), unique=True, nullable=False, index=True)
-    database_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    title: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
-    meeting_date: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    attendees: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    database_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    meeting_date: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attendees: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     to_dos: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
-    url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    raw_payload: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     ingested_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
@@ -78,11 +79,11 @@ class IntakeManual(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "intake_manual"
 
     upload_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    source_label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    source_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False, default="person")  # 'person' | 'company'
-    raw_payload: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
-    resolved_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    resolved_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     ingested_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

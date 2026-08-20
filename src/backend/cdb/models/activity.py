@@ -1,7 +1,8 @@
 import datetime
 import uuid
-from typing import Any, Dict, Optional
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text
+from typing import Any
+
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,13 +18,13 @@ class Activity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ),
     )
 
-    person_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    person_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("persons.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    company_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("companies.id", ondelete="SET NULL"),
         nullable=True,
@@ -32,7 +33,7 @@ class Activity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     type: Mapped[str] = mapped_column(String(50), nullable=False, index=True) # 'meeting' | 'email' | 'linkedin_message' | 'whatsapp' | 'call' | 'note'
     source: Mapped[str] = mapped_column(String(100), nullable=False) # 'notion' | 'gmail' | 'linkedin' | 'whatsapp' | 'manual'
-    source_id: Mapped[Optional[str]] = mapped_column(String(512), unique=True, nullable=True, index=True)
+    source_id: Mapped[str | None] = mapped_column(String(512), unique=True, nullable=True, index=True)
 
     occurred_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
@@ -40,7 +41,7 @@ class Activity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
         index=True,
     )
-    title: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
-    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    raw_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    attributes: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    title: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
