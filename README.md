@@ -84,7 +84,7 @@ To prevent collisions when co-hosted with existing stacks (such as Jager on port
 
 ### 1. Environment Setup
 ```bash
-cd backend
+cd src
 
 # Create and activate Python 3.12 virtual environment
 python3.12 -m venv .venv
@@ -116,7 +116,7 @@ celery -A app.workers.celery_app worker --loglevel=info
 
 Run unit and integration test suites:
 ```bash
-cd backend
+cd src
 pytest -v
 ```
 
@@ -130,7 +130,7 @@ cdb/
 │   └── workflows/
 │       ├── ci.yml                 # Staging CI build & tests on push to main
 │       └── release.yml            # Manual production release promotion workflow
-├── backend/
+├── src/
 │   ├── alembic/                   # Database migrations
 │   │   └── versions/
 │   ├── app/
