@@ -18,23 +18,22 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "src/backend/pyproject.toml"
-
-      - name: Set up Python 3.12
-        run: uv python install 3.12
+          python-version: "3.12"
 
       - name: Install dependencies
+        working-directory: src/backend
         run: |
-          cd src/backend
-          uv pip install --system ".[dev]"
+          uv sync --extra dev
 
       - name: Run Ruff Linter
+        working-directory: src/backend
         run: |
-          cd src/backend
           uv run ruff check .
 
       - name: Run Pytest
+        working-directory: src/backend
         env:
-          PYTHONPATH: src/backend
+          PYTHONPATH: .
         run: |
           uv run pytest -v
 
