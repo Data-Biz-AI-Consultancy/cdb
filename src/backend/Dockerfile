@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python packages using uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
 RUN uv pip install --system --no-cache .
 
 # Copy application code
