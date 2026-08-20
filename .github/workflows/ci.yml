@@ -13,28 +13,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
-          cache: "pip"
+          enable-cache: true
+          cache-dependency-glob: "src/backend/pyproject.toml"
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
 
       - name: Install dependencies
         run: |
           cd src/backend
-          python -m pip install --upgrade pip
-          pip install .[dev]
+          uv pip install --system ".[dev]"
 
       - name: Run Ruff Linter
         run: |
           cd src/backend
-          ruff check .
+          uv run ruff check .
 
       - name: Run Pytest
         env:
           PYTHONPATH: src/backend
         run: |
-          pytest -v
+          uv run pytest -v
 
   build-staging:
     needs: test
