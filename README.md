@@ -59,6 +59,7 @@ docker compose up -d
 ```
 
 ### 3. Verify & Access
+- **Web UI / Frontend**: [http://localhost:3001](http://localhost:3001)
 - **API Base**: [http://localhost:8000](http://localhost:8000)
 - **Interactive OpenAPI Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Health Check**:
@@ -74,6 +75,7 @@ To prevent collisions when co-hosted with existing stacks (such as Jager on port
 
 | Service | Container Port | Host Port | Description |
 |---------|----------------|-----------|-------------|
+| `cdb-frontend` | `3000` | `3001` | Next.js Web UI |
 | `cdb-api` | `8000` | `8000` (or `8001`) | FastAPI Application Server |
 | `cdb-db` | `5432` | `5433` | PostgreSQL 16 Database |
 | `cdb-redis` | `6379` | `6380` | Redis 7 Task & Cache Broker |
