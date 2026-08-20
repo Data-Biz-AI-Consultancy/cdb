@@ -1,4 +1,3 @@
-import pytest
 
 from cdb.services.entity_resolution.normalise import (
     email_prefix,

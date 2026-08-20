@@ -1,7 +1,9 @@
+import json
+import sqlite3
 from collections.abc import AsyncGenerator
 
-from httpx import ASGITransport, AsyncClient
 import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.compiler import compiles
@@ -9,10 +11,6 @@ from sqlalchemy.ext.compiler import compiles
 from cdb.api.deps import get_db
 from cdb.main import app
 from cdb.models.base import Base
-
-
-import json
-import sqlite3
 
 sqlite3.register_adapter(list, json.dumps)
 

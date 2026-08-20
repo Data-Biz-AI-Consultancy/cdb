@@ -143,10 +143,18 @@ cdb/
 │   │   │   ├── alembic/
 │   │   │   │   └── versions/
 │   │   │   └── alembic.ini
+│   │   ├── tests/                 # Pytest test suite (backend)
 │   │   ├── Dockerfile
 │   │   └── pyproject.toml
-│   └── frontend/                  # Next.js 15 Frontend (Phase 2)
-├── tests/                         # Pytest test suite
+│   └── frontend/                  # Next.js 15 App Router Frontend
+│       ├── src/
+│       │   ├── app/               # Page routes (persons, companies, activities, etc.)
+│       │   ├── components/        # Shared navigation & layout UI components
+│       │   ├── lib/               # API client and auth token storage
+│       │   └── test/              # Vitest setup & DOM polyfills
+│       ├── Dockerfile
+│       ├── package.json
+│       └── vitest.config.ts
 ├── docs/                          # Architecture & design specifications
 ├── docker-compose.yml
 ├── .env.example
@@ -171,18 +179,21 @@ cdb/
 ---
 
 ## 🗺️ Roadmap
-
-- [x] **Phase 0 — Foundation & Architecture Skeleton** (Current PR)
+ 
+- [x] **Phase 0 — Foundation & Architecture Skeleton**
   - Async SQLAlchemy 2.0 schema for all 14 tables & initial Alembic migration
   - JWT Bearer auth (`/auth/*`) & Service API Key dependency (`X-API-Key`)
   - Standard error handling and pagination envelopes
   - Docker Compose multi-service dev environment & CI/CD workflows
-- [ ] **Phase 1 — Core Backend & Ingestion**
+- [x] **Phase 1 — Core Backend & Ingestion**
   - Full CRUD routes for Persons, Companies, Relationships, Activities, Leads, Opportunities
   - Rule-based Entity Resolution engine and Review Queue endpoints
   - Ingestion endpoints for LinkedIn, Notion, and CSV imports
-  - Data migration script from legacy Jager database
-- [ ] **Phase 2 — Frontend MVP** (Next.js 15 App Router)
+  - Test suites covering auth, CRUD, errors, and ER rules
+- [x] **Phase 2 — Barebones Functional Frontend MVP** (Next.js 15 App Router)
+  - Functional views for Persons, Companies, Activities, Leads, Opportunities
+  - Entity Resolution review queue resolution actions
+  - Data ingestion test portal
 - [ ] **Phase 3 — ML Entity Resolution & Enriched Channels** (Gmail, Calendar)
 - [ ] **Phase 4 — Segments, Advanced Integrations & RBAC**
 
