@@ -1,13 +1,13 @@
 services:
   cdb-api:
     build:
-      context: ./src
+      context: ./src/backend
       dockerfile: Dockerfile
     container_name: cdb-api
     restart: unless-stopped
     command: uvicorn cdb.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
-      - ./src:/app
+      - ./src/backend:/app
     ports:
       - "8000:8000"
     environment:
@@ -30,13 +30,13 @@ services:
 
   cdb-worker:
     build:
-      context: ./src
+      context: ./src/backend
       dockerfile: Dockerfile
     container_name: cdb-worker
     restart: unless-stopped
     command: celery -A cdb.workers.celery_app worker --loglevel=info
     volumes:
-      - ./src:/app
+      - ./src/backend:/app
     environment:
       - ENVIRONMENT=development
       - DATABASE_URL=postgresql+asyncpg://cdb:cdb@cdb-db:5432/cdb

@@ -84,7 +84,7 @@ To prevent collisions when co-hosted with existing stacks (such as Jager on port
 
 ### 1. Environment Setup
 ```bash
-cd src
+cd src/backend
 
 # Create and activate Python 3.12 virtual environment
 python3.12 -m venv .venv
@@ -97,7 +97,7 @@ pip install -e ".[dev]"
 ### 2. Database Migrations
 Ensure PostgreSQL and Redis are running (or start only DB/Redis via `docker compose up -d cdb-db cdb-redis`), then run:
 ```bash
-alembic -c src/db/alembic.ini upgrade head
+alembic -c src/backend/db/alembic.ini upgrade head
 ```
 
 ### 3. Run FastAPI with Live Reload
@@ -130,21 +130,23 @@ cdb/
 │       ├── ci.yml                 # Staging CI build & tests on push to main
 │       └── release.yml            # Manual production release promotion workflow
 ├── src/
-│   ├── cdb/                       # Core Python Backend Package
-│   │   ├── api/                   # API routers and dependency injection
-│   │   │   ├── deps.py            # JWT and API Key dependencies
-│   │   │   └── v1/                # Versioned endpoints
-│   │   ├── core/                  # Security, config, error handling, DB session
-│   │   ├── models/                # SQLAlchemy 2.x async ORM models
-│   │   ├── schemas/               # Pydantic v2 schemas
-│   │   ├── services/              # Business logic (ER engine, Ingestion)
-│   │   └── workers/               # Celery worker configuration
-│   ├── db/
-│   │   ├── alembic/               # Database migrations
-│   │   │   └── versions/
-│   │   └── alembic.ini            # Alembic configuration
-│   ├── Dockerfile
-│   └── pyproject.toml
+│   ├── backend/                   # Python FastAPI Backend
+│   │   ├── cdb/                   # Core application package
+│   │   │   ├── api/               # API routers and dependencies
+│   │   │   │   ├── deps.py        # JWT and API Key dependencies
+│   │   │   │   └── v1/            # Versioned endpoints
+│   │   │   ├── core/              # Security, config, error handling, DB session
+│   │   │   ├── models/            # SQLAlchemy 2.x async ORM models
+│   │   │   ├── schemas/           # Pydantic v2 schemas
+│   │   │   ├── services/          # Business logic (ER engine, Ingestion)
+│   │   │   └── workers/           # Celery worker configuration
+│   │   ├── db/                    # Database migrations
+│   │   │   ├── alembic/
+│   │   │   │   └── versions/
+│   │   │   └── alembic.ini
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   └── frontend/                  # Next.js 15 Frontend (Phase 2)
 ├── tests/                         # Pytest test suite
 ├── docs/                          # Architecture & design specifications
 ├── docker-compose.yml

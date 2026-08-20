@@ -40,8 +40,8 @@ packages = ["cdb"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["../tests", "tests"]
-pythonpath = ["src", "."]
+testpaths = ["../../tests", "tests"]
+pythonpath = ["src/backend", "."]
 python_files = ["test_*.py"]
 
 [tool.ruff]

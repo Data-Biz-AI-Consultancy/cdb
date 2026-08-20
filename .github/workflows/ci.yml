@@ -21,13 +21,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd src
+          cd src/backend
           python -m pip install --upgrade pip
           pip install .[dev]
 
       - name: Run Ruff Linter
         run: |
-          cd src
+          cd src/backend
           ruff check .
 
       - name: Run Pytest
@@ -58,8 +58,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./src
-          file: ./src/Dockerfile
+          context: ./src/backend
+          file: ./src/backend/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:staging
