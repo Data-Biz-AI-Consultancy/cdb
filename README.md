@@ -86,12 +86,10 @@ To prevent collisions when co-hosted with existing stacks (such as Jager on port
 ```bash
 cd src/backend
 
-# Create and activate Python 3.12 virtual environment
-python3.12 -m venv .venv
+# Create virtual environment and install dependencies with development tools
+uv venv
 source .venv/bin/activate
-
-# Install dependencies in editable mode with development tools
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
 ### 2. Database Migrations
