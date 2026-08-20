@@ -32,7 +32,6 @@ jobs:
 
       - name: Run Pytest
         run: |
-          cd src
           pytest -v
 
   build-staging:

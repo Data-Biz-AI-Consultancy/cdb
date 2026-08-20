@@ -116,7 +116,6 @@ celery -A app.workers.celery_app worker --loglevel=info
 
 Run unit and integration test suites:
 ```bash
-cd src
 pytest -v
 ```
 
@@ -142,9 +141,9 @@ cdb/
 │   │   ├── schemas/               # Pydantic v2 schemas
 │   │   ├── services/              # Business logic (ER engine, Ingestion)
 │   │   └── workers/               # Celery worker configuration
-│   ├── tests/                     # Pytest suite
 │   ├── Dockerfile
 │   └── pyproject.toml
+├── tests/                         # Pytest test suite
 ├── docs/                          # Architecture & design specifications
 ├── docker-compose.yml
 ├── .env.example
