@@ -6,7 +6,7 @@ from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, St
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, UUIDPrimaryKeyMixin, utc_now
+from cdb.models.base import Base, UUIDPrimaryKeyMixin, utc_now
 
 
 class ERCandidatePair(Base, UUIDPrimaryKeyMixin):

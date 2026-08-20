@@ -1,18 +1,18 @@
-from app.models.base import Base
-from app.models.user import User
-from app.models.person import Person
-from app.models.company import Company
-from app.models.relationship import PersonCompanyRelationship
-from app.models.activity import Activity
-from app.models.lead import Lead
-from app.models.opportunity import Opportunity, OpportunityPerson, OpportunityCompany
-from app.models.intake import (
+from cdb.models.base import Base
+from cdb.models.user import User
+from cdb.models.person import Person
+from cdb.models.company import Company
+from cdb.models.relationship import PersonCompanyRelationship
+from cdb.models.activity import Activity
+from cdb.models.lead import Lead
+from cdb.models.opportunity import Opportunity, OpportunityPerson, OpportunityCompany
+from cdb.models.intake import (
     IntakeLinkedInConnection,
     IntakeLinkedInMessage,
     IntakeNotionMeetingNote,
     IntakeManual,
 )
-from app.models.er import ERCandidatePair
+from cdb.models.er import ERCandidatePair
 
 __all__ = [
     "Base",

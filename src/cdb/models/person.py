@@ -4,7 +4,7 @@ from sqlalchemy import DateTime, Index, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from cdb.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class Person(Base, UUIDPrimaryKeyMixin, TimestampMixin):

@@ -3,18 +3,18 @@ from fastapi import APIRouter, Cookie, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_db
-from app.core.config import settings
-from app.core.errors import ConflictError, UnauthorizedError
-from app.core.security import (
+from cdb.api.deps import get_current_user, get_db
+from cdb.core.config import settings
+from cdb.core.errors import ConflictError, UnauthorizedError
+from cdb.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
     get_password_hash,
     verify_password,
 )
-from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse, UserCreate, UserResponse
+from cdb.models.user import User
+from cdb.schemas.auth import LoginRequest, TokenResponse, UserCreate, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

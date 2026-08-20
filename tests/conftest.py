@@ -5,10 +5,10 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.api.deps import get_db
-from app.core.config import settings
-from app.main import app
-from app.models.base import Base
+from cdb.api.deps import get_db
+from cdb.core.config import settings
+from cdb.main import app
+from cdb.models.base import Base
 
 # Use an in-memory SQLite database for fast unit & endpoint testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"

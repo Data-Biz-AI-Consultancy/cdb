@@ -1,6 +1,6 @@
 from celery import Celery
 
-from app.core.config import settings
+from cdb.core.config import settings
 
 celery_app = Celery(
     "cdb_worker",

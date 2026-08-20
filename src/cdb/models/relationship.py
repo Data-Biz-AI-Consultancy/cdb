@@ -5,7 +5,7 @@ from sqlalchemy import Boolean, Date, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from cdb.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class PersonCompanyRelationship(Base, UUIDPrimaryKeyMixin, TimestampMixin):

@@ -2,10 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1.health import router as root_health_router
-from app.api.v1.router import api_v1_router
-from app.core.config import settings
-from app.core.errors import register_error_handlers
+from cdb.api.v1.health import router as root_health_router
+from cdb.api.v1.router import api_v1_router
+from cdb.core.config import settings
+from cdb.core.errors import register_error_handlers
 
 
 @asynccontextmanager

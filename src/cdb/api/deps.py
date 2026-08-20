@@ -5,11 +5,11 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.database import get_db
-from app.core.errors import ForbiddenError, UnauthorizedError
-from app.core.security import decode_token
-from app.models.user import User
+from cdb.core.config import settings
+from cdb.core.database import get_db
+from cdb.core.errors import ForbiddenError, UnauthorizedError
+from cdb.core.security import decode_token
+from cdb.models.user import User
 
 security_scheme = HTTPBearer(auto_error=False)
 

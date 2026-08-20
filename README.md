@@ -102,12 +102,12 @@ alembic -c src/db/alembic.ini upgrade head
 
 ### 3. Run FastAPI with Live Reload
 ```bash
-uvicorn app.main:app --reload --port 8000
+uvicorn cdb.main:app --reload --port 8000
 ```
 
 ### 4. Run Celery Worker
 ```bash
-celery -A app.workers.celery_app worker --loglevel=info
+celery -A cdb.workers.celery_app worker --loglevel=info
 ```
 
 ---
@@ -130,7 +130,7 @@ cdb/
 │       ├── ci.yml                 # Staging CI build & tests on push to main
 │       └── release.yml            # Manual production release promotion workflow
 ├── src/
-│   ├── app/
+│   ├── cdb/                       # Core Python Backend Package
 │   │   ├── api/                   # API routers and dependency injection
 │   │   │   ├── deps.py            # JWT and API Key dependencies
 │   │   │   └── v1/                # Versioned endpoints
