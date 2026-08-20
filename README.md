@@ -5,14 +5,15 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1.svg?logo=postgresql&logoColor=white)](https://postgresql.org)
 
-**CDB (Client DataBase)** is an open-source, self-hosted personal CRM and Customer Data Platform (CDP) designed to give professionals a single, unified view of everyone they know — across all channels and tools.
+**CDB (Client DataBase)** is an open-source, AI & ML-native, self-hosted personal CRM and Customer Data Platform (CDP) designed to give professionals a single, unified view of everyone they know — across all channels and tools.
 
 ---
 
 ## 🌟 Key Capabilities
 
+- **AI & ML Native**: Built from the ground up for intelligent automation — featuring ML-driven probabilistic entity resolution, smart deduplication, automated intent detection, and continuous learning from user reviews.
 - **Unified Identity**: Merges disparate person profiles across LinkedIn, Notion meeting notes, emails, and spreadsheets into a single golden record.
-- **Hybrid Entity Resolution**: Deterministic rule-based matching with interactive candidate review queues (and Phase 3 ML scoring).
+- **Hybrid Entity Resolution**: Deterministic rule-based matching with interactive candidate review queues and probabilistic ML scoring.
 - **First-Class Peer Entities**: Persons and Companies are peers linked by rich relationship histories (`person_company_relationships`).
 - **Interaction & Deal Tracking**: Chronological activity logs (meetings, messages, calls) and an opportunity pipeline with stage tracking.
 - **Zero Lock-In & Self-Hostable**: 1-command setup with Docker Compose. Your data stays entirely in your own PostgreSQL instance.

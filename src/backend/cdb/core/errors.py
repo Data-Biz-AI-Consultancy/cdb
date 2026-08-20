@@ -70,6 +70,10 @@ class ValidationError(APIError):
         )
 
 
+class BadRequestError(ValidationError):
+    pass
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
