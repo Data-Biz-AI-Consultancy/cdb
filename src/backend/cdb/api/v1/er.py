@@ -10,7 +10,7 @@ from cdb.schemas.common import PaginatedResponse
 from cdb.schemas.er import ERCandidatePairResponse, ERJobResponse, ERMergeResult
 from cdb.services.entity_resolution import service as er_service
 
-router = APIRouter(prefix="/entity-resolution", tags=["Entity Resolution"])
+router = APIRouter(tags=["Entity Resolution"])
 
 
 @router.get("/queue", response_model=PaginatedResponse[ERCandidatePairResponse])

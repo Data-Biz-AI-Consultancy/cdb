@@ -6,7 +6,7 @@ import { apiFetch, setAuthToken } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('admin@cdb.local');
+  const [email, setEmail] = useState('admin@cdb.internal');
   const [password, setPassword] = useState('admin123456');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await apiFetch<{ access_token: string }>('/api/v1/auth/token', {
+      const res = await apiFetch<{ access_token: string }>('/api/v1/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });

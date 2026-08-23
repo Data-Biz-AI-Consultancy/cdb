@@ -27,13 +27,18 @@ export default function HomePage() {
           apiFetch<ApiResponse<any[]>>('/api/v1/er/queue?page_size=1'),
         ]);
 
+        const getTotal = (res: PromiseSettledResult<any>) => {
+          if (res.status !== 'fulfilled' || !res.value) return 0;
+          return res.value.pagination?.total ?? res.value.meta?.total ?? 0;
+        };
+
         setStats({
-          persons: p.status === 'fulfilled' ? p.value.meta?.total || 0 : 0,
-          companies: c.status === 'fulfilled' ? c.value.meta?.total || 0 : 0,
-          activities: a.status === 'fulfilled' ? a.value.meta?.total || 0 : 0,
-          leads: l.status === 'fulfilled' ? l.value.meta?.total || 0 : 0,
-          opportunities: o.status === 'fulfilled' ? o.value.meta?.total || 0 : 0,
-          erQueue: er.status === 'fulfilled' ? er.value.meta?.total || 0 : 0,
+          persons: getTotal(p),
+          companies: getTotal(c),
+          activities: getTotal(a),
+          leads: getTotal(l),
+          opportunities: getTotal(o),
+          erQueue: getTotal(er),
         });
       } catch (err) {
         console.error('Failed loading stats:', err);
