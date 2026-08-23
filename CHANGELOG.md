@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.0...v1.1.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* **ci:** un-ignore frontend src/lib from gitignore and track api.ts ([0f481d7](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/0f481d7a780ee5b6941c8c278b68af4a3261ccb5))
+
 # 0.1.0 (2026-08-20)
 
 
