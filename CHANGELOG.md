@@ -1,3 +1,10 @@
+## [1.1.5](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.4...v1.1.5) (2026-08-23)
+
+
+### Bug Fixes
+
+* **ci:** restore native multi-arch builds using ubuntu-24.04-arm runners ([b0f6d6a](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/b0f6d6ab6ba0dd140a9c2d3e490df66ee1442b28))
+
 ## [1.1.4](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.3...v1.1.4) (2026-08-23)
 
 
