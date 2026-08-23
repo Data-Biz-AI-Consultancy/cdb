@@ -15,6 +15,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+# Un-ignore frontend source lib (caught by the Python lib/ rule above)
+!src/frontend/src/lib/
 parts/
 sdist/
 var/
