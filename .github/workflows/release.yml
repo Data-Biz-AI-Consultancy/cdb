@@ -11,18 +11,14 @@ on:
         required: false
 
 jobs:
-  # ─── Step 1: Semantic Release (runs once, on amd64) ──────────────────────────
   release:
-    name: Semantic Release
+    name: Semantic Release & Image Publishing
     runs-on: ubuntu-latest
     permissions:
       contents: write
       issues: write
       pull-requests: write
       packages: write
-    outputs:
-      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -53,135 +49,65 @@ jobs:
         run: |
           npx semantic-release
 
-  # ─── Step 2: Build native images on each arch, push by digest ────────────────
-  build:
-    name: Build ${{ matrix.service }} (${{ matrix.platform }})
-    needs: release
-    if: needs.release.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: backend
-            context: ./src/backend
-            dockerfile: ./src/backend/Dockerfile
-            platform: linux/amd64
-            runner: ubuntu-latest
-          - service: backend
-            context: ./src/backend
-            dockerfile: ./src/backend/Dockerfile
-            platform: linux/arm64
-            runner: ubuntu-24.04-arm
-          - service: frontend
-            context: ./src/frontend
-            dockerfile: ./src/frontend/Dockerfile
-            platform: linux/amd64
-            runner: ubuntu-latest
-          - service: frontend
-            context: ./src/frontend
-            dockerfile: ./src/frontend/Dockerfile
-            platform: linux/arm64
-            runner: ubuntu-24.04-arm
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set lower case image name
+      - name: Set lower case repository name
         id: repo
         run: |
-          echo "IMAGE=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-${{ matrix.service }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_PREFIX=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
+        if: steps.semantic.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
+        if: steps.semantic.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push by digest
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platform }}
-          push: true
-          outputs: type=image,name=${{ steps.repo.outputs.IMAGE }},push-by-digest=true,name-canonical=true
-
-      - name: Export digest
-        run: |
-          mkdir -p /tmp/digests/${{ matrix.service }}
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${{ matrix.service }}/${digest#sha256:}"
-
-      - name: Upload digest artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: digest-${{ matrix.service }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-          path: /tmp/digests/${{ matrix.service }}/*
-          if-no-files-found: error
-          retention-days: 1
-
-  # ─── Step 3: Merge digests into a multi-arch manifest ────────────────────────
-  merge:
-    name: Merge ${{ matrix.service }} manifests
-    needs: [release, build]
-    if: needs.release.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      matrix:
-        service: [backend, frontend]
-    steps:
-      - name: Download digests
-        uses: actions/download-artifact@v4
-        with:
-          path: /tmp/digests/${{ matrix.service }}
-          pattern: digest-${{ matrix.service }}-*
-          merge-multiple: true
-
-      - name: Set lower case image name
-        id: repo
-        run: |
-          echo "IMAGE=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-${{ matrix.service }}" >> $GITHUB_OUTPUT
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract Docker metadata
-        id: meta
+      - name: Extract Docker metadata for Backend
+        if: steps.semantic.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
+        id: meta_backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.repo.outputs.IMAGE }}
+          images: ${{ steps.repo.outputs.IMAGE_PREFIX }}-backend
           tags: |
             type=raw,value=latest
             type=raw,value=production
-            type=raw,value=v${{ needs.release.outputs.new_release_version }},enable=${{ needs.release.outputs.new_release_published == 'true' }}
-            type=raw,value=${{ needs.release.outputs.new_release_version }},enable=${{ needs.release.outputs.new_release_published == 'true' }}
+            type=raw,value=v${{ steps.semantic.outputs.new_release_version }},enable=${{ steps.semantic.outputs.new_release_published == 'true' }}
+            type=raw,value=${{ steps.semantic.outputs.new_release_version }},enable=${{ steps.semantic.outputs.new_release_published == 'true' }}
 
-      - name: Create and push multi-arch manifest
-        working-directory: /tmp/digests/${{ matrix.service }}
-        run: |
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ steps.repo.outputs.IMAGE }}@sha256:%s ' *)
+      - name: Extract Docker metadata for Frontend
+        if: steps.semantic.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
+        id: meta_frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.repo.outputs.IMAGE_PREFIX }}-frontend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=production
+            type=raw,value=v${{ steps.semantic.outputs.new_release_version }},enable=${{ steps.semantic.outputs.new_release_published == 'true' }}
+            type=raw,value=${{ steps.semantic.outputs.new_release_version }},enable=${{ steps.semantic.outputs.new_release_published == 'true' }}
 
-      - name: Inspect final manifest
-        run: |
-          docker buildx imagetools inspect ${{ steps.repo.outputs.IMAGE }}:production
+      - name: Build and push Backend Image
+        if: steps.semantic.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/backend
+          file: ./src/backend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta_backend.outputs.tags }}
+          labels: ${{ steps.meta_backend.outputs.labels }}
+
+      - name: Build and push Frontend Image
+        if: steps.semantic.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/frontend
+          file: ./src/frontend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta_frontend.outputs.tags }}
+          labels: ${{ steps.meta_frontend.outputs.labels }}
