@@ -1,3 +1,19 @@
+# [1.1.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.0.0...v1.1.0) (2026-08-23)
+
+
+### Bug Fixes
+
+* **api:** add GET /companies/{id}/persons endpoint and support /er route alias ([acc4ab7](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/acc4ab744683ce68c8c9cfce9c1b7689a43ef5eb))
+* **backend:** fix alembic config path and update default admin domain to internal ([8468172](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/846817237e4e3eacc0822063630cf55a35a8312c))
+* **frontend:** extract counts from pagination.total across dashboard and lists ([d3f4fc9](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/d3f4fc9f890a9467bf8c0f918b2cc3f773e15c96))
+* **frontend:** point login form to correct /api/v1/auth/login endpoint ([735e526](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/735e5268c9db1a16f75c3ce1ea44711a9fc0f1de))
+* **migration:** support variable lead timestamps and add fallback linking for activities ([bedce64](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/bedce64bf67b4fe62c5e35976e1579d1dc545da4))
+
+
+### Features
+
+* add Jager cdp to CDB data migration script and test suite ([971cc06](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/971cc06fdccd66b77c09ee8680df67aaf4a38905))
+
 # 1.0.0 (2026-08-20)
 
 
