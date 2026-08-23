@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.1...v1.1.2) (2026-08-23)
+
+
+### Bug Fixes
+
+* **ci:** add .gitkeep to track empty public/ dir so Docker COPY succeeds ([f0a7105](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/f0a7105298452c10141f3e06ed898e7cbcdb2335))
+
 ## [1.1.1](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.0...v1.1.1) (2026-08-23)
 
 
