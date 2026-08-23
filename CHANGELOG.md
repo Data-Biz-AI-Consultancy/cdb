@@ -1,3 +1,10 @@
+## [1.1.4](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.3...v1.1.4) (2026-08-23)
+
+
+### Bug Fixes
+
+* **ci:** use native ARM64 runners for multi-arch builds instead of QEMU ([4fcf379](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/4fcf379a69367de65c294df1df13e53d23e22fd3))
+
 ## [1.1.3](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.2...v1.1.3) (2026-08-23)
 
 
