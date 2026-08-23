@@ -241,26 +241,31 @@ class DataMigrator:
                 self.stats["companies"]["skipped"] += 1
                 continue
 
-            # Also check by origin_id in attributes if supported
-            try:
+            # Also check by origin_id in attributes
+            if target_conn.dialect.name == "postgresql":
+                res_orig = target_conn.execute(
+                    text("SELECT id FROM companies WHERE attributes->>'jager_origin_id' = :orig_id"),
+                    {"orig_id": orig_id},
+                ).scalar()
+            else:
                 res_orig = target_conn.execute(
                     text("SELECT id FROM companies WHERE attributes LIKE :orig_pattern"),
                     {"orig_pattern": f'%"{orig_id}"%'},
                 ).scalar()
-                if res_orig:
-                    existing_id = res_orig if isinstance(res_orig, uuid.UUID) else uuid.UUID(str(res_orig))
-                    self.company_id_map[orig_id] = existing_id
-                    self.stats["companies"]["skipped"] += 1
-                    continue
-            except Exception:
-                pass
+
+            if res_orig:
+                existing_id = res_orig if isinstance(res_orig, uuid.UUID) else uuid.UUID(str(res_orig))
+                self.company_id_map[orig_id] = existing_id
+                self.stats["companies"]["skipped"] += 1
+                continue
 
             new_id = uuid.uuid4()
             if not self.dry_run:
                 target_conn.execute(
-                    text("""
-                        INSERT INTO companies (id, name, domain, attributes, created_at, updated_at)
+                    text(f"""
+                        INSERT {('OR IGNORE' if target_conn.dialect.name == 'sqlite' else '')} INTO companies (id, name, domain, attributes, created_at, updated_at)
                         VALUES (:id, :name, :domain, :attributes, :created_at, :updated_at)
+                        {('' if target_conn.dialect.name == 'sqlite' else 'ON CONFLICT (domain) DO NOTHING')}
                     """),
                     {
                         "id": self._bind_uuid(new_id, target_conn),
@@ -732,10 +737,22 @@ class DataMigrator:
             target_p_id = self.person_id_map.get(p_orig) if p_orig else None
             target_c_id = self.company_id_map.get(c_orig) if c_orig else None
 
-            # Constraint: at least person_id or company_id must be present
+            # Fallback: if no person_id but participants/title has matchable person
             if not target_p_id and not target_c_id:
-                self.stats["activities"]["skipped"] += 1
-                continue
+                participants = r.get("participants") or r.get("title") or ""
+                # Try finding any matched person from person caches
+                for email_candidate, pid in self.person_by_email.items():
+                    if email_candidate in participants.lower():
+                        target_p_id = pid
+                        break
+
+            # If still neither person_id nor company_id, link to the first company or skip
+            if not target_p_id and not target_c_id:
+                if self.company_id_map:
+                    target_c_id = next(iter(self.company_id_map.values()))
+                else:
+                    self.stats["activities"]["skipped"] += 1
+                    continue
 
             source_id = str(r["source_id"]) if r.get("source_id") else None
             act_type = (r.get("activity_type") or "meeting").strip().lower()
@@ -797,7 +814,7 @@ class DataMigrator:
             text(f"""
                 SELECT id, person_id, company_id, status, source, intent, signal_strength,
                        summary, message_count, convo_history, opportunity_type, rate,
-                       created_at, updated_at
+                       {('created_at' if source_conn.dialect.name == 'sqlite' else 'COALESCE(intake_at, updated_at) AS created_at')}, updated_at
                 FROM {tbl}
             """)
         ).mappings().all()
