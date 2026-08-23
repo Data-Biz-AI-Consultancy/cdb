@@ -1,3 +1,10 @@
+## [1.1.3](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.2...v1.1.3) (2026-08-23)
+
+
+### Bug Fixes
+
+* **ci:** enable multi-arch builds for linux/amd64 and linux/arm64 ([68276c2](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/68276c238dc7666813a9328bac267a8240bb32f8))
+
 ## [1.1.2](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.1...v1.1.2) (2026-08-23)
 
 
