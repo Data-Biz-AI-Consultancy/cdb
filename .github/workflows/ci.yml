@@ -58,12 +58,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push Backend staging image
         uses: docker/build-push-action@v5
         with:
           context: ./src/backend
           file: ./src/backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:staging
-            ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+            ghcr.io/${{ github.repository }}-backend:staging
+            ghcr.io/${{ github.repository }}-backend:sha-${{ github.sha }}
+
+      - name: Build and push Frontend staging image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/frontend
+          file: ./src/frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-frontend:staging
+            ghcr.io/${{ github.repository }}-frontend:sha-${{ github.sha }}

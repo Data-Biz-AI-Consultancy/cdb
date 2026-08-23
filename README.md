@@ -212,7 +212,9 @@ All commit messages to `main` must follow conventional commit specifications:
 - `feat!:`, `fix!:`, or `BREAKING CHANGE:` -> Triggers a **MAJOR** release (e.g., `v1.0.0`)
 - `docs:`, `chore:`, `style:`, `refactor:`, `test:` -> No release triggered.
 
-Automated releases update `CHANGELOG.md`, update versions in `pyproject.toml` and `package.json`, create a GitHub Release with tags (e.g. `v1.0.0`), and publish tagged Docker images to GitHub Container Registry.
+Automated releases update `CHANGELOG.md`, update versions in `pyproject.toml` and `package.json`, create a GitHub Release with tags (e.g. `v0.1.0`), and publish versioned Docker images to GitHub Container Registry (GHCR):
+- Backend: `ghcr.io/<org>/cdb-backend:v<version>`, `ghcr.io/<org>/cdb-backend:latest`, `ghcr.io/<org>/cdb-backend:production`
+- Frontend: `ghcr.io/<org>/cdb-frontend:v<version>`, `ghcr.io/<org>/cdb-frontend:latest`, `ghcr.io/<org>/cdb-frontend:production`
 
 ---
 
