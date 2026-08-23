@@ -14,7 +14,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "sed -i 's/^version = \".*\"/version = \"${nextRelease.version}\"/' src/backend/pyproject.toml && sed -i 's/\"version\": \".*\"/\"version\": \"${nextRelease.version}\"/' src/frontend/package.json"
+        "prepareCmd": "node -e \"const fs=require('fs'); let p=fs.readFileSync('src/backend/pyproject.toml','utf8'); p=p.replace(/^version = \\\".*\\\"/m, 'version = \\\"${nextRelease.version}\\\"'); fs.writeFileSync('src/backend/pyproject.toml', p); let pkg=JSON.parse(fs.readFileSync('src/frontend/package.json','utf8')); pkg.version='${nextRelease.version}'; fs.writeFileSync('src/frontend/package.json', JSON.stringify(pkg, null, 2) + '\\n');\""
       }
     ],
     [
