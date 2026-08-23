@@ -195,17 +195,8 @@ async def ingest_linkedin_messages(
         db.add(intake)
         await db.flush()
 
-        # Log as Activity
-        act = Activity(
-            type="linkedin_message",
-            source="linkedin",
-            source_id=f"li_msg:{rec.conversation_id}",
-            occurred_at=datetime.datetime.now(datetime.UTC),
-            title=f"LinkedIn Conversation ({rec.message_count} messages)",
-            summary=rec.participant_names,
-            raw_content=rec.raw_content,
-        )
-        # Attempt to link if participant matches an existing person
+        # Log as Activity if person resolved (satisfying ck_activities_person_or_company_required)
+        person_id = None
         if rec.participant_names:
             first_name_match = rec.participant_names.split(",")[0].strip()
             p = (
@@ -216,11 +207,23 @@ async def ingest_linkedin_messages(
                 )
             ).scalars().first()
             if p:
-                act.person_id = p.id
+                person_id = p.id
                 intake.resolved_person_id = p.id
 
-        db.add(act)
-        intake.status = "resolved"
+        if person_id:
+            act = Activity(
+                person_id=person_id,
+                type="linkedin_message",
+                source="linkedin",
+                source_id=f"li_msg:{rec.conversation_id}",
+                occurred_at=datetime.datetime.now(datetime.UTC),
+                title=f"LinkedIn Conversation ({rec.message_count} messages)",
+                summary=rec.participant_names,
+                raw_content=rec.raw_content,
+            )
+            db.add(act)
+
+        intake.status = "resolved" if person_id else "pending"
         queued += 1
 
     await db.commit()
@@ -261,18 +264,7 @@ async def ingest_notion_meeting_notes(
         db.add(intake)
         await db.flush()
 
-        # Create Activity for meeting note
-        act = Activity(
-            type="meeting",
-            source="notion",
-            source_id=f"notion:{rec.page_id}",
-            occurred_at=rec.meeting_date or datetime.datetime.now(datetime.UTC),
-            title=rec.title or "Notion Meeting",
-            summary=rec.summary,
-            raw_content=str(rec.to_dos),
-            attributes={"url": rec.url, "attendees": rec.attendees},
-        )
-
+        person_id = None
         if rec.attendees:
             first_attendee = rec.attendees.split(",")[0].strip()
             p = (
@@ -283,11 +275,26 @@ async def ingest_notion_meeting_notes(
                 )
             ).scalars().first()
             if p:
-                act.person_id = p.id
+                person_id = p.id
 
-        db.add(act)
-        intake.status = "resolved"
+        # Only create Activity if person_id or company_id is present
+        if person_id:
+            act = Activity(
+                person_id=person_id,
+                type="meeting",
+                source="notion",
+                source_id=f"notion:{rec.page_id}",
+                occurred_at=rec.meeting_date or datetime.datetime.now(datetime.UTC),
+                title=rec.title or "Notion Meeting",
+                summary=rec.summary,
+                raw_content=str(rec.to_dos),
+                attributes={"url": rec.url, "attendees": rec.attendees},
+            )
+            db.add(act)
+
+        intake.status = "resolved" if person_id else "pending"
         queued += 1
 
     await db.commit()
     return IngestResponse(queued=queued, duplicates_skipped=duplicates_skipped)
+
