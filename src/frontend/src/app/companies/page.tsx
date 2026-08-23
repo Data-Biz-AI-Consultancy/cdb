@@ -29,7 +29,7 @@ export default function CompaniesPage() {
       const qParam = search ? `&q=${encodeURIComponent(search)}` : '';
       const res = await apiFetch<ApiResponse<any[]>>(`/api/v1/companies?page=${page}&page_size=20${qParam}`);
       setCompanies(res.data || []);
-      setTotal(res.meta?.total || 0);
+      setTotal(res.pagination?.total ?? res.meta?.total ?? 0);
     } catch (err: any) {
       setError(err.message || 'Failed to load companies');
     } finally {

@@ -30,7 +30,7 @@ export default function PersonsPage() {
       const qParam = search ? `&q=${encodeURIComponent(search)}` : '';
       const res = await apiFetch<ApiResponse<any[]>>(`/api/v1/persons?page=${page}&page_size=20${qParam}`);
       setPersons(res.data || []);
-      setTotal(res.meta?.total || 0);
+      setTotal(res.pagination?.total ?? res.meta?.total ?? 0);
     } catch (err: any) {
       setError(err.message || 'Failed to load persons');
     } finally {
