@@ -1,10 +1,12 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.api.deps import get_current_user, require_admin
 from cdb.core.database import get_db
+from cdb.models.relationship import PersonCompanyRelationship
 from cdb.models.user import User
 from cdb.schemas.common import PaginatedResponse
 from cdb.schemas.company import (
@@ -65,6 +67,21 @@ async def get_company(
     current_user: User = Depends(get_current_user),
 ):
     return await company_service.get_company_detail(db, company_id)
+
+
+@router.get("/{company_id}/persons")
+async def get_company_persons(
+    company_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = (
+        select(PersonCompanyRelationship)
+        .where(PersonCompanyRelationship.company_id == company_id)
+        .order_by(PersonCompanyRelationship.created_at.desc())
+    )
+    rels = (await db.execute(stmt)).scalars().all()
+    return {"data": [RelationshipResponse.model_validate(r) for r in rels]}
 
 
 @router.patch("/{company_id}", response_model=CompanyDetailResponse)
