@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.5...v1.2.0) (2026-08-24)
+
+
+### Features
+
+* implement automatic PostgreSQL database creation on application startup and migration execution ([8650a61](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/8650a617078b50475d07358f7fb5c59f545639bc))
+
 ## [1.1.5](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.4...v1.1.5) (2026-08-23)
 
 
