@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.6.1...v1.7.0) (2026-08-24)
+
+
+### Features
+
+* implement database connection fallback mechanism and increment package version to 1.6.1 ([be53bdf](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/be53bdf575d14b64ec9a51f69dd0c3297567005e))
+
 ## [1.6.1](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.6.0...v1.6.1) (2026-08-24)
 
 
