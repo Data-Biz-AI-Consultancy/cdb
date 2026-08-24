@@ -73,3 +73,44 @@ def test_ensure_database_exists_handles_exception_gracefully():
     with patch("cdb.core.init_db.make_url", side_effect=Exception("Fatal parse error")):
         # Should not raise exception
         ensure_database_exists("postgresql://jager:jager@db:5432/cdb")
+
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from cdb.core.init_db import ensure_initial_admin
+from cdb.models.user import User
+
+
+@pytest.mark.asyncio
+async def test_ensure_initial_admin_creates_user(db_session: AsyncSession):
+    with patch("cdb.core.init_db.settings") as mock_settings:
+        mock_settings.FIRST_SUPERUSER_EMAIL = "admin_test@cdb.internal"
+        mock_settings.FIRST_SUPERUSER_PASSWORD = "testpassword123"
+        mock_settings.FIRST_SUPERUSER_FULL_NAME = "Test Admin"
+
+        await ensure_initial_admin(db=db_session)
+
+        # Check user was created
+        stmt = select(User).where(User.email == "admin_test@cdb.internal")
+        result = await db_session.execute(stmt)
+        user = result.scalar_one_or_none()
+        assert user is not None
+        assert user.email == "admin_test@cdb.internal"
+        assert user.role == "admin"
+        assert user.full_name == "Test Admin"
+        assert user.is_active is True
+
+        # Running again should not duplicate or fail
+        await ensure_initial_admin(db=db_session)
+
+
+@pytest.mark.asyncio
+async def test_ensure_initial_admin_skips_when_empty_settings(db_session: AsyncSession):
+    with patch("cdb.core.init_db.settings") as mock_settings:
+        mock_settings.FIRST_SUPERUSER_EMAIL = ""
+        mock_settings.FIRST_SUPERUSER_PASSWORD = ""
+
+        await ensure_initial_admin(db=db_session)
+        # Should not raise and should not create users
+

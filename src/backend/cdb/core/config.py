@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    # Initial Superuser / Admin
+    FIRST_SUPERUSER_EMAIL: str = "admin@cdb.internal"
+    FIRST_SUPERUSER_PASSWORD: str = "admin123456"
+    FIRST_SUPERUSER_FULL_NAME: str = "CDB Admin"
+
     # Service-to-service API key
     CDB_API_KEY: str = "development-api-key"
 
