@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.6.0...v1.6.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* remove extra newline from README license section ([9fe0ae4](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/9fe0ae4ff35a87e9e664e6df80c98a2e72c359f0))
+
 # [1.6.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.5.1...v1.6.0) (2026-08-24)
 
 
