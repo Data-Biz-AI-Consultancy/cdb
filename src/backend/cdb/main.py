@@ -7,7 +7,11 @@ from cdb.api.v1.health import router as root_health_router
 from cdb.api.v1.router import api_v1_router
 from cdb.core.config import settings
 from cdb.core.errors import register_error_handlers
-from cdb.core.init_db import ensure_database_exists, ensure_initial_admin, run_auto_migration_if_configured
+from cdb.core.init_db import (
+    ensure_database_exists,
+    ensure_initial_admin,
+    run_auto_migration_if_configured,
+)
 
 
 @asynccontextmanager

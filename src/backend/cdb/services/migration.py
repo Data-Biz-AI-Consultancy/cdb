@@ -28,7 +28,7 @@ import logging
 import os
 import re
 import uuid
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy import text
@@ -42,7 +42,7 @@ logger = logging.getLogger("cdb-migration")
 
 # --- Normalization Helpers ---
 
-def normalise_email(raw: Optional[str]) -> Optional[str]:
+def normalise_email(raw: str | None) -> str | None:
     if not raw:
         return None
     email = str(raw).strip().lower()
@@ -51,7 +51,7 @@ def normalise_email(raw: Optional[str]) -> Optional[str]:
     return email
 
 
-def normalise_linkedin_url(raw: Optional[str]) -> Optional[str]:
+def normalise_linkedin_url(raw: str | None) -> str | None:
     if not raw:
         return None
     url = str(raw).strip()
@@ -61,7 +61,7 @@ def normalise_linkedin_url(raw: Optional[str]) -> Optional[str]:
     return url.lower()
 
 
-def normalise_phone(raw: Optional[str]) -> Optional[str]:
+def normalise_phone(raw: str | None) -> str | None:
     if not raw:
         return None
     raw_stripped = str(raw).strip()
@@ -72,7 +72,7 @@ def normalise_phone(raw: Optional[str]) -> Optional[str]:
     return f"+{digits}" if has_plus else digits
 
 
-def map_lead_stage(raw_status: Optional[str], signal_strength: Optional[str] = None) -> str:
+def map_lead_stage(raw_status: str | None, signal_strength: str | None = None) -> str:
     status = (raw_status or "").strip().lower()
     if status == "prospect":
         return "new"
@@ -108,13 +108,13 @@ class DataMigrator:
         self.target_engine = sa.create_engine(target_url)
 
         # Lookup caches: jager_origin_id (str) -> new CDB UUID
-        self.company_id_map: Dict[str, uuid.UUID] = {}
-        self.person_id_map: Dict[str, uuid.UUID] = {}
-        self.person_by_email: Dict[str, uuid.UUID] = {}
-        self.person_by_linkedin: Dict[str, uuid.UUID] = {}
+        self.company_id_map: dict[str, uuid.UUID] = {}
+        self.person_id_map: dict[str, uuid.UUID] = {}
+        self.person_by_email: dict[str, uuid.UUID] = {}
+        self.person_by_linkedin: dict[str, uuid.UUID] = {}
 
         # Stats summary
-        self.stats: Dict[str, Dict[str, int]] = {
+        self.stats: dict[str, dict[str, int]] = {
             "companies": {"read": 0, "migrated": 0, "skipped": 0},
             "persons": {"read": 0, "migrated": 0, "skipped": 0},
             "person_company_relationships": {"read": 0, "migrated": 0, "skipped": 0},
@@ -170,7 +170,7 @@ class DataMigrator:
             f"{len(self.person_id_map)} persons by origin ID."
         )
 
-    def _get_table_ref(self, conn: sa.Connection, schema: str, table: str) -> Optional[str]:
+    def _get_table_ref(self, conn: sa.Connection, schema: str, table: str) -> str | None:
         """Returns qualified table name if it exists, or None."""
         if conn.dialect.name == "sqlite":
             insp = sa.inspect(conn)
@@ -186,7 +186,7 @@ class DataMigrator:
             return f'"{table}"'
         return None
 
-    def _bind_uuid(self, u: Optional[uuid.UUID], conn: sa.Connection) -> Any:
+    def _bind_uuid(self, u: uuid.UUID | None, conn: sa.Connection) -> Any:
         if u is None:
             return None
         return str(u) if conn.dialect.name == "sqlite" else u
@@ -214,8 +214,8 @@ class DataMigrator:
             orig_id = str(r["id"])
             name = (r.get("company_name") or "").strip() or "Unnamed Company"
             domain = (r.get("domain") or "").strip().lower() or None
-            created_at = r.get("created_at") or datetime.datetime.now(datetime.timezone.utc)
-            updated_at = r.get("updated_at") or datetime.datetime.now(datetime.timezone.utc)
+            created_at = r.get("created_at") or datetime.datetime.now(datetime.UTC)
+            updated_at = r.get("updated_at") or datetime.datetime.now(datetime.UTC)
 
             attrs = r.get("attributes") or {}
             if isinstance(attrs, str):
@@ -314,8 +314,8 @@ class DataMigrator:
             if country and len(country) > 2:
                 country = country[:2].upper()
 
-            created_at = r.get("created_at") or datetime.datetime.now(datetime.timezone.utc)
-            updated_at = r.get("updated_at") or datetime.datetime.now(datetime.timezone.utc)
+            created_at = r.get("created_at") or datetime.datetime.now(datetime.UTC)
+            updated_at = r.get("updated_at") or datetime.datetime.now(datetime.UTC)
 
             attrs = r.get("attributes") or {}
             if isinstance(attrs, str):
@@ -411,7 +411,7 @@ class DataMigrator:
     # --- 3. Migrate Person-Company Relationships ---
     def migrate_relationships(self, source_conn: sa.Connection, target_conn: sa.Connection) -> None:
         logger.info("--- Step 3: Migrating Person-Company Relationships ---")
-        existing_pcr_keys: Set[Tuple[uuid.UUID, uuid.UUID, Optional[str]]] = set()
+        existing_pcr_keys: set[tuple[uuid.UUID, uuid.UUID, str | None]] = set()
         res_existing = target_conn.execute(
             text("SELECT person_id, company_id, title FROM person_company_relationships")
         ).mappings().all()
@@ -449,8 +449,8 @@ class DataMigrator:
                 is_current = bool(r.get("is_current", True))
                 started_at = r.get("started_at")
                 ended_at = r.get("ended_at")
-                created_at = r.get("created_at") or datetime.datetime.now(datetime.timezone.utc)
-                updated_at = r.get("updated_at") or datetime.datetime.now(datetime.timezone.utc)
+                created_at = r.get("created_at") or datetime.datetime.now(datetime.UTC)
+                updated_at = r.get("updated_at") or datetime.datetime.now(datetime.UTC)
 
                 if not self.dry_run:
                     target_conn.execute(
@@ -510,8 +510,8 @@ class DataMigrator:
                                 "id": self._bind_uuid(uuid.uuid4(), target_conn),
                                 "person_id": self._bind_uuid(target_p_id, target_conn),
                                 "company_id": self._bind_uuid(target_c_id, target_conn),
-                                "created_at": datetime.datetime.now(datetime.timezone.utc),
-                                "updated_at": datetime.datetime.now(datetime.timezone.utc),
+                                "created_at": datetime.datetime.now(datetime.UTC),
+                                "updated_at": datetime.datetime.now(datetime.UTC),
                             },
                         )
                     existing_pcr_keys.add(key)
@@ -583,7 +583,7 @@ class DataMigrator:
                         "connected_at": r.get("connected_at"),
                         "raw_payload": self._json_val(raw_payload, target_conn),
                         "resolved_person_id": self._bind_uuid(resolved_p_id, target_conn),
-                        "ingested_at": datetime.datetime.now(datetime.timezone.utc),
+                        "ingested_at": datetime.datetime.now(datetime.UTC),
                     },
                 )
             self.stats["intake_linkedin_connections"]["migrated"] += 1
@@ -641,7 +641,7 @@ class DataMigrator:
                         "raw_content": r.get("convo_history"),
                         "raw_payload": self._json_val(raw_payload, target_conn),
                         "resolved_person_id": self._bind_uuid(resolved_p_id, target_conn),
-                        "ingested_at": datetime.datetime.now(datetime.timezone.utc),
+                        "ingested_at": datetime.datetime.now(datetime.UTC),
                     },
                 )
             self.stats["intake_linkedin_messages"]["migrated"] += 1
@@ -703,7 +703,7 @@ class DataMigrator:
                         "to_dos": self._json_val(to_dos, target_conn),
                         "url": r.get("url"),
                         "raw_payload": self._json_val(raw_payload, target_conn),
-                        "ingested_at": datetime.datetime.now(datetime.timezone.utc),
+                        "ingested_at": datetime.datetime.now(datetime.UTC),
                     },
                 )
             self.stats["intake_notion_meeting_notes"]["migrated"] += 1
@@ -756,11 +756,11 @@ class DataMigrator:
             source_id = str(r["source_id"]) if r.get("source_id") else None
             act_type = (r.get("activity_type") or "meeting").strip().lower()
             source = (r.get("source") or "notion").strip().lower()
-            occurred_at = r.get("activity_date") or r.get("created_at") or datetime.datetime.now(datetime.timezone.utc)
-            created_at = r.get("created_at") or datetime.datetime.now(datetime.timezone.utc)
-            updated_at = r.get("updated_at") or datetime.datetime.now(datetime.timezone.utc)
+            occurred_at = r.get("activity_date") or r.get("created_at") or datetime.datetime.now(datetime.UTC)
+            created_at = r.get("created_at") or datetime.datetime.now(datetime.UTC)
+            updated_at = r.get("updated_at") or datetime.datetime.now(datetime.UTC)
 
-            attrs: Dict[str, Any] = {"jager_origin_id": orig_id}
+            attrs: dict[str, Any] = {"jager_origin_id": orig_id}
             if r.get("participants"):
                 attrs["participants"] = r.get("participants")
             if r.get("to_dos"):
@@ -837,8 +837,8 @@ class DataMigrator:
             intent = (r.get("intent") or "").strip() or None
             signal_strength = (r.get("signal_strength") or "").strip().lower() or None
             notes = r.get("summary")
-            created_at = r.get("created_at") or datetime.datetime.now(datetime.timezone.utc)
-            updated_at = r.get("updated_at") or datetime.datetime.now(datetime.timezone.utc)
+            created_at = r.get("created_at") or datetime.datetime.now(datetime.UTC)
+            updated_at = r.get("updated_at") or datetime.datetime.now(datetime.UTC)
 
             # Check if this lead already migrated by source_ref_id
             existing = target_conn.execute(
