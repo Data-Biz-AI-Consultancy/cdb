@@ -95,7 +95,8 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - INTERNAL_API_URL=http://cdb-api:8000
+      - NEXT_PUBLIC_API_URL=
     depends_on:
       - cdb-api
     networks:
