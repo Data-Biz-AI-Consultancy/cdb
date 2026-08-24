@@ -18,7 +18,7 @@ services:
       - REDIS_URL=redis://cdb-redis:6379/0
       - CELERY_BROKER_URL=redis://cdb-redis:6379/0
       - CELERY_RESULT_BACKEND=redis://cdb-redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-development-secret-key-at-least-32-characters-long}
+      - SECRET_KEY=${SECRET_KEY:-${CDB_SECRET_KEY:-development-secret-key-at-least-32-characters-long}}
       - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
       - FIRST_SUPERUSER_EMAIL=${FIRST_SUPERUSER_EMAIL:-admin@cdb.internal}
       - FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:-admin123456}
@@ -48,7 +48,7 @@ services:
       - REDIS_URL=redis://cdb-redis:6379/0
       - CELERY_BROKER_URL=redis://cdb-redis:6379/0
       - CELERY_RESULT_BACKEND=redis://cdb-redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-development-secret-key-at-least-32-characters-long}
+      - SECRET_KEY=${SECRET_KEY:-${CDB_SECRET_KEY:-development-secret-key-at-least-32-characters-long}}
       - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
     depends_on:
       cdb-db:
