@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.5.0...v1.5.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* add trailing newline to README.md license section ([53c0fbd](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/53c0fbd686020198d579bfe9293a60d80b58ba4c))
+
 # [1.5.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.4.0...v1.5.0) (2026-08-24)
 
 
