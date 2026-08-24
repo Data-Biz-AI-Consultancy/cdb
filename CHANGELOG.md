@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.2.0...v1.3.0) (2026-08-24)
+
+
+### Features
+
+* add jager_network to cdb-api and cdb-worker services ([acaa79b](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/acaa79b87dc52c8f51c8fa5f81fa687f4a2e77f8))
+
 # [1.2.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.1.5...v1.2.0) (2026-08-24)
 
 
