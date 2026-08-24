@@ -1,3 +1,5 @@
+name: cdb
+
 services:
   cdb-api:
     build:
