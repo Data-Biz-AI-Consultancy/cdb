@@ -91,6 +91,31 @@ def map_lead_stage(raw_status: str | None, signal_strength: str | None = None) -
     return "new"
 
 
+def _create_engine_with_fallbacks(url_str: str, is_source: bool = True) -> tuple[sa.Engine, str]:
+    try:
+        url = sa.engine.url.make_url(url_str)
+        if not url.host or "sqlite" in url.drivername:
+            return sa.create_engine(url_str), url_str
+
+        candidates = ["db", "jager-deployment-db-1", "jager-db-1", "localhost"] if is_source else ["cdb-db", "cdb-deployment-db-1", "localhost"]
+        if url.host not in candidates:
+            candidates = [url.host] + [c for c in candidates if c != url.host]
+
+        for host in candidates:
+            try:
+                cand_url = url.set(host=host)
+                engine = sa.create_engine(cand_url)
+                with engine.connect() as conn:
+                    conn.execute(sa.text("SELECT 1"))
+                return engine, str(cand_url)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    return sa.create_engine(url_str), url_str
+
+
 class DataMigrator:
     def __init__(
         self,
@@ -99,13 +124,11 @@ class DataMigrator:
         dry_run: bool = False,
         batch_size: int = 500,
     ):
-        self.source_url = source_url
-        self.target_url = target_url
         self.dry_run = dry_run
         self.batch_size = batch_size
 
-        self.source_engine = sa.create_engine(source_url)
-        self.target_engine = sa.create_engine(target_url)
+        self.source_engine, self.source_url = _create_engine_with_fallbacks(source_url, is_source=True)
+        self.target_engine, self.target_url = _create_engine_with_fallbacks(target_url, is_source=False)
 
         # Lookup caches: jager_origin_id (str) -> new CDB UUID
         self.company_id_map: dict[str, uuid.UUID] = {}
