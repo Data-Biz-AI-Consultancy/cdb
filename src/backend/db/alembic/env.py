@@ -7,6 +7,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from cdb.core.config import settings
+from cdb.core.init_db import ensure_database_exists
 from cdb.models import Base
 
 # this is the Alembic Config object, which provides
@@ -25,6 +26,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
+    ensure_database_exists(settings.SYNC_DATABASE_URL)
     url = settings.SYNC_DATABASE_URL
     context.configure(
         url=url,
@@ -47,6 +49,7 @@ def do_run_migrations(connection: Connection) -> None:
 async def run_async_migrations() -> None:
     """In this scenario we need to create an Engine
     and associate a connection with the context."""
+    ensure_database_exists(settings.SYNC_DATABASE_URL)
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = settings.DATABASE_URL
 
