@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.4.0...v1.5.0) (2026-08-24)
+
+
+### Features
+
+* implement automatic seeding of an initial superuser during application startup ([c7c6de3](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/c7c6de359b3a21a4242d131b44c15789b4bcc4e1))
+
 # [1.4.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.3.0...v1.4.0) (2026-08-24)
 
 
