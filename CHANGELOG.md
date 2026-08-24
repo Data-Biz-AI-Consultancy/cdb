@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.5.1...v1.6.0) (2026-08-24)
+
+
+### Features
+
+* implement auto-migration service and add silent token refresh to frontend API client ([bae68fa](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/bae68fa51d3d7aaee9899657ad0380ffacc3acc9))
+
 ## [1.5.1](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.5.0...v1.5.1) (2026-08-24)
 
 
