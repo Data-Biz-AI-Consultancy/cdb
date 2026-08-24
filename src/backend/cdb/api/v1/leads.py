@@ -28,13 +28,15 @@ async def list_leads(
     owner_id: uuid.UUID | None = Query(None),
     person_id: uuid.UUID | None = Query(None),
     company_id: uuid.UUID | None = Query(None),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int | None = Query(None, ge=1, le=200),
+    page_size: int | None = Query(None, ge=1, le=200),
     cursor: str | None = Query(None),
     sort: str = Query("created_at"),
     order: str = Query("desc"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    effective_limit = limit or page_size or 50
     items, pagination = await lead_service.list_leads(
         db,
         stage=stage,
@@ -42,7 +44,7 @@ async def list_leads(
         owner_id=owner_id,
         person_id=person_id,
         company_id=company_id,
-        limit=limit,
+        limit=effective_limit,
         cursor=cursor,
         sort=sort,
         order=order,

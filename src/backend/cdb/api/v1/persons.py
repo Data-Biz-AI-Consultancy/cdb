@@ -26,13 +26,15 @@ async def list_persons(
     has_open_opportunity: bool | None = Query(None),
     has_open_lead: bool | None = Query(None),
     include_deleted: bool = Query(False),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int | None = Query(None, ge=1, le=200),
+    page_size: int | None = Query(None, ge=1, le=200),
     cursor: str | None = Query(None),
     sort: str = Query("created_at"),
     order: str = Query("desc"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    effective_limit = limit or page_size or 50
     items, pagination = await person_service.list_persons(
         db,
         q=q,
@@ -41,7 +43,7 @@ async def list_persons(
         has_open_opportunity=has_open_opportunity,
         has_open_lead=has_open_lead,
         include_deleted=include_deleted,
-        limit=limit,
+        limit=effective_limit,
         cursor=cursor,
         sort=sort,
         order=order,
