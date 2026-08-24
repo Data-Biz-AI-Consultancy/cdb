@@ -27,6 +27,7 @@ services:
         condition: service_started
     networks:
       - cdb_network
+      - jager_network
 
   cdb-worker:
     build:
@@ -99,6 +100,7 @@ services:
       - cdb-api
     networks:
       - cdb_network
+      - jager_network
 
 volumes:
   cdb_db_data:
@@ -107,4 +109,6 @@ volumes:
 networks:
   cdb_network:
     driver: bridge
+  jager_network:
+    external: true
 
