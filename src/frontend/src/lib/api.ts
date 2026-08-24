@@ -32,9 +32,44 @@ export function clearAuthToken() {
   }
 }
 
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+async function attemptTokenRefresh(): Promise<string | null> {
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const url = `${API_BASE}/api/v1/auth/refresh`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.access_token) {
+          setAuthToken(data.access_token);
+          return data.access_token;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  isRetry: boolean = false
 ): Promise<T> {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -58,6 +93,14 @@ export async function apiFetch<T>(
   });
 
   if (res.status === 401) {
+    // Attempt silent token refresh if not already retrying or on auth endpoint
+    if (!isRetry && !path.includes('/auth/login') && !path.includes('/auth/refresh')) {
+      const newToken = await attemptTokenRefresh();
+      if (newToken) {
+        return apiFetch<T>(path, options, true);
+      }
+    }
+
     clearAuthToken();
     if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
       window.location.href = '/login';

@@ -99,3 +99,26 @@ async def ensure_initial_admin(db: AsyncSession | None = None) -> None:
     except Exception as exc:
         logger.warning("Could not automatically check/create initial admin user: %s", exc)
 
+
+def run_auto_migration_if_configured() -> None:
+    """
+    Executes idempotent data migration from Jager CDP to CDB on startup if enabled.
+    """
+    if not settings.AUTO_MIGRATE_FROM_JAGER:
+        return
+
+    try:
+        from cdb.services.migration import DataMigrator
+
+        logger.info("AUTO_MIGRATE_FROM_JAGER is enabled. Starting migration...")
+        migrator = DataMigrator(
+            source_url=settings.JAGER_DATABASE_URL,
+            target_url=settings.SYNC_DATABASE_URL,
+            dry_run=False,
+        )
+        migrator.run()
+        logger.info("Auto-migration from Jager completed successfully.")
+    except Exception as exc:
+        logger.warning("Auto-migration from Jager failed or skipped: %s", exc)
+
+

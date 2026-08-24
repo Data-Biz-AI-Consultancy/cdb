@@ -45,7 +45,17 @@ class Settings(BaseSettings):
         "http://localhost:3001",
         "http://localhost:8000",
         "http://localhost:8001",
+        "http://cdb.com",
+        "https://cdb.com",
+        "http://staging.cdb.com",
+        "https://staging.cdb.com",
+        "http://api.cdb.com",
+        "https://api.cdb.com",
     ]
+
+    # Automatic initial migration from Jager CDP if configured
+    AUTO_MIGRATE_FROM_JAGER: bool = False
+    JAGER_DATABASE_URL: str = "postgresql://jager:jager@localhost:5432/jager"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

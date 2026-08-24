@@ -1,17 +1,11 @@
 import json
-import sys
 import uuid
-from pathlib import Path
 
 import sqlalchemy as sa
 from sqlalchemy import text
 
 # Add repo root to sys.path so we can import scripts.migrate_cdp_to_cdb
-repo_root = Path(__file__).resolve().parent.parent.parent.parent
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from scripts.migrate_cdp_to_cdb import (  # noqa: E402
+from cdb.services.migration import (
     DataMigrator,
     map_lead_stage,
     normalise_email,
