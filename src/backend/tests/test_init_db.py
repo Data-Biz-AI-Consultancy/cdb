@@ -1,6 +1,11 @@
 from unittest.mock import MagicMock, patch
 
-from cdb.core.init_db import ensure_database_exists
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from cdb.core.init_db import ensure_database_exists, ensure_initial_admin
+from cdb.models.user import User
 
 
 def test_ensure_database_exists_empty_url():
@@ -75,13 +80,6 @@ def test_ensure_database_exists_handles_exception_gracefully():
         ensure_database_exists("postgresql://jager:jager@db:5432/cdb")
 
 
-import pytest
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from cdb.core.init_db import ensure_initial_admin
-from cdb.models.user import User
-
-
 @pytest.mark.asyncio
 async def test_ensure_initial_admin_creates_user(db_session: AsyncSession):
     with patch("cdb.core.init_db.settings") as mock_settings:
@@ -113,4 +111,3 @@ async def test_ensure_initial_admin_skips_when_empty_settings(db_session: AsyncS
 
         await ensure_initial_admin(db=db_session)
         # Should not raise and should not create users
-
