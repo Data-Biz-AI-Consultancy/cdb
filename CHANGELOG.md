@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.3.0...v1.4.0) (2026-08-24)
+
+
+### Features
+
+* implement API proxying via Next.js rewrites and update environment configuration ([460bbe0](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/460bbe0fb0b8cf5c2d787a2a4589dd682ebc4aa3))
+
 # [1.3.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.2.0...v1.3.0) (2026-08-24)
 
 
