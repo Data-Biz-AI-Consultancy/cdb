@@ -1,3 +1,11 @@
+# [1.12.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.11.0...v1.12.0) (2026-08-25)
+
+
+### Features
+
+* add clone_prod_to_dev.sh script to facilitate database syncing and update documentation ([61a3eb0](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/61a3eb0bc52eef8ad140f27090f16f8e985c1f0c))
+* enhance clone script to support automated production connection via IP and flexible .env configuration ([9e0ef3f](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/9e0ef3f6fa260dffb34d55c222240c9518572433))
+
 # [1.11.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.10.0...v1.11.0) (2026-08-25)
 
 
