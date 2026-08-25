@@ -60,23 +60,89 @@ fatal() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Load .env if present
+# Helper to safely extract keys from .env (even with dashes like prod-url)
+get_env_val() {
+    local key="$1"
+    local env_file="${REPO_ROOT}/.env"
+    if [[ -f "${env_file}" ]]; then
+        grep -E "^[[:space:]]*${key}[[:space:]]*=" "${env_file}" 2>/dev/null \
+            | head -n 1 \
+            | sed -E 's/^[[:space:]]*[^=]+=[[:space:]]*//; s/^["'"'"']//; s/["'"'"'][[:space:]]*$//' \
+            | tr -d '\r' || true
+    fi
+}
+
+# Safely load valid bash environment variables from .env
 if [[ -f "${REPO_ROOT}/.env" ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    source "${REPO_ROOT}/.env"
-    set +a
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+        if [[ "$line" =~ ^[a-zA-Z_][a-zA-Z0-9_]*= ]]; then
+            eval "export $line" 2>/dev/null || true
+        fi
+    done < "${REPO_ROOT}/.env"
 fi
 
-PROD_URL="${PROD_DATABASE_URL:-${CDB_PROD_DB_URL:-${CDB_PROD_DATABASE_URL:-}}}"
+# Production database connection parameters
+PROD_DB_USER="${PROD_DB_USER:-${POSTGRES_USER:-cdb}}"
+PROD_DB_PASSWORD="${PROD_DB_PASSWORD:-${POSTGRES_PASSWORD:-cdb}}"
+PROD_DB_PORT="${PROD_DB_PORT:-5433}"
+PROD_DB_NAME="${PROD_DB_NAME:-${POSTGRES_DB:-cdb}}"
+
+# Resolve default production source from env or .env file
+PROD_SOURCE="${PROD_DATABASE_URL:-}"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="${CDB_PROD_DB_URL:-}"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="${CDB_PROD_DATABASE_URL:-}"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="${PROD_URL:-}"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="${PROD_IP:-}"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="${PROD_HOST:-}"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "prod-url")"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "PROD_DATABASE_URL")"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "PROD_URL")"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "prod_url")"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "PROD_IP")"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "prod_ip")"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "PROD_HOST")"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "prod_host")"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "CDB_PROD_DB_URL")"
+[[ -z "${PROD_SOURCE}" ]] && PROD_SOURCE="$(get_env_val "CDB_PROD_IP")"
+
+normalize_pg_url() {
+    local target="$1"
+    local default_user="${2:-cdb}"
+    local default_pass="${3:-cdb}"
+    local default_port="${4:-5433}"
+    local default_db="${5:-cdb}"
+
+    if [[ -z "$target" ]]; then
+        echo ""
+        return
+    fi
+
+    if [[ "$target" =~ ^postgresql\+asyncpg:\/\/ ]]; then
+        target="postgresql://${target#postgresql+asyncpg://}"
+    fi
+
+    if [[ "$target" =~ ^postgres(ql)?:\/\/ ]]; then
+        echo "$target"
+        return
+    fi
+
+    local host="$target"
+    local port="$default_port"
+    if [[ "$target" =~ ^([a-zA-Z0-9\.\-]+):([0-9]+)$ ]]; then
+        host="${BASH_REMATCH[1]}"
+        port="${BASH_REMATCH[2]}"
+    fi
+
+    echo "postgresql://${default_user}:${default_pass}@${host}:${port}/${default_db}"
+}
+
+PROD_URL="${PROD_SOURCE:-}"
+
 # Default dev URL points to local CDB PostgreSQL instance (host port 5433)
 DEV_URL="${DEV_DATABASE_URL:-${CDB_DEV_DB_URL:-${SYNC_DATABASE_URL:-postgresql://cdb:cdb@localhost:5433/cdb}}}"
-
-# If SYNC_DATABASE_URL uses asyncpg scheme, convert to standard postgresql://
-DEV_URL="${DEV_URL/postgresql+asyncpg:\/\//postgresql:\/\/}"
-if [[ -n "${PROD_URL}" ]]; then
-    PROD_URL="${PROD_URL/postgresql+asyncpg:\/\//postgresql:\/\/}"
-fi
+DEV_URL="$(normalize_pg_url "${DEV_URL}" "cdb" "cdb" "5433" "cdb")"
 
 SSH_HOST=""
 SSH_CONTAINER="cdb-db"
@@ -103,10 +169,15 @@ ${BOLD}USAGE:${NC}
     ./scripts/clone_prod_to_dev.sh [OPTIONS]
 
 ${BOLD}OPTIONS:${NC}
-    ${CYAN}-p, --prod-url <URL>${NC}        Production PostgreSQL connection URL
-                                (or set PROD_DATABASE_URL / CDB_PROD_DB_URL in .env)
+    ${CYAN}-p, --prod-url, --prod-ip <VAL>${NC}
+                                Production PostgreSQL connection URL or IP address
+                                (default: auto-detected from .env prod-url / PROD_DATABASE_URL)
     ${CYAN}-d, --dev-url <URL>${NC}         Destination Dev PostgreSQL connection URL
                                 (default: postgresql://cdb:cdb@localhost:5433/cdb)
+    ${CYAN}--prod-port <PORT>${NC}        Production DB port if passing IP (default: 5433)
+    ${CYAN}--prod-user <USER>${NC}        Production DB user if passing IP (default: cdb)
+    ${CYAN}--prod-password <PASS>${NC}    Production DB password if passing IP (default: cdb)
+    ${CYAN}--prod-db <NAME>${NC}          Production DB name if passing IP (default: cdb)
     ${CYAN}--ssh-host <USER@HOST>${NC}     Remote SSH host to dump from via remote docker
                                 (e.g. root@vps.internal)
     ${CYAN}--ssh-container <NAME>${NC}    Remote database container name (default: cdb-db)
@@ -123,14 +194,18 @@ ${BOLD}OPTIONS:${NC}
     ${CYAN}-h, --help${NC}                 Show this help message
 
 ${BOLD}EXAMPLES:${NC}
-    ${GREEN}# 1. Direct connection using env vars or flags:${NC}
+    ${GREEN}# 1. Automatic run using default production IP from .env:${NC}
+    ./scripts/clone_prod_to_dev.sh
+
+    ${GREEN}# 2. Direct connection using explicit IP or URL:${NC}
+    ./scripts/clone_prod_to_dev.sh --prod-ip "192.168.178.164"
     ./scripts/clone_prod_to_dev.sh --prod-url "postgresql://cdb:secret@db.prod.internal:5432/cdb"
 
-    ${GREEN}# 2. Pulling via SSH from remote VPS container:${NC}
+    ${GREEN}# 3. Pulling via SSH from remote VPS container:${NC}
     ./scripts/clone_prod_to_dev.sh --ssh-host "deploy@vps.cdb.internal"
 
-    ${GREEN}# 3. Non-interactive run into local dev container:${NC}
-    ./scripts/clone_prod_to_dev.sh -p "\$PROD_DATABASE_URL" -y
+    ${GREEN}# 4. Non-interactive run into local dev container:${NC}
+    ./scripts/clone_prod_to_dev.sh -y
 EOF
 }
 
@@ -139,8 +214,24 @@ EOF
 # ------------------------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -p|--prod-url)
+        -p|--prod-url|--prod-ip|--prod-host)
             PROD_URL="$2"
+            shift 2
+            ;;
+        --prod-port)
+            PROD_DB_PORT="$2"
+            shift 2
+            ;;
+        --prod-user)
+            PROD_DB_USER="$2"
+            shift 2
+            ;;
+        --prod-password)
+            PROD_DB_PASSWORD="$2"
+            shift 2
+            ;;
+        --prod-db)
+            PROD_DB_NAME="$2"
             shift 2
             ;;
         -d|--dev-url)
@@ -204,6 +295,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Normalize production URL after flags have been parsed
+if [[ -n "${PROD_URL}" ]]; then
+    PROD_URL="$(normalize_pg_url "${PROD_URL}" "${PROD_DB_USER}" "${PROD_DB_PASSWORD}" "${PROD_DB_PORT}" "${PROD_DB_NAME}")"
+fi
 
 # ------------------------------------------------------------------------------
 # Pre-flight Checks & Validation
