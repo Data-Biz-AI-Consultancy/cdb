@@ -185,7 +185,7 @@ wheels = [
 
 [[package]]
 name = "cdb-backend"
-version = "1.6.1"
+version = "1.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
