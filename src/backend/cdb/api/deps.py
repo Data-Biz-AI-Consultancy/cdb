@@ -63,3 +63,15 @@ async def require_api_key(
     if not x_api_key or x_api_key != settings.CDB_API_KEY:
         raise UnauthorizedError("Invalid or missing service API key")
     return x_api_key
+
+
+async def get_current_user_or_api_key(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    if x_api_key and x_api_key == settings.CDB_API_KEY:
+        return None
+    if credentials and credentials.scheme.lower() == "bearer":
+        return await get_current_user(credentials, db)
+    raise UnauthorizedError("Missing or invalid authorization credentials")

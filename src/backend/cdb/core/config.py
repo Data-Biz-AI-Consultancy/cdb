@@ -53,10 +53,6 @@ class Settings(BaseSettings):
         "https://api.cdb.com",
     ]
 
-    # Automatic initial migration from Jager CDP if configured
-    AUTO_MIGRATE_FROM_JAGER: bool = False
-    JAGER_DATABASE_URL: str = "postgresql://jager:jager@localhost:5432/jager"
-
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: str | list[str]) -> list[str]:

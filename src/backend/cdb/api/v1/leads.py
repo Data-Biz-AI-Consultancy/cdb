@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cdb.api.deps import get_current_user
+from cdb.api.deps import get_current_user, get_current_user_or_api_key
 from cdb.core.database import get_db
 from cdb.models.user import User
 from cdb.schemas.common import PaginatedResponse
@@ -34,7 +34,7 @@ async def list_leads(
     sort: str = Query("created_at"),
     order: str = Query("desc"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
 ):
     effective_limit = limit or page_size or 50
     items, pagination = await lead_service.list_leads(
