@@ -122,6 +122,25 @@ pytest -v
 
 ---
 
+## 🔄 Database Cloning (Production → Dev)
+
+To copy live production data into your local development database:
+
+```bash
+# Direct connection (reads PROD_DATABASE_URL from .env if present):
+./scripts/clone_prod_to_dev.sh --prod-url "postgresql://cdb:secret@db.prod.internal:5432/cdb"
+
+# Pulling via SSH from remote VPS container:
+./scripts/clone_prod_to_dev.sh --ssh-host "deploy@vps.cdb.internal"
+
+# Dry run / inspection:
+./scripts/clone_prod_to_dev.sh --dry-run
+```
+
+See [scripts/README.md](scripts/README.md) for the complete list of options and safety guards.
+
+---
+
 ## 📁 Repository Structure
 
 ```
@@ -130,6 +149,9 @@ cdb/
 │   └── workflows/
 │       ├── ci.yml                 # Staging CI build & tests on push to main
 │       └── release.yml            # Manual production release promotion workflow
+├── scripts/
+│   ├── clone_prod_to_dev.sh       # Production to dev database clone utility
+│   └── README.md                  # Operational scripts documentation
 ├── src/
 │   ├── backend/                   # Python FastAPI Backend
 │   │   ├── cdb/                   # Core application package
