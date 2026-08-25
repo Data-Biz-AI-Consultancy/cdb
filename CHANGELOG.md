@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.7.0...v1.8.0) (2026-08-25)
+
+
+### Features
+
+* update description of application packages in README ([7f3dbfa](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/7f3dbfaf7f75aa9dbc23aaae32b50cfe5d332224))
+
 # [1.7.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.6.1...v1.7.0) (2026-08-24)
 
 
