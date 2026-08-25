@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cdb.api.deps import get_current_user, require_admin
+from cdb.api.deps import get_current_user, get_current_user_or_api_key, require_admin
 from cdb.core.database import get_db
 from cdb.models.relationship import PersonCompanyRelationship
 from cdb.models.user import User
@@ -35,7 +35,7 @@ async def list_companies(
     sort: str = Query("created_at"),
     order: str = Query("desc"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
 ):
     effective_limit = limit or page_size or 50
     items, pagination = await company_service.list_companies(
