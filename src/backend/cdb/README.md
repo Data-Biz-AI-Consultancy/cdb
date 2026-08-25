@@ -1,6 +1,6 @@
 # CDB Backend Architecture (`src/cdb/`)
 
-This directory contains the primary Python application package for **CDB (Client DataBase)**.
+This directory contains the primary Python application packages for **CDB (Client DataBase)**.
 
 It is structured following the **Layered Clean Architecture** pattern, separating concerns across API routing, data validation, business logic, persistence, and background tasks.
 

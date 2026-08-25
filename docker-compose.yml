@@ -61,7 +61,7 @@ services:
       - cdb_network
 
   cdb-db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16  # aligned with Jager's pgvector image (pg15→pg16)
     container_name: cdb-db
     restart: unless-stopped
     environment:
@@ -79,7 +79,7 @@ services:
       retries: 5
     networks:
       - cdb_network
-      - jager_network
+      # cdb-db is NOT on jager_network — Jager services have no direct DB access
 
   cdb-redis:
     image: redis:7-alpine
@@ -102,7 +102,8 @@ services:
       - "3001:3000"
     environment:
       - INTERNAL_API_URL=http://cdb-api:8000
-      - NEXT_PUBLIC_API_URL=
+      # NEXT_PUBLIC_API_URL intentionally omitted — client-side API calls use relative
+      # /api/v1/* URLs which Caddy routes to cdb-api on the same origin (cdb.com)
     depends_on:
       - cdb-api
     networks:
