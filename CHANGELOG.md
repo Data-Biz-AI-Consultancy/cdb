@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.10.0...v1.11.0) (2026-08-25)
+
+
+### Features
+
+* add Customer Data Platform (CDP) service for processing LinkedIn data and entity resolution ([bd5b049](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/bd5b049f5e800b06c4bbb42e7c2691512dead7db))
+
 # [1.10.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.9.0...v1.10.0) (2026-08-25)
 
 
