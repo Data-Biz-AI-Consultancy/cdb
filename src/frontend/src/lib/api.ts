@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+// NEXT_PUBLIC_API_URL: set to an external URL only when Caddy is NOT routing /api/v1/*
+// to cdb-api on the same domain. Leave unset (or omit) when using the Caddy-based setup.
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? '').trim();
 
 export interface ApiResponse<T> {
   data: T;
