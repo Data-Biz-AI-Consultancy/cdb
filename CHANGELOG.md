@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.9.0...v1.10.0) (2026-08-25)
+
+
+### Features
+
+* allow multiple valid API keys in require_api_key and get_current_user dependencies ([ab4c1c2](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ab4c1c26b6da0b4fc7a51ba0e04e07e93ed82b40))
+
 # [1.9.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.8.0...v1.9.0) (2026-08-25)
 
 
