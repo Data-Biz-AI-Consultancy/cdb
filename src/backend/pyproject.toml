@@ -1,6 +1,6 @@
 [project]
 name = "cdb-backend"
-version = "1.8.0"
+version = "1.9.0"
 description = "CDB (Client DataBase) - Open-source Personal CRM & Customer Data Platform"
 readme = "README.md"
 requires-python = ">=3.12"

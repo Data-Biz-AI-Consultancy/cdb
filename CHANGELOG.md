@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.8.0...v1.9.0) (2026-08-25)
+
+
+### Features
+
+* remove legacy Jager migration service and update auth to support API key access ([2049a90](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/2049a903d33d4f33090bf8cac4b71d728eb13260))
+
 # [1.8.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.7.0...v1.8.0) (2026-08-25)
 
 
