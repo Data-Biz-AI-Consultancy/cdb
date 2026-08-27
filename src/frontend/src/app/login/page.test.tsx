@@ -25,7 +25,7 @@ describe('LoginPage Component', () => {
     expect(screen.getByRole('button', { name: /Sign In/i })).toBeInTheDocument();
   });
 
-  it('handles successful login and redirects to /persons', async () => {
+  it('handles successful login and redirects to / (Overview)', async () => {
     vi.spyOn(api, 'apiFetch').mockResolvedValueOnce({ access_token: 'valid-jwt-token' });
     const setAuthTokenSpy = vi.spyOn(api, 'setAuthToken');
 
@@ -35,7 +35,7 @@ describe('LoginPage Component', () => {
 
     await waitFor(() => {
       expect(setAuthTokenSpy).toHaveBeenCalledWith('valid-jwt-token');
-      expect(mockPush).toHaveBeenCalledWith('/persons');
+      expect(mockPush).toHaveBeenCalledWith('/');
     });
   });
 
