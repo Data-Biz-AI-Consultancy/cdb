@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearAuthToken } from '@/lib/api';
+import packageJson from '../../package.json';
+
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || `v${packageJson.version}`;
 
 export default function SimpleNav() {
   const pathname = usePathname();
@@ -53,7 +56,7 @@ export default function SimpleNav() {
       </div>
       <div className="flex items-center space-x-4">
         <span className="text-xs text-slate-400 border border-slate-700 px-2 py-0.5 rounded">
-          v0.1.0
+          {APP_VERSION}
         </span>
         <button
           onClick={handleLogout}

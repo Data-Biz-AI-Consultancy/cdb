@@ -1,6 +1,25 @@
+import importlib.metadata
+import tomllib
+from pathlib import Path
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _get_app_version() -> str:
+    try:
+        return importlib.metadata.version("cdb-backend")
+    except Exception:
+        pass
+    try:
+        pyproject_path = Path(__file__).resolve().parents[3] / "pyproject.toml"
+        if pyproject_path.exists():
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+                return data.get("project", {}).get("version", "1.12.0")
+    except Exception:
+        pass
+    return "1.12.0"
 
 
 class Settings(BaseSettings):
@@ -11,7 +30,7 @@ class Settings(BaseSettings):
     )
 
     PROJECT_NAME: str = "CDB API"
-    VERSION: str = "0.1.0"
+    VERSION: str = _get_app_version()
     API_V1_PREFIX: str = "/api/v1"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False

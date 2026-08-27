@@ -30,4 +30,9 @@ describe('SimpleNav Component', () => {
     const personsLink = screen.getByText('Persons');
     expect(personsLink.className).toContain('bg-slate-800');
   });
+
+  it('renders the release version badge', () => {
+    render(<SimpleNav />);
+    expect(screen.getByText(/^v\d+\.\d+\.\d+/)).toBeInTheDocument();
+  });
 });
