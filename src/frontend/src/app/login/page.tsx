@@ -22,7 +22,7 @@ export default function LoginPage() {
       });
       if (res.access_token) {
         setAuthToken(res.access_token);
-        router.push('/persons');
+        router.push('/');
       } else {
         setError('Invalid response from auth server');
       }

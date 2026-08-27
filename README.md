@@ -115,9 +115,24 @@ celery -A cdb.workers.celery_app worker --loglevel=info
 
 ## 🧪 Testing
 
-Run unit and integration test suites:
+### Backend Tests & Linting
 ```bash
+# Run pytest test suite
 pytest -v
+
+# Run linter
+ruff check .
+```
+
+### Frontend Tests & Type Checking
+```bash
+cd src/frontend
+
+# Run vitest test suite
+npm test
+
+# Run TypeScript typecheck
+npm run typecheck
 ```
 
 ---
