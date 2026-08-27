@@ -41,11 +41,11 @@ export default function ERQueuePage() {
 
   const handleResolve = async (candidateId: string, action: 'merge' | 'reject') => {
     try {
-      await apiFetch(`/api/v1/er/resolve/${candidateId}`, {
+      const endpointAction = action === 'merge' ? 'accept' : 'reject';
+      await apiFetch(`/api/v1/er/queue/${candidateId}/${endpointAction}`, {
         method: 'POST',
-        body: JSON.stringify({ action }),
       });
-      alert(`Candidate marked as: ${action}`);
+      alert(`Candidate pair successfully marked as: ${action === 'merge' ? 'Merged' : 'Rejected / Kept Separate'}`);
       loadQueue();
     } catch (err: any) {
       alert(`Error resolving candidate: ${err.message}`);
@@ -87,44 +87,62 @@ export default function ERQueuePage() {
             <p className="text-xs text-slate-400 mt-1">No pending duplicate pairs requiring manual resolution.</p>
           </div>
         ) : (
-          queue.map((item) => (
-            <div key={item.id} className="bg-white p-5 border rounded-lg shadow-sm">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-xs font-semibold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200">
-                  Confidence Score: {item.confidence_score ?? 'N/A'}
-                </span>
-                <div className="text-xs text-slate-400">
-                  Rule: <strong className="text-slate-700">{item.rule_matched || 'fuzzy_match'}</strong>
-                </div>
-              </div>
+          queue.map((item) => {
+            const pa = item.person_a || {};
+            const pb = item.person_b || {};
+            const nameA = `${pa.first_name || ''} ${pa.last_name || ''}`.trim() || 'Unknown Name';
+            const nameB = `${pb.first_name || ''} ${pb.last_name || ''}`.trim() || 'Unknown Name';
+            const score = item.ml_score != null ? `${(Number(item.ml_score) * 100).toFixed(0)}%` : 'Rule Matched';
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded border text-sm">
-                <div>
-                  <h4 className="font-semibold text-xs text-slate-500 uppercase mb-2">Target Person A</h4>
-                  <div className="font-mono text-xs text-slate-700">ID: {item.person_a_id}</div>
+            return (
+              <div key={item.id} className="bg-white p-5 border rounded-lg shadow-sm">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-xs font-semibold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200">
+                    Confidence: {score}
+                  </span>
+                  <div className="text-xs text-slate-400">
+                    Rule Trigger: <strong className="text-slate-700">{item.match_signals?.trigger_rule ? `Rule #${item.match_signals.trigger_rule}` : 'Fuzzy Match'}</strong>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-semibold text-xs text-slate-500 uppercase mb-2">Candidate Person B</h4>
-                  <div className="font-mono text-xs text-slate-700">ID: {item.person_b_id}</div>
-                </div>
-              </div>
 
-              <div className="mt-4 flex justify-end space-x-3">
-                <button
-                  onClick={() => handleResolve(item.id, 'reject')}
-                  className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-xs font-medium"
-                >
-                  Keep Separate (Reject)
-                </button>
-                <button
-                  onClick={() => handleResolve(item.id, 'merge')}
-                  className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium"
-                >
-                  Confirm & Merge Records
-                </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded border text-sm">
+                  <div className="bg-white p-3 rounded border">
+                    <h4 className="font-semibold text-xs text-slate-500 uppercase mb-1">Target Person A</h4>
+                    <div className="font-bold text-slate-800 text-base">{nameA}</div>
+                    <div className="text-xs text-slate-600 mt-1">✉️ {pa.primary_email || 'No email'}</div>
+                    <div className="text-xs text-slate-600 mt-0.5">🔗 {pa.linkedin_url || 'No LinkedIn'}</div>
+                    {pa.current_company && (
+                      <div className="text-xs text-slate-500 mt-1">🏢 {pa.current_title ? `${pa.current_title} at ` : ''}{pa.current_company.name}</div>
+                    )}
+                  </div>
+                  <div className="bg-white p-3 rounded border">
+                    <h4 className="font-semibold text-xs text-slate-500 uppercase mb-1">Candidate Person B</h4>
+                    <div className="font-bold text-slate-800 text-base">{nameB}</div>
+                    <div className="text-xs text-slate-600 mt-1">✉️ {pb.primary_email || 'No email'}</div>
+                    <div className="text-xs text-slate-600 mt-0.5">🔗 {pb.linkedin_url || 'No LinkedIn'}</div>
+                    {pb.current_company && (
+                      <div className="text-xs text-slate-500 mt-1">🏢 {pb.current_title ? `${pb.current_title} at ` : ''}{pb.current_company.name}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex justify-end space-x-3">
+                  <button
+                    onClick={() => handleResolve(item.id, 'reject')}
+                    className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-xs font-medium"
+                  >
+                    Keep Separate (Reject)
+                  </button>
+                  <button
+                    onClick={() => handleResolve(item.id, 'merge')}
+                    className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium"
+                  >
+                    Confirm & Merge Records
+                  </button>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

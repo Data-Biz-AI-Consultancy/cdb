@@ -1,3 +1,4 @@
+import datetime
 import uuid
 
 from sqlalchemy import func, select
@@ -97,26 +98,37 @@ async def reject_er_candidate(
         raise NotFoundError(f"Candidate pair {pair_id} not found.")
 
     pair.status = "rejected"
+    if user_id:
+        pair.reviewed_by = user_id
+    pair.reviewed_at = datetime.datetime.now(datetime.UTC)
     await db.commit()
+
 
 
 async def run_full_er_scan(db: AsyncSession) -> ERJobResponse:
     # Full scan: compares all active persons pairwise and detects auto-merges or review queue candidates
     persons = (await db.execute(select(Person).where(Person.deleted_at.is_(None)))).scalars().all()
+    merged_ids: set[uuid.UUID] = set()
 
     for i in range(len(persons)):
+        p1 = persons[i]
+        if p1.id in merged_ids:
+            continue
         for j in range(i + 1, len(persons)):
-            p1 = persons[i]
             p2 = persons[j]
+            if p2.id in merged_ids:
+                continue
+
             res = evaluate_person_match(p1, p2)
             if res.outcome == "auto_merge":
-                # Trigger merge
                 try:
-                    await merge_persons(db, p1.id, p2.id)
+                    master_id, sub_id = await merge_persons(db, p1.id, p2.id)
+                    merged_ids.add(sub_id)
+                    if p1.id == sub_id:
+                        break
                 except Exception:
                     pass
             elif res.outcome == "review_queue":
-                # Check if pair exists
                 existing = (
                     await db.execute(
                         select(ERCandidatePair).where(
@@ -144,3 +156,4 @@ async def run_full_er_scan(db: AsyncSession) -> ERJobResponse:
                     await db.commit()
 
     return ERJobResponse(job_id=str(uuid.uuid4()), status="completed")
+

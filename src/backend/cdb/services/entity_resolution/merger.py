@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.activity import Activity
@@ -150,17 +150,35 @@ async def merge_persons(
         else:
             await db.delete(r)
 
-    # Update candidate pairs
-    await db.execute(
-        update(ERCandidatePair).where(ERCandidatePair.person_a_id == sub_id).values(person_a_id=master_id)
-    )
-    await db.execute(
-        update(ERCandidatePair).where(ERCandidatePair.person_b_id == sub_id).values(person_b_id=master_id)
-    )
-    # Clean up self-referencing candidate pairs that may have resulted
-    await db.execute(
-        delete(ERCandidatePair).where(ERCandidatePair.person_a_id == ERCandidatePair.person_b_id)
-    )
+    # Update & clean up candidate pairs involving the subordinate person
+    sub_pairs = (
+        await db.execute(
+            select(ERCandidatePair).where(
+                (ERCandidatePair.person_a_id == sub_id) | (ERCandidatePair.person_b_id == sub_id)
+            )
+        )
+    ).scalars().all()
+
+    for p in sub_pairs:
+        other_id = p.person_b_id if p.person_a_id == sub_id else p.person_a_id
+        if other_id == master_id:
+            await db.delete(p)
+        else:
+            existing_pair = (
+                await db.execute(
+                    select(ERCandidatePair).where(
+                        ((ERCandidatePair.person_a_id == master_id) & (ERCandidatePair.person_b_id == other_id))
+                        | ((ERCandidatePair.person_a_id == other_id) & (ERCandidatePair.person_b_id == master_id))
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing_pair:
+                await db.delete(p)
+            else:
+                if p.person_a_id == sub_id:
+                    p.person_a_id = master_id
+                else:
+                    p.person_b_id = master_id
 
     # Delete subordinate person
     await db.delete(sub)
