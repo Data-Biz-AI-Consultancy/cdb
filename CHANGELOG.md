@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.13.0...v1.14.0) (2026-08-27)
+
+
+### Features
+
+* add custom CdbIcon component and implement branded site favicon and app icons ([e55c81a](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/e55c81a7b7a33920af573af8d939a794bdbb7874))
+
 # [1.13.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.12.0...v1.13.0) (2026-08-27)
 
 
