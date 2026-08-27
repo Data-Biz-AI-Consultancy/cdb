@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.12.0...v1.13.0) (2026-08-27)
+
+
+### Features
+
+* dynamically fetch and display application version from project configuration files ([3c90f54](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/3c90f5420e281a7f68e2430cd9e84a9adc9c7f9a))
+
 # [1.12.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.11.0...v1.12.0) (2026-08-25)
 
 
