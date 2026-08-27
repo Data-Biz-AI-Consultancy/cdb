@@ -137,6 +137,7 @@ async def run_full_er_scan(db: AsyncSession) -> ERJobResponse:
                             person_a_id=p1.id,
                             person_b_id=p2.id,
                             match_signals=res.match_signals,
+                            ml_score=res.ml_score,
                             status="pending",
                         )
                     )

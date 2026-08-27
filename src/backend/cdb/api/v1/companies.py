@@ -12,6 +12,7 @@ from cdb.schemas.common import PaginatedResponse
 from cdb.schemas.company import (
     CompanyCreate,
     CompanyDetailResponse,
+    CompanyEmployeeResponse,
     CompanySummaryResponse,
     CompanyUpdate,
     RelationshipCreate,
@@ -84,6 +85,19 @@ async def get_company_persons(
     )
     rels = (await db.execute(stmt)).scalars().all()
     return {"data": [RelationshipResponse.model_validate(r) for r in rels]}
+
+
+@router.get("/{company_id}/employees", response_model=list[CompanyEmployeeResponse])
+async def get_company_employees(
+    company_id: uuid.UUID,
+    current_only: bool = Query(False, description="Filter for currently active employees only"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await company_service.list_company_employees(
+        db, company_id=company_id, current_only=current_only
+    )
+
 
 
 @router.patch("/{company_id}", response_model=CompanyDetailResponse)

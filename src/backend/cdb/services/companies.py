@@ -13,6 +13,7 @@ from cdb.schemas.common import PaginationMetadata
 from cdb.schemas.company import (
     CompanyCreate,
     CompanyDetailResponse,
+    CompanyEmployeeResponse,
     CompanySummaryResponse,
     CompanyUpdate,
     RelationshipCreate,
@@ -292,3 +293,49 @@ async def remove_person_from_company(
     for r in rels:
         await db.delete(r)
     await db.commit()
+
+
+async def list_company_employees(
+    db: AsyncSession, company_id: uuid.UUID, current_only: bool = False
+) -> list[CompanyEmployeeResponse]:
+    company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
+    if not company:
+        raise NotFoundError(f"Company with id {company_id} not found.")
+
+    stmt = (
+        select(PersonCompanyRelationship, Person)
+        .join(Person, Person.id == PersonCompanyRelationship.person_id)
+        .where(
+            PersonCompanyRelationship.company_id == company_id,
+            Person.deleted_at.is_(None),
+        )
+    )
+
+    if current_only:
+        stmt = stmt.where(PersonCompanyRelationship.is_current.is_(True))
+
+    stmt = stmt.order_by(
+        PersonCompanyRelationship.is_current.desc(),
+        PersonCompanyRelationship.started_at.desc().nullslast(),
+    )
+
+    rows = (await db.execute(stmt)).all()
+
+    return [
+        CompanyEmployeeResponse(
+            relationship_id=rel.id,
+            person_id=person.id,
+            first_name=person.first_name,
+            last_name=person.last_name,
+            primary_email=person.primary_email,
+            linkedin_url=person.linkedin_url,
+            city=person.city,
+            country=person.country,
+            title=rel.title,
+            is_current=rel.is_current,
+            started_at=rel.started_at,
+            ended_at=rel.ended_at,
+        )
+        for rel, person in rows
+    ]
+

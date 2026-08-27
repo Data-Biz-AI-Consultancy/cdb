@@ -9,6 +9,7 @@ from cdb.api.v1.ingestion import router as ingestion_router
 from cdb.api.v1.leads import router as leads_router
 from cdb.api.v1.opportunities import router as opportunities_router
 from cdb.api.v1.persons import router as persons_router
+from cdb.api.v1.segments import router as segments_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -20,5 +21,7 @@ api_v1_router.include_router(activities_router)
 api_v1_router.include_router(leads_router)
 api_v1_router.include_router(opportunities_router)
 api_v1_router.include_router(ingestion_router)
+api_v1_router.include_router(segments_router)
 api_v1_router.include_router(er_router, prefix="/entity-resolution")
 api_v1_router.include_router(er_router, prefix="/er")
+
