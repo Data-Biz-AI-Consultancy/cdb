@@ -5,6 +5,14 @@ import SimpleNav from '@/components/SimpleNav';
 export const metadata: Metadata = {
   title: 'CDB — Client DataBase',
   description: 'AI & ML-native personal CRM & CDP',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({

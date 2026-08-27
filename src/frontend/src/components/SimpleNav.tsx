@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearAuthToken } from '@/lib/api';
+import CdbIcon from '@/components/CdbIcon';
 import packageJson from '../../package.json';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || `v${packageJson.version}`;
@@ -32,8 +33,9 @@ export default function SimpleNav() {
   return (
     <nav className="bg-slate-900 text-white px-6 py-3 flex items-center justify-between shadow">
       <div className="flex items-center space-x-6">
-        <Link href="/" className="font-bold text-lg text-emerald-400 tracking-wide">
-          CDB
+        <Link href="/" className="flex items-center space-x-2.5 font-bold text-lg text-emerald-400 tracking-wide hover:text-emerald-300 transition">
+          <CdbIcon className="w-6 h-6 shrink-0" />
+          <span>CDB</span>
         </Link>
         <div className="flex space-x-1">
           {navItems.map((item) => {
