@@ -256,5 +256,32 @@ async def test_ingestion_and_er_queue(client: AsyncClient, auth_headers: dict[st
     assert accept_resp.status_code == 200
     assert "master_person_id" in accept_resp.json()
 
+    # Test merging with unique linkedin_url transfer (Faizan Khan scenario)
+    await client.post(
+        "/api/v1/persons",
+        json={"first_name": "Faizan", "last_name": "Khan", "primary_email": "faizan.sub@substack.com"},
+        headers=auth_headers,
+    )
+    await client.post(
+        "/api/v1/persons",
+        json={"first_name": "Faizan", "last_name": "Khan", "linkedin_url": "https://linkedin.com/in/ifaizankhan"},
+        headers=auth_headers,
+    )
+    await client.post("/api/v1/er/run", headers=auth_headers)
+    q3 = await client.get("/api/v1/er/queue", headers=auth_headers)
+    assert len(q3.json()["data"]) >= 1
+    c3_id = q3.json()["data"][0]["id"]
+
+    # Confirm & Merge
+    merge_resp = await client.post(f"/api/v1/er/queue/{c3_id}/accept", headers=auth_headers)
+    assert merge_resp.status_code == 200
+    master_pid = merge_resp.json()["master_person_id"]
+
+    # Verify master record has the merged linkedin_url
+    master_person = await client.get(f"/api/v1/persons/{master_pid}", headers=auth_headers)
+    assert master_person.status_code == 200
+    assert master_person.json()["linkedin_url"] == "linkedin.com/in/ifaizankhan"
+
+
 
 
