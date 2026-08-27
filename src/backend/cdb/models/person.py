@@ -14,17 +14,21 @@ class Person(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Identity
     first_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    primary_email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    primary_email: Mapped[str | None] = mapped_column(
+        String(255), unique=True, nullable=True, index=True
+    )
     secondary_emails: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     primary_phone: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    linkedin_url: Mapped[str | None] = mapped_column(String(2048), unique=True, nullable=True, index=True)
+    linkedin_url: Mapped[str | None] = mapped_column(
+        String(2048), unique=True, nullable=True, index=True
+    )
     twitter_handle: Mapped[str | None] = mapped_column(String(255), nullable=True)
     facebook_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     whatsapp_phone: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Location
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    country: Mapped[str | None] = mapped_column(String(2), nullable=True) # ISO 3166-1 alpha-2
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)  # ISO 3166-1 alpha-2
 
     # Profile
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -35,4 +39,6 @@ class Person(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     source_ids: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
     # Soft delete
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )

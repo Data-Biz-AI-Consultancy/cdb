@@ -80,14 +80,20 @@ async def create_activity(db: AsyncSession, data: ActivityCreate) -> ActivityRes
 
 
 async def get_activity(db: AsyncSession, activity_id: uuid.UUID) -> ActivityResponse:
-    act = (await db.execute(select(Activity).where(Activity.id == activity_id))).scalar_one_or_none()
+    act = (
+        await db.execute(select(Activity).where(Activity.id == activity_id))
+    ).scalar_one_or_none()
     if not act:
         raise NotFoundError(f"Activity with id {activity_id} not found.")
     return ActivityResponse.model_validate(act)
 
 
-async def update_activity(db: AsyncSession, activity_id: uuid.UUID, data: ActivityUpdate) -> ActivityResponse:
-    act = (await db.execute(select(Activity).where(Activity.id == activity_id))).scalar_one_or_none()
+async def update_activity(
+    db: AsyncSession, activity_id: uuid.UUID, data: ActivityUpdate
+) -> ActivityResponse:
+    act = (
+        await db.execute(select(Activity).where(Activity.id == activity_id))
+    ).scalar_one_or_none()
     if not act:
         raise NotFoundError(f"Activity with id {activity_id} not found.")
 
@@ -101,7 +107,9 @@ async def update_activity(db: AsyncSession, activity_id: uuid.UUID, data: Activi
 
 
 async def delete_activity(db: AsyncSession, activity_id: uuid.UUID) -> None:
-    act = (await db.execute(select(Activity).where(Activity.id == activity_id))).scalar_one_or_none()
+    act = (
+        await db.execute(select(Activity).where(Activity.id == activity_id))
+    ).scalar_one_or_none()
     if not act:
         raise NotFoundError(f"Activity with id {activity_id} not found.")
     await db.delete(act)

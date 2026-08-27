@@ -3,6 +3,7 @@
 
 ### Features
 
+* enhance Persons page with multi-field sorting, full pagination controls, bulk editing for dirty records cleanup, and explicit created/last edited timestamp visibility
 * enhance entity resolution UI with record details and standardize backend candidate resolution endpoints ([18a4aef](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/18a4aef7aaa8b703538bbb54726719ca0cda4de7))
 * implement ML-based entity resolution scoring and add company segmentation support ([7acf2c1](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/7acf2c154a1773ee63643f8cc039b65cb27289cd))
 

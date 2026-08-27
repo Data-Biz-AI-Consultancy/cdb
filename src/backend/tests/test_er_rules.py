@@ -13,7 +13,9 @@ def test_er_rule1_email_match():
 
 def test_er_rule2_linkedin_match():
     p1 = Person(first_name="Alice", last_name="Smith", linkedin_url="linkedin.com/in/alicesmith")
-    p2 = Person(first_name="Alice", last_name="S", linkedin_url="https://www.linkedin.com/in/alicesmith/")
+    p2 = Person(
+        first_name="Alice", last_name="S", linkedin_url="https://www.linkedin.com/in/alicesmith/"
+    )
     res = evaluate_person_match(p1, p2)
     assert res.matched is True
     assert res.outcome == "auto_merge"

@@ -110,7 +110,9 @@ async def list_companies(
 async def create_company(db: AsyncSession, data: CompanyCreate) -> Company:
     domain_norm = data.domain.strip().lower() if data.domain else None
     if domain_norm:
-        existing = (await db.execute(select(Company).where(Company.domain == domain_norm))).scalar_one_or_none()
+        existing = (
+            await db.execute(select(Company).where(Company.domain == domain_norm))
+        ).scalar_one_or_none()
         if existing:
             raise ConflictError(f"Company with domain '{domain_norm}' already exists.")
 
@@ -132,7 +134,9 @@ async def create_company(db: AsyncSession, data: CompanyCreate) -> Company:
 
 
 async def get_company_detail(db: AsyncSession, company_id: uuid.UUID) -> CompanyDetailResponse:
-    company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
+    company = (
+        await db.execute(select(Company).where(Company.id == company_id))
+    ).scalar_one_or_none()
     if not company:
         raise NotFoundError(f"Company with id {company_id} not found.")
 
@@ -174,8 +178,12 @@ async def get_company_detail(db: AsyncSession, company_id: uuid.UUID) -> Company
     )
 
 
-async def update_company(db: AsyncSession, company_id: uuid.UUID, data: CompanyUpdate) -> CompanyDetailResponse:
-    company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
+async def update_company(
+    db: AsyncSession, company_id: uuid.UUID, data: CompanyUpdate
+) -> CompanyDetailResponse:
+    company = (
+        await db.execute(select(Company).where(Company.id == company_id))
+    ).scalar_one_or_none()
     if not company:
         raise NotFoundError(f"Company with id {company_id} not found.")
 
@@ -194,7 +202,9 @@ async def update_company(db: AsyncSession, company_id: uuid.UUID, data: CompanyU
 
 
 async def delete_company(db: AsyncSession, company_id: uuid.UUID, hard: bool = False) -> None:
-    company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
+    company = (
+        await db.execute(select(Company).where(Company.id == company_id))
+    ).scalar_one_or_none()
     if not company:
         raise NotFoundError(f"Company with id {company_id} not found.")
 
@@ -214,7 +224,9 @@ async def add_person_to_company(
     p = (await db.execute(select(Person).where(Person.id == person_id))).scalar_one_or_none()
     if not p:
         raise NotFoundError(f"Person {person_id} not found.")
-    c = (await db.execute(select(Company).where(Company.id == data.company_id))).scalar_one_or_none()
+    c = (
+        await db.execute(select(Company).where(Company.id == data.company_id))
+    ).scalar_one_or_none()
     if not c:
         raise NotFoundError(f"Company {data.company_id} not found.")
 
@@ -255,13 +267,17 @@ async def update_person_company_relationship(
     db: AsyncSession, person_id: uuid.UUID, company_id: uuid.UUID, data: RelationshipUpdate
 ) -> RelationshipResponse:
     rel = (
-        await db.execute(
-            select(PersonCompanyRelationship).where(
-                PersonCompanyRelationship.person_id == person_id,
-                PersonCompanyRelationship.company_id == company_id,
+        (
+            await db.execute(
+                select(PersonCompanyRelationship).where(
+                    PersonCompanyRelationship.person_id == person_id,
+                    PersonCompanyRelationship.company_id == company_id,
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
     if not rel:
         raise NotFoundError("Relationship not found.")
@@ -279,13 +295,17 @@ async def remove_person_from_company(
     db: AsyncSession, person_id: uuid.UUID, company_id: uuid.UUID
 ) -> None:
     rels = (
-        await db.execute(
-            select(PersonCompanyRelationship).where(
-                PersonCompanyRelationship.person_id == person_id,
-                PersonCompanyRelationship.company_id == company_id,
+        (
+            await db.execute(
+                select(PersonCompanyRelationship).where(
+                    PersonCompanyRelationship.person_id == person_id,
+                    PersonCompanyRelationship.company_id == company_id,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     if not rels:
         raise NotFoundError("Relationship not found.")
@@ -298,7 +318,9 @@ async def remove_person_from_company(
 async def list_company_employees(
     db: AsyncSession, company_id: uuid.UUID, current_only: bool = False
 ) -> list[CompanyEmployeeResponse]:
-    company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
+    company = (
+        await db.execute(select(Company).where(Company.id == company_id))
+    ).scalar_one_or_none()
     if not company:
         raise NotFoundError(f"Company with id {company_id} not found.")
 
@@ -338,4 +360,3 @@ async def list_company_employees(
         )
         for rel, person in rows
     ]
-

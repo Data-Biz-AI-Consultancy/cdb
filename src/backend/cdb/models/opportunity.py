@@ -29,7 +29,9 @@ class Opportunity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )  # 'prospect' | 'qualified' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost'
 
     value: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
-    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)  # ISO 4217 e.g. 'EUR', 'USD'
+    currency: Mapped[str | None] = mapped_column(
+        String(3), nullable=True
+    )  # ISO 4217 e.g. 'EUR', 'USD'
     probability: Mapped[int | None] = mapped_column(
         SmallInteger,
         CheckConstraint("probability BETWEEN 0 AND 100", name="ck_opportunities_probability_range"),
@@ -60,7 +62,9 @@ class OpportunityPerson(Base):
         ForeignKey("persons.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    role: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 'decision_maker', 'champion', etc.
+    role: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )  # 'decision_maker', 'champion', etc.
 
 
 class OpportunityCompany(Base):
@@ -76,4 +80,6 @@ class OpportunityCompany(Base):
         ForeignKey("companies.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    role: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 'client', 'partner', 'vendor'
+    role: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )  # 'client', 'partner', 'vendor'

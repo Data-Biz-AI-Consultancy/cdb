@@ -117,7 +117,18 @@ Invalidates the refresh token.
 
 List all persons (paginated, soft-deleted excluded by default).
 
-**Query params:** `q` (full-text search), `source` (filter by source), `country`, `has_open_opportunity` (bool), `has_open_lead` (bool), `include_deleted` (bool, admin only).
+**Query params:**
+- `q` (full-text search across first_name, last_name, primary_email)
+- `source` (filter by source tag)
+- `country` (filter by ISO-2 country code)
+- `has_open_opportunity` (bool)
+- `has_open_lead` (bool)
+- `include_deleted` (bool, admin only)
+- `page` (int >= 1, 1-indexed page number)
+- `page_size` / `limit` (int 1-200, default 50)
+- `cursor` (string offset, alternative pagination)
+- `sort` (`created_at` | `updated_at` | `first_name` | `last_name` | `primary_email` | `country` | `city`, default `created_at`)
+- `order` (`asc` | `desc`, default `desc`)
 
 **Response 200:**
 ```json
@@ -128,15 +139,23 @@ List all persons (paginated, soft-deleted excluded by default).
       "first_name": "Alice",
       "last_name": "Smith",
       "primary_email": "alice@acme.com",
+      "primary_phone": "+44 7911 000000",
       "linkedin_url": "linkedin.com/in/alice-smith",
+      "city": "London",
+      "country": "GB",
       "current_company": { "id": "<uuid>", "name": "Acme Corp" },
       "current_title": "VP Engineering",
       "sources": ["linkedin", "notion"],
       "last_activity_at": "2026-07-15T10:00:00Z",
-      "created_at": "2026-01-10T08:00:00Z"
+      "created_at": "2026-01-10T08:00:00Z",
+      "updated_at": "2026-08-27T16:00:00Z"
     }
   ],
-  "pagination": { ... }
+  "pagination": {
+    "next_cursor": "<offset_or_null>",
+    "has_more": false,
+    "total": 1
+  }
 }
 ```
 
@@ -157,6 +176,50 @@ Create a person manually.
 }
 
 // Response 201 — full person object
+```
+
+### `POST /persons/bulk-update`
+
+Bulk update contact attributes and cleanup dirty records across multiple persons simultaneously.
+
+```json
+// Request
+{
+  "person_ids": ["<uuid1>", "<uuid2>"],
+  "city": "London",
+  "country": "GB",
+  "add_sources": ["manual_cleanup", "verified"],
+  "remove_sources": ["dirty_data"],
+  "attributes": { "cleaned": true }
+}
+
+// Response 200
+{
+  "success": true,
+  "updated_count": 2,
+  "affected_ids": ["<uuid1>", "<uuid2>"],
+  "message": "Successfully updated 2 person(s)."
+}
+```
+
+### `POST /persons/bulk-delete`
+
+Bulk soft-delete or permanently delete multiple persons.
+
+```json
+// Request
+{
+  "person_ids": ["<uuid1>", "<uuid2>"],
+  "hard": false
+}
+
+// Response 200
+{
+  "success": true,
+  "updated_count": 2,
+  "affected_ids": ["<uuid1>", "<uuid2>"],
+  "message": "Successfully soft deleted 2 person(s)."
+}
 ```
 
 ### `GET /persons/{id}`

@@ -71,4 +71,3 @@ def generate_company_domain(company_name: str | None) -> str:
         return ""
     cleaned = re.sub(r"[^a-zA-Z0-9]+", "", cleaned_name).lower()
     return f"{cleaned}.com" if cleaned else ""
-

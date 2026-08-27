@@ -100,4 +100,3 @@ class CompanyEmployeeResponse(BaseModel):
     is_current: bool = True
     started_at: datetime.date | None = None
     ended_at: datetime.date | None = None
-

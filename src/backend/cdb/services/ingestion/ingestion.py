@@ -37,11 +37,9 @@ async def ingest_linkedin_connections(
     duplicates_skipped = 0
 
     for rec in data.records:
-        existing = (
-            await db.execute(
-                select(IntakeLinkedInConnection).where(
-                    IntakeLinkedInConnection.connection_id == rec.connection_id
-                )
+        existing = await db.execute(
+            select(IntakeLinkedInConnection).where(
+                IntakeLinkedInConnection.connection_id == rec.connection_id
             )
         )
         if existing.scalar_one_or_none():
@@ -86,7 +84,9 @@ async def _resolve_linkedin_connection(db: AsyncSession, intake: IntakeLinkedInC
     )
 
     # Check all active persons for potential match
-    all_persons = (await db.execute(select(Person).where(Person.deleted_at.is_(None)))).scalars().all()
+    all_persons = (
+        (await db.execute(select(Person).where(Person.deleted_at.is_(None)))).scalars().all()
+    )
 
     matched_person: Person | None = None
     for p in all_persons:
@@ -222,12 +222,16 @@ async def ingest_linkedin_messages(
             for name in names:
                 if name.lower() not in ["jimmy pang", "jimmy"]:
                     p = (
-                        await db.execute(
-                            select(Person).where(
-                                (Person.first_name + " " + Person.last_name).ilike(f"%{name}%")
+                        (
+                            await db.execute(
+                                select(Person).where(
+                                    (Person.first_name + " " + Person.last_name).ilike(f"%{name}%")
+                                )
                             )
                         )
-                    ).scalars().first()
+                        .scalars()
+                        .first()
+                    )
                     if p:
                         person_id = p.id
                         break
@@ -235,12 +239,18 @@ async def ingest_linkedin_messages(
             if not person_id and names:
                 first_name_match = names[0]
                 p = (
-                    await db.execute(
-                        select(Person).where(
-                            (Person.first_name + " " + Person.last_name).ilike(f"%{first_name_match}%")
+                    (
+                        await db.execute(
+                            select(Person).where(
+                                (Person.first_name + " " + Person.last_name).ilike(
+                                    f"%{first_name_match}%"
+                                )
+                            )
                         )
                     )
-                ).scalars().first()
+                    .scalars()
+                    .first()
+                )
                 if p:
                     person_id = p.id
 
@@ -263,13 +273,17 @@ async def ingest_linkedin_messages(
 
             # Auto-generate / enrich Lead
             existing_lead = (
-                await db.execute(
-                    select(Lead).where(
-                        (Lead.person_id == person_id)
-                        | (Lead.source_ref_id == f"li_convo:{rec.conversation_id}")
+                (
+                    await db.execute(
+                        select(Lead).where(
+                            (Lead.person_id == person_id)
+                            | (Lead.source_ref_id == f"li_convo:{rec.conversation_id}")
+                        )
                     )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
 
             if not existing_lead:
                 summary_text = (
@@ -343,25 +357,35 @@ async def ingest_notion_meeting_notes(
                     norm_e = normalise_email(attendee)
                     if norm_e:
                         p = (
-                            await db.execute(
-                                select(Person).where(
-                                    or_(
-                                        Person.primary_email == norm_e,
-                                        Person.secondary_emails.contains([norm_e]),
+                            (
+                                await db.execute(
+                                    select(Person).where(
+                                        or_(
+                                            Person.primary_email == norm_e,
+                                            Person.secondary_emails.contains([norm_e]),
+                                        )
                                     )
                                 )
                             )
-                        ).scalars().first()
+                            .scalars()
+                            .first()
+                        )
                         if p and p not in resolved_persons:
                             resolved_persons.append(p)
                 else:
                     p = (
-                        await db.execute(
-                            select(Person).where(
-                                (Person.first_name + " " + Person.last_name).ilike(f"%{attendee}%")
+                        (
+                            await db.execute(
+                                select(Person).where(
+                                    (Person.first_name + " " + Person.last_name).ilike(
+                                        f"%{attendee}%"
+                                    )
+                                )
                             )
                         )
-                    ).scalars().first()
+                        .scalars()
+                        .first()
+                    )
                     if p and p not in resolved_persons:
                         resolved_persons.append(p)
 
@@ -388,5 +412,3 @@ async def ingest_notion_meeting_notes(
 
     await db.commit()
     return IngestResponse(queued=queued, duplicates_skipped=duplicates_skipped)
-
-

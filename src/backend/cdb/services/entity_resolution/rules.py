@@ -34,9 +34,7 @@ def evaluate_person_match(
     signals: dict[str, Any] = {}
 
     # Compute ML probabilistic score
-    ml_res = compute_ml_match_score(
-        person_a, person_b, company_domain_a, company_domain_b
-    )
+    ml_res = compute_ml_match_score(person_a, person_b, company_domain_a, company_domain_b)
     signals["ml_score"] = ml_res.score
     signals["ml_features"] = ml_res.feature_scores
 
@@ -58,13 +56,13 @@ def evaluate_person_match(
 
     # Check secondary emails
     all_emails_a = set([email_a] if email_a else [])
-    for e in (person_a.secondary_emails or []):
+    for e in person_a.secondary_emails or []:
         norm = normalise_email(e)
         if norm:
             all_emails_a.add(norm)
 
     all_emails_b = set([email_b] if email_b else [])
-    for e in (person_b.secondary_emails or []):
+    for e in person_b.secondary_emails or []:
         norm = normalise_email(e)
         if norm:
             all_emails_b.add(norm)
@@ -209,4 +207,3 @@ def evaluate_person_match(
         ml_score=ml_res.score,
         ml_features=ml_res.feature_scores,
     )
-

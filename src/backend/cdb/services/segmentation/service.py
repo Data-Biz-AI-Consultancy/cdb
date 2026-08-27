@@ -53,8 +53,32 @@ DECISION_MAKER_REGEX = re.compile(
     r"\b(founder|co-founder|cofounder|owner|partner|chief|ceo|cto|cfo|coo|cmo|cpo|cro|cio|cdo|vp|vice president|head|director|lead|manager|executive|principal)\b",
     re.IGNORECASE,
 )
-ALUMNI_COMPANIES = ["hays", "hayes", "foodpanda", "delivery hero", "hellofresh", "hello fresh", "vestiaire"]
-PEER_TOOLING_COMPANIES = ["dlthub", "dlt", "motherduck", "n8n", "airbyte", "dagster", "prefect", "duckdb", "snowflake", "databricks", "astronomer", "agency", "consulting", "advisory", "solutions"]
+ALUMNI_COMPANIES = [
+    "hays",
+    "hayes",
+    "foodpanda",
+    "delivery hero",
+    "hellofresh",
+    "hello fresh",
+    "vestiaire",
+]
+PEER_TOOLING_COMPANIES = [
+    "dlthub",
+    "dlt",
+    "motherduck",
+    "n8n",
+    "airbyte",
+    "dagster",
+    "prefect",
+    "duckdb",
+    "snowflake",
+    "databricks",
+    "astronomer",
+    "agency",
+    "consulting",
+    "advisory",
+    "solutions",
+]
 
 
 async def evaluate_segments_and_temperature(db: AsyncSession) -> dict[str, Any]:
@@ -107,7 +131,10 @@ async def evaluate_segments_and_temperature(db: AsyncSession) -> dict[str, Any]:
         # Check clients and prospects
         has_client_signal = (
             len(opps) > 0
-            or any(lead.intent in ["inbound_service_request", "business_collaboration"] for lead in leads)
+            or any(
+                lead.intent in ["inbound_service_request", "business_collaboration"]
+                for lead in leads
+            )
             or any(lead.stage in ["qualified", "contacted"] for lead in leads)
         )
         if has_client_signal:
@@ -131,7 +158,11 @@ async def evaluate_segments_and_temperature(db: AsyncSession) -> dict[str, Any]:
         temperature = "cold"
         if last_activity_date:
             # Ensure timezone awareness for comparison
-            dt = last_activity_date if last_activity_date.tzinfo else last_activity_date.replace(tzinfo=datetime.UTC)
+            dt = (
+                last_activity_date
+                if last_activity_date.tzinfo
+                else last_activity_date.replace(tzinfo=datetime.UTC)
+            )
             if dt >= cutoff_30d:
                 temperature = "hot"
             elif dt >= cutoff_90d:

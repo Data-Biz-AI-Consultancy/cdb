@@ -34,8 +34,12 @@ async def list_er_queue(
 
     items: list[ERCandidatePairResponse] = []
     for pair in pairs:
-        pa = (await db.execute(select(Person).where(Person.id == pair.person_a_id))).scalar_one_or_none()
-        pb = (await db.execute(select(Person).where(Person.id == pair.person_b_id))).scalar_one_or_none()
+        pa = (
+            await db.execute(select(Person).where(Person.id == pair.person_a_id))
+        ).scalar_one_or_none()
+        pb = (
+            await db.execute(select(Person).where(Person.id == pair.person_b_id))
+        ).scalar_one_or_none()
 
         if not pa or not pb:
             continue
@@ -45,18 +49,26 @@ async def list_er_queue(
             first_name=pa.first_name,
             last_name=pa.last_name,
             primary_email=pa.primary_email,
+            primary_phone=pa.primary_phone,
             linkedin_url=pa.linkedin_url,
+            city=pa.city,
+            country=pa.country,
             sources=pa.sources or [],
             created_at=pa.created_at,
+            updated_at=pa.updated_at,
         )
         resp_b = PersonSummaryResponse(
             id=pb.id,
             first_name=pb.first_name,
             last_name=pb.last_name,
             primary_email=pb.primary_email,
+            primary_phone=pb.primary_phone,
             linkedin_url=pb.linkedin_url,
+            city=pb.city,
+            country=pb.country,
             sources=pb.sources or [],
             created_at=pb.created_at,
+            updated_at=pb.updated_at,
         )
 
         items.append(
@@ -82,7 +94,9 @@ async def list_er_queue(
 async def accept_er_candidate(
     db: AsyncSession, pair_id: uuid.UUID, user_id: uuid.UUID | None = None
 ) -> ERMergeResult:
-    pair = (await db.execute(select(ERCandidatePair).where(ERCandidatePair.id == pair_id))).scalar_one_or_none()
+    pair = (
+        await db.execute(select(ERCandidatePair).where(ERCandidatePair.id == pair_id))
+    ).scalar_one_or_none()
     if not pair:
         raise NotFoundError(f"Candidate pair {pair_id} not found.")
 
@@ -93,7 +107,9 @@ async def accept_er_candidate(
 async def reject_er_candidate(
     db: AsyncSession, pair_id: uuid.UUID, user_id: uuid.UUID | None = None
 ) -> None:
-    pair = (await db.execute(select(ERCandidatePair).where(ERCandidatePair.id == pair_id))).scalar_one_or_none()
+    pair = (
+        await db.execute(select(ERCandidatePair).where(ERCandidatePair.id == pair_id))
+    ).scalar_one_or_none()
     if not pair:
         raise NotFoundError(f"Candidate pair {pair_id} not found.")
 
@@ -102,7 +118,6 @@ async def reject_er_candidate(
         pair.reviewed_by = user_id
     pair.reviewed_at = datetime.datetime.now(datetime.UTC)
     await db.commit()
-
 
 
 async def run_full_er_scan(db: AsyncSession) -> ERJobResponse:
@@ -156,4 +171,3 @@ async def run_full_er_scan(db: AsyncSession) -> ERJobResponse:
                     await db.commit()
 
     return ERJobResponse(job_id=str(uuid.uuid4()), status="completed")
-

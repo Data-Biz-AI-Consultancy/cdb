@@ -198,6 +198,20 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
                 ))}
               </dd>
             </div>
+            <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <dt className="text-slate-500 font-medium">Created At</dt>
+                <dd className="text-slate-700 font-mono mt-0.5">
+                  {person.created_at ? new Date(person.created_at).toLocaleString() : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500 font-medium">Last Edited</dt>
+                <dd className="text-slate-700 font-mono mt-0.5">
+                  {person.updated_at ? new Date(person.updated_at).toLocaleString() : '—'}
+                </dd>
+              </div>
+            </div>
           </dl>
         </div>
 

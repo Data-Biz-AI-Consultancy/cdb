@@ -15,7 +15,6 @@ from cdb.services.entity_resolution import service as er_service
 router = APIRouter(tags=["Entity Resolution"])
 
 
-
 class ERResolveRequest(BaseModel):
     action: str = Field(..., description="'merge' | 'accept' | 'reject'")
 
@@ -85,4 +84,3 @@ async def trigger_er_run(
     current_user: User = Depends(require_admin),
 ):
     return await er_service.run_full_er_scan(db)
-

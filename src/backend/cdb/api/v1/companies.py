@@ -99,7 +99,6 @@ async def get_company_employees(
     )
 
 
-
 @router.patch("/{company_id}", response_model=CompanyDetailResponse)
 async def update_company(
     company_id: uuid.UUID,
@@ -123,7 +122,11 @@ async def delete_company(
 
 
 # Relationship subroutes
-@router.post("/persons/{person_id}/companies", response_model=RelationshipResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/persons/{person_id}/companies",
+    response_model=RelationshipResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_person_relationship(
     person_id: uuid.UUID,
     payload: RelationshipCreate,
@@ -141,10 +144,14 @@ async def update_person_relationship(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await company_service.update_person_company_relationship(db, person_id, company_id, payload)
+    return await company_service.update_person_company_relationship(
+        db, person_id, company_id, payload
+    )
 
 
-@router.delete("/persons/{person_id}/companies/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/persons/{person_id}/companies/{company_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_person_relationship(
     person_id: uuid.UUID,
     company_id: uuid.UUID,

@@ -25,8 +25,32 @@ def choose_master_record(person_a: Person, person_b: Person) -> tuple[Person, Pe
         return person_b, person_a
 
     # If tied, prefer the record with more non-null fields
-    count_a = sum(1 for v in [person_a.first_name, person_a.last_name, person_a.primary_email, person_a.linkedin_url, person_a.primary_phone, person_a.city, person_a.country] if v is not None)
-    count_b = sum(1 for v in [person_b.first_name, person_b.last_name, person_b.primary_email, person_b.linkedin_url, person_b.primary_phone, person_b.city, person_b.country] if v is not None)
+    count_a = sum(
+        1
+        for v in [
+            person_a.first_name,
+            person_a.last_name,
+            person_a.primary_email,
+            person_a.linkedin_url,
+            person_a.primary_phone,
+            person_a.city,
+            person_a.country,
+        ]
+        if v is not None
+    )
+    count_b = sum(
+        1
+        for v in [
+            person_b.first_name,
+            person_b.last_name,
+            person_b.primary_email,
+            person_b.linkedin_url,
+            person_b.primary_phone,
+            person_b.city,
+            person_b.country,
+        ]
+        if v is not None
+    )
 
     if count_a >= count_b:
         return person_a, person_b
@@ -61,7 +85,7 @@ def compute_merged_attributes(master: Person, sub: Person) -> dict[str, Any]:
     if sub.primary_email and sub.primary_email != master.primary_email:
         if sub.primary_email not in sec_emails:
             sec_emails.append(sub.primary_email)
-    for e in (sub.secondary_emails or []):
+    for e in sub.secondary_emails or []:
         if e and e != master.primary_email and e not in sec_emails:
             sec_emails.append(e)
     updates["secondary_emails"] = sec_emails
@@ -75,7 +99,14 @@ def compute_merged_attributes(master: Person, sub: Person) -> dict[str, Any]:
         updates["linkedin_url"] = sub.linkedin_url
 
     # 5. Other social/location fields
-    for field in ["twitter_handle", "facebook_id", "whatsapp_phone", "city", "country", "avatar_url"]:
+    for field in [
+        "twitter_handle",
+        "facebook_id",
+        "whatsapp_phone",
+        "city",
+        "country",
+        "avatar_url",
+    ]:
         if not getattr(master, field) and getattr(sub, field):
             updates[field] = getattr(sub, field)
 
@@ -126,14 +157,14 @@ async def merge_persons(
     await db.execute(
         update(Activity).where(Activity.person_id == sub_id).values(person_id=master_id)
     )
-    await db.execute(
-        update(Lead).where(Lead.person_id == sub_id).values(person_id=master_id)
-    )
+    await db.execute(update(Lead).where(Lead.person_id == sub_id).values(person_id=master_id))
 
     # Relink OpportunityPerson (handle potential primary key conflict)
     opp_persons_sub = (
-        await db.execute(select(OpportunityPerson).where(OpportunityPerson.person_id == sub_id))
-    ).scalars().all()
+        (await db.execute(select(OpportunityPerson).where(OpportunityPerson.person_id == sub_id)))
+        .scalars()
+        .all()
+    )
     for opp_p in opp_persons_sub:
         opp_id = opp_p.opportunity_id
         existing = (
@@ -151,8 +182,16 @@ async def merge_persons(
 
     # Relink PersonCompanyRelationship (avoid unique constraint clash)
     rel_sub = (
-        await db.execute(select(PersonCompanyRelationship).where(PersonCompanyRelationship.person_id == sub_id))
-    ).scalars().all()
+        (
+            await db.execute(
+                select(PersonCompanyRelationship).where(
+                    PersonCompanyRelationship.person_id == sub_id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     for r in rel_sub:
         existing_r = (
             await db.execute(
@@ -170,12 +209,17 @@ async def merge_persons(
 
     # 3. Update & clean up candidate pairs involving the subordinate person
     sub_pairs = (
-        await db.execute(
-            select(ERCandidatePair).where(
-                (ERCandidatePair.person_a_id == sub_id) | (ERCandidatePair.person_b_id == sub_id)
+        (
+            await db.execute(
+                select(ERCandidatePair).where(
+                    (ERCandidatePair.person_a_id == sub_id)
+                    | (ERCandidatePair.person_b_id == sub_id)
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     for p in sub_pairs:
         other_id = p.person_b_id if p.person_a_id == sub_id else p.person_a_id
@@ -185,8 +229,14 @@ async def merge_persons(
             existing_pair = (
                 await db.execute(
                     select(ERCandidatePair).where(
-                        ((ERCandidatePair.person_a_id == master_id) & (ERCandidatePair.person_b_id == other_id))
-                        | ((ERCandidatePair.person_a_id == other_id) & (ERCandidatePair.person_b_id == master_id))
+                        (
+                            (ERCandidatePair.person_a_id == master_id)
+                            & (ERCandidatePair.person_b_id == other_id)
+                        )
+                        | (
+                            (ERCandidatePair.person_a_id == other_id)
+                            & (ERCandidatePair.person_b_id == master_id)
+                        )
                     )
                 )
             ).scalar_one_or_none()
@@ -210,5 +260,3 @@ async def merge_persons(
     await db.refresh(master)
 
     return master_id, sub_id
-
-

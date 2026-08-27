@@ -86,7 +86,9 @@ async def ensure_initial_admin(db: AsyncSession | None = None) -> None:
             )
             session.add(admin_user)
             await session.commit()
-            logger.info("Initial admin user '%s' created successfully.", settings.FIRST_SUPERUSER_EMAIL)
+            logger.info(
+                "Initial admin user '%s' created successfully.", settings.FIRST_SUPERUSER_EMAIL
+            )
         else:
             logger.debug("Initial admin user '%s' already exists.", settings.FIRST_SUPERUSER_EMAIL)
 
@@ -98,5 +100,3 @@ async def ensure_initial_admin(db: AsyncSession | None = None) -> None:
                 await _create_admin(session)
     except Exception as exc:
         logger.warning("Could not automatically check/create initial admin user: %s", exc)
-
-

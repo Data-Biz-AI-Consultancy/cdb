@@ -8,6 +8,9 @@ from cdb.core.database import get_db
 from cdb.models.user import User
 from cdb.schemas.common import PaginatedResponse
 from cdb.schemas.person import (
+    BulkOperationResult,
+    PersonBulkDelete,
+    PersonBulkUpdate,
     PersonCreate,
     PersonDetailResponse,
     PersonSummaryResponse,
@@ -26,6 +29,7 @@ async def list_persons(
     has_open_opportunity: bool | None = Query(None),
     has_open_lead: bool | None = Query(None),
     include_deleted: bool = Query(False),
+    page: int | None = Query(None, ge=1, description="Page number (1-indexed)"),
     limit: int | None = Query(None, ge=1, le=200),
     page_size: int | None = Query(None, ge=1, le=200),
     cursor: str | None = Query(None),
@@ -44,11 +48,32 @@ async def list_persons(
         has_open_lead=has_open_lead,
         include_deleted=include_deleted,
         limit=effective_limit,
+        page=page,
         cursor=cursor,
         sort=sort,
         order=order,
     )
     return PaginatedResponse(data=items, pagination=pagination)
+
+
+@router.post("/bulk-update", response_model=BulkOperationResult)
+async def bulk_update_persons(
+    payload: PersonBulkUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await person_service.bulk_update_persons(db, payload)
+
+
+@router.post("/bulk-delete", response_model=BulkOperationResult)
+async def bulk_delete_persons(
+    payload: PersonBulkDelete,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if payload.hard and current_user.role != "admin":
+        await require_admin(current_user)
+    return await person_service.bulk_delete_persons(db, payload)
 
 
 @router.post("", response_model=PersonDetailResponse, status_code=status.HTTP_201_CREATED)
