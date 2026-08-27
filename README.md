@@ -23,18 +23,23 @@
 ## 🏗️ Architecture & Domain Model
 
 ```
+Directory (Identities & Peer Entities)
 Persons ─────────────────────────────── Companies
     │         person_company_relationships   │
     │              (many-to-many)            │
     │                                        │
+Pipeline & Engagements (CRM Lifecycle)       │
     ├── Activities ──────────────────────────┤
     │   (meetings, emails, messages, calls)  │
     │                                        │
     ├── Leads ───────────────────────────────┤
-    │   (qualification layer)                │
+    │   (qualification & job signals)        │
     │                                        │
-    └── Opportunities ───────────────────────┘
-        (deals, partnerships, collaborations)
+    ├── Opportunities ───────────────────────┤
+    │   (deals, pipeline & proposals)        │
+    │                                        │
+    └── Engagements ─────────────────────────┘
+        (active jobs & client delivery)
 ```
 
 ---
@@ -229,10 +234,11 @@ cdb/
   - Rule-based Entity Resolution engine and Review Queue endpoints
   - Ingestion endpoints for LinkedIn, Notion, and CSV imports
   - Test suites covering auth, CRUD, errors, and ER rules
-- [x] **Phase 2 — Barebones Functional Frontend MVP** (Next.js 15 App Router)
-  - Functional views for Persons, Companies, Activities, Leads, Opportunities
-  - Entity Resolution review queue resolution actions
-  - Data ingestion test portal
+- [x] **Phase 2 — Categorized Frontend Experience** (Next.js 15 App Router)
+  - Grouped navigation & dashboard (**Directory**, **Pipeline & Engagements**, **Settings**)
+  - Unified views for Persons, Companies, Entity Resolution review queue
+  - Full pipeline tracking for Activities, Leads, Opportunities, and active Client Engagements
+  - Data ingestion test portal and System & Platform Settings
 - [ ] **Phase 3 — ML Entity Resolution & Enriched Channels** (Gmail, Calendar)
 - [ ] **Phase 4 — Segments, Advanced Integrations & RBAC**
 
