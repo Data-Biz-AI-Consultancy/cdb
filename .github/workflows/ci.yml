@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  test-backend:
+    name: Test Backend
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -37,8 +38,34 @@ jobs:
         run: |
           uv run pytest -v
 
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: "src/frontend/package-lock.json"
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Type Check (TypeScript)
+        working-directory: src/frontend
+        run: npm run typecheck
+
+      - name: Run Vitest
+        working-directory: src/frontend
+        run: npm test
+
   build-staging:
-    needs: test
+    needs: [test-backend, test-frontend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
