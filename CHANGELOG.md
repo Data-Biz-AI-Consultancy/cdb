@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.16.0...v1.17.0) (2026-08-27)
+
+
+### Features
+
+* implement bulk actions, column sorting, and pagination for persons management ([a8ce9ed](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/a8ce9ed1e9e037bd075d5ddff5851765045f9617))
+
 # [1.16.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.15.0...v1.16.0) (2026-08-27)
 
 
