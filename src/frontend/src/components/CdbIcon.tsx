@@ -1,0 +1,72 @@
+import React from 'react';
+
+interface CdbIconProps {
+  className?: string;
+  size?: number;
+}
+
+export default function CdbIcon({ className = 'w-6 h-6', size }: CdbIconProps) {
+  const sizeProps = size ? { width: size, height: size } : {};
+
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 32 32"
+      fill="none"
+      className={className}
+      {...sizeProps}
+    >
+      <defs>
+        <linearGradient id="cdbIconBg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#0f172a" />
+          <stop offset="100%" stopColor="#1e293b" />
+        </linearGradient>
+        <linearGradient id="cdbIconTopGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#38bdf8" />
+          <stop offset="60%" stopColor="#34d399" />
+          <stop offset="100%" stopColor="#10b981" />
+        </linearGradient>
+        <linearGradient id="cdbIconMidGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#10b981" />
+          <stop offset="100%" stopColor="#059669" />
+        </linearGradient>
+        <linearGradient id="cdbIconBotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#059669" />
+          <stop offset="100%" stopColor="#047857" />
+        </linearGradient>
+        <filter id="cdbIconGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#10b981" floodOpacity="0.6" />
+        </filter>
+      </defs>
+
+      {/* Background Badge */}
+      <rect width="32" height="32" rx="7" fill="url(#cdbIconBg)" />
+      <rect x="0.5" y="0.5" width="31" height="31" rx="6.5" stroke="#334155" strokeWidth="1" />
+
+      {/* Bottom Tier */}
+      <path
+        d="M 6 18.5 C 6 20.7 10.5 22.5 16 22.5 C 21.5 22.5 26 20.7 26 18.5 V 21.5 C 26 23.7 21.5 25.5 16 25.5 C 10.5 25.5 6 23.7 6 21.5 Z"
+        fill="url(#cdbIconBotGrad)"
+      />
+
+      {/* Middle Tier */}
+      <path
+        d="M 6 13 C 6 15.2 10.5 17 16 17 C 21.5 17 26 15.2 26 13 V 16 C 26 18.2 21.5 20 16 20 C 10.5 20 6 18.2 6 16 Z"
+        fill="url(#cdbIconMidGrad)"
+      />
+
+      {/* Top Tier / Cylinder Top */}
+      <ellipse cx="16" cy="10.5" rx="10" ry="4" fill="url(#cdbIconTopGrad)" />
+      <path
+        d="M 6 10.5 C 6 12.7 10.5 14.5 16 14.5 C 21.5 14.5 26 12.7 26 10.5 V 11.5 C 26 13.7 21.5 15.5 16 15.5 C 10.5 15.5 6 13.7 6 11.5 Z"
+        fill="#059669"
+        opacity="0.6"
+      />
+
+      {/* Client Connection Node / Center Highlight */}
+      <circle cx="16" cy="10.5" r="2.2" fill="#ffffff" filter="url(#cdbIconGlow)" />
+      <circle cx="11" cy="10" r="1" fill="#ecfdf5" opacity="0.8" />
+      <circle cx="21" cy="10" r="1" fill="#ecfdf5" opacity="0.8" />
+    </svg>
+  );
+}

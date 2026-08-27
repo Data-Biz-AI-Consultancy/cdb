@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, setAuthToken } from '@/lib/api';
+import CdbIcon from '@/components/CdbIcon';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,7 +37,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="bg-white border border-slate-200 rounded-lg p-8 max-w-md w-full shadow-sm">
-        <div className="mb-6 text-center">
+        <div className="mb-6 text-center flex flex-col items-center">
+          <CdbIcon className="w-12 h-12 mb-3" />
           <h1 className="text-2xl font-bold text-slate-800">CDB Login</h1>
           <p className="text-sm text-slate-500 mt-1">Client DataBase CRM / CDP</p>
         </div>
