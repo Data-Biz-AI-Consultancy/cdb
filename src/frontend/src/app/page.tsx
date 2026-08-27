@@ -4,6 +4,23 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
 
+interface DashboardCard {
+  title: string;
+  count: number | string;
+  countSuffix?: string;
+  href: string;
+  desc: string;
+  badge?: string;
+}
+
+interface DashboardSection {
+  group: string;
+  tag: string;
+  color: string;
+  tagColor: string;
+  cards: DashboardCard[];
+}
+
 export default function HomePage() {
   const [stats, setStats] = useState({
     persons: 0,
@@ -59,7 +76,7 @@ export default function HomePage() {
     loadCounts();
   }, []);
 
-  const sections = [
+  const sections: DashboardSection[] = [
     {
       group: 'Directory',
       tag: 'Core Entities & Identity Graph',
