@@ -61,12 +61,37 @@ class PersonSummaryResponse(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     primary_email: str | None = None
+    primary_phone: str | None = None
     linkedin_url: str | None = None
+    city: str | None = None
+    country: str | None = None
     current_company: CompanySummaryResponse | None = None
     current_title: str | None = None
     sources: list[str] = Field(default_factory=list)
     last_activity_at: datetime.datetime | None = None
     created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+
+class PersonBulkUpdate(BaseModel):
+    person_ids: list[uuid.UUID]
+    city: str | None = None
+    country: str | None = None
+    add_sources: list[str] = Field(default_factory=list)
+    remove_sources: list[str] = Field(default_factory=list)
+    attributes: dict[str, Any] | None = None
+
+
+class PersonBulkDelete(BaseModel):
+    person_ids: list[uuid.UUID]
+    hard: bool = False
+
+
+class BulkOperationResult(BaseModel):
+    success: bool
+    updated_count: int
+    affected_ids: list[uuid.UUID]
+    message: str
 
 
 class PersonDetailResponse(PersonBase):

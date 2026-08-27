@@ -45,18 +45,26 @@ async def list_er_queue(
             first_name=pa.first_name,
             last_name=pa.last_name,
             primary_email=pa.primary_email,
+            primary_phone=pa.primary_phone,
             linkedin_url=pa.linkedin_url,
+            city=pa.city,
+            country=pa.country,
             sources=pa.sources or [],
             created_at=pa.created_at,
+            updated_at=pa.updated_at,
         )
         resp_b = PersonSummaryResponse(
             id=pb.id,
             first_name=pb.first_name,
             last_name=pb.last_name,
             primary_email=pb.primary_email,
+            primary_phone=pb.primary_phone,
             linkedin_url=pb.linkedin_url,
+            city=pb.city,
+            country=pb.country,
             sources=pb.sources or [],
             created_at=pb.created_at,
+            updated_at=pb.updated_at,
         )
 
         items.append(

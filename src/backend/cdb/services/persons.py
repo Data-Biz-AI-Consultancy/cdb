@@ -1,4 +1,5 @@
 import datetime
+from typing import Any
 import uuid
 
 from sqlalchemy import func, or_, select
@@ -14,7 +15,10 @@ from cdb.models.relationship import PersonCompanyRelationship
 from cdb.schemas.common import PaginationMetadata
 from cdb.schemas.company import CompanySummaryResponse
 from cdb.schemas.person import (
+    BulkOperationResult,
     CareerItemResponse,
+    PersonBulkDelete,
+    PersonBulkUpdate,
     PersonCreate,
     PersonDetailResponse,
     PersonSummaryResponse,
@@ -27,6 +31,55 @@ from cdb.services.entity_resolution.normalise import (
 )
 
 
+def _clean_sources(src: Any) -> list[str]:
+    if src is None:
+        return []
+    if isinstance(src, str):
+        s = src.strip()
+        if (s.startswith("[") and s.endswith("]")) or (s.startswith("{") and s.endswith("}")):
+            import json
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    return _clean_sources(parsed)
+            except Exception:
+                pass
+        if "," in s:
+            return [part.strip() for part in s.split(",") if part.strip()]
+        return [s] if s else []
+    if isinstance(src, (list, tuple, set)):
+        joined = "".join(str(x) for x in src)
+        if (joined.startswith("[") and joined.endswith("]")) or (joined.startswith("{") and joined.endswith("}")):
+            import json
+            try:
+                parsed = json.loads(joined)
+                if isinstance(parsed, list):
+                    return _clean_sources(parsed)
+            except Exception:
+                pass
+        out: list[str] = []
+        for item in src:
+            if isinstance(item, (list, tuple, set)):
+                out.extend(_clean_sources(item))
+            elif isinstance(item, str):
+                clean_item = item.strip()
+                if (clean_item.startswith("[") and clean_item.endswith("]")) or (clean_item.startswith("{") and clean_item.endswith("}")):
+                    import json
+                    try:
+                        parsed = json.loads(clean_item)
+                        if isinstance(parsed, list):
+                            out.extend(_clean_sources(parsed))
+                            continue
+                    except Exception:
+                        pass
+                if clean_item:
+                    out.append(clean_item)
+            elif item is not None:
+                out.append(str(item))
+        return out
+    return []
+
+
 async def list_persons(
     db: AsyncSession,
     q: str | None = None,
@@ -36,6 +89,7 @@ async def list_persons(
     has_open_lead: bool | None = None,
     include_deleted: bool = False,
     limit: int = 50,
+    page: int | None = None,
     cursor: str | None = None,
     sort: str = "created_at",
     order: str = "desc",
@@ -83,14 +137,28 @@ async def list_persons(
     total = total_res.scalar() or 0
 
     # Sorting & Pagination
-    if order.lower() == "asc":
-        stmt = stmt.order_by(getattr(Person, sort, Person.created_at).asc())
-    else:
-        stmt = stmt.order_by(getattr(Person, sort, Person.created_at).desc())
+    sort_column_map = {
+        "created_at": Person.created_at,
+        "updated_at": Person.updated_at,
+        "first_name": Person.first_name,
+        "last_name": Person.last_name,
+        "primary_email": Person.primary_email,
+        "country": Person.country,
+        "city": Person.city,
+    }
+    sort_col = sort_column_map.get(sort, Person.created_at)
 
-    offset = 0
-    if cursor and cursor.isdigit():
+    if order.lower() == "asc":
+        stmt = stmt.order_by(sort_col.asc())
+    else:
+        stmt = stmt.order_by(sort_col.desc())
+
+    if page is not None and page >= 1:
+        offset = (page - 1) * limit
+    elif cursor and cursor.isdigit():
         offset = int(cursor)
+    else:
+        offset = 0
 
     stmt = stmt.offset(offset).limit(limit)
     res = await db.execute(stmt)
@@ -135,12 +203,16 @@ async def list_persons(
                 first_name=p.first_name,
                 last_name=p.last_name,
                 primary_email=p.primary_email,
+                primary_phone=p.primary_phone,
                 linkedin_url=p.linkedin_url,
+                city=p.city,
+                country=p.country,
                 current_company=current_company,
                 current_title=current_title,
-                sources=p.sources or [],
+                sources=_clean_sources(p.sources),
                 last_activity_at=last_act,
                 created_at=p.created_at,
+                updated_at=p.updated_at,
             )
         )
 
@@ -258,7 +330,7 @@ async def get_person_detail(db: AsyncSession, person_id: uuid.UUID) -> PersonDet
         country=person.country,
         avatar_url=person.avatar_url,
         attributes=person.attributes or {},
-        sources=person.sources or [],
+        sources=_clean_sources(person.sources),
         source_ids=person.source_ids or {},
         career=career_items,
         open_leads_count=leads_count,
@@ -303,3 +375,82 @@ async def delete_person(db: AsyncSession, person_id: uuid.UUID, hard: bool = Fal
         person.deleted_at = datetime.datetime.now(datetime.UTC)
 
     await db.commit()
+
+
+async def bulk_update_persons(db: AsyncSession, data: PersonBulkUpdate) -> BulkOperationResult:
+    if not data.person_ids:
+        return BulkOperationResult(
+            success=True,
+            updated_count=0,
+            affected_ids=[],
+            message="No persons specified for bulk update.",
+        )
+
+    stmt = select(Person).where(Person.id.in_(data.person_ids), Person.deleted_at.is_(None))
+    res = await db.execute(stmt)
+    persons = res.scalars().all()
+
+    now = datetime.datetime.now(datetime.UTC)
+    for p in persons:
+        if data.city is not None:
+            p.city = data.city.strip() if data.city.strip() else None
+        if data.country is not None:
+            p.country = data.country.strip().upper() if data.country.strip() else None
+        if data.add_sources:
+            cur = _clean_sources(p.sources)
+            for s in data.add_sources:
+                clean_s = s.strip()
+                if clean_s and clean_s not in cur:
+                    cur.append(clean_s)
+            p.sources = cur
+        if data.remove_sources:
+            cur = [s for s in _clean_sources(p.sources) if s not in data.remove_sources]
+            p.sources = cur
+        if data.attributes is not None:
+            attrs = dict(p.attributes or {})
+            attrs.update(data.attributes)
+            p.attributes = attrs
+        p.updated_at = now
+
+    await db.commit()
+
+    affected_ids = [p.id for p in persons]
+    return BulkOperationResult(
+        success=True,
+        updated_count=len(affected_ids),
+        affected_ids=affected_ids,
+        message=f"Successfully updated {len(affected_ids)} person(s).",
+    )
+
+
+async def bulk_delete_persons(db: AsyncSession, data: PersonBulkDelete) -> BulkOperationResult:
+    if not data.person_ids:
+        return BulkOperationResult(
+            success=True,
+            updated_count=0,
+            affected_ids=[],
+            message="No persons specified for bulk delete.",
+        )
+
+    stmt = select(Person).where(Person.id.in_(data.person_ids))
+    res = await db.execute(stmt)
+    persons = res.scalars().all()
+
+    now = datetime.datetime.now(datetime.UTC)
+    affected_ids = [p.id for p in persons]
+
+    for p in persons:
+        if data.hard:
+            await db.delete(p)
+        else:
+            p.deleted_at = now
+
+    await db.commit()
+
+    action = "permanently deleted" if data.hard else "soft deleted"
+    return BulkOperationResult(
+        success=True,
+        updated_count=len(affected_ids),
+        affected_ids=affected_ids,
+        message=f"Successfully {action} {len(affected_ids)} person(s).",
+    )
