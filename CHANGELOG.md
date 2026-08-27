@@ -1,3 +1,12 @@
+# [1.15.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.14.0...v1.15.0) (2026-08-27)
+
+
+### Features
+
+* define DashboardCard and DashboardSection interfaces for homepage state management ([6e8334e](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/6e8334eff8745d6042fbc1929fb4d7662dab72c2))
+* reorganize navigation into categorized dropdown groups and add engagements and settings pages ([5f3b333](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/5f3b333cc899c0059feffd27a2a0f988494af92e))
+* update ingestion link to point to persons view ([ab68d8d](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ab68d8d3cc2502553f2ecaeec44707365aa4e139))
+
 # [1.14.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.13.0...v1.14.0) (2026-08-27)
 
 
