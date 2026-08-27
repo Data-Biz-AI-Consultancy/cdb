@@ -23,7 +23,9 @@ async def auth_headers(db_session) -> dict[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_company_employees_current_and_alumni(client: AsyncClient, auth_headers: dict[str, str]):
+async def test_company_employees_current_and_alumni(
+    client: AsyncClient, auth_headers: dict[str, str]
+):
     # 1. Create company
     c_resp = await client.post(
         "/api/v1/companies",
@@ -69,7 +71,9 @@ async def test_company_employees_current_and_alumni(client: AsyncClient, auth_he
     assert len(all_emps) == 2
 
     # 5. List current only
-    curr_emp_resp = await client.get(f"/api/v1/companies/{comp_id}/employees?current_only=true", headers=auth_headers)
+    curr_emp_resp = await client.get(
+        f"/api/v1/companies/{comp_id}/employees?current_only=true", headers=auth_headers
+    )
     assert curr_emp_resp.status_code == 200
     curr_emps = curr_emp_resp.json()
     assert len(curr_emps) == 1
@@ -78,7 +82,9 @@ async def test_company_employees_current_and_alumni(client: AsyncClient, auth_he
 
 
 @pytest.mark.asyncio
-async def test_evaluate_segments_and_temperature_api(client: AsyncClient, auth_headers: dict[str, str]):
+async def test_evaluate_segments_and_temperature_api(
+    client: AsyncClient, auth_headers: dict[str, str]
+):
     # 1. Create a person with recruiter title
     p_resp = await client.post(
         "/api/v1/persons",
@@ -103,7 +109,11 @@ async def test_evaluate_segments_and_temperature_api(client: AsyncClient, auth_h
 
     await client.post(
         f"/api/v1/companies/persons/{p_id}/companies",
-        json={"company_id": comp_id, "title": "Senior Talent Acquisition Manager", "is_current": True},
+        json={
+            "company_id": comp_id,
+            "title": "Senior Talent Acquisition Manager",
+            "is_current": True,
+        },
         headers=auth_headers,
     )
 

@@ -72,20 +72,62 @@ async def test_person_crud(client: AsyncClient, auth_headers: dict[str, str]):
 
 
 @pytest.mark.asyncio
-async def test_person_sorting_pagination_and_bulk_operations(client: AsyncClient, auth_headers: dict[str, str]):
+async def test_person_sorting_pagination_and_bulk_operations(
+    client: AsyncClient, auth_headers: dict[str, str]
+):
     # Create 3 persons
-    p1 = (await client.post("/api/v1/persons", json={"first_name": "Charlie", "last_name": "Brown", "primary_email": "charlie@test.com", "city": "Berlin", "country": "DE"}, headers=auth_headers)).json()
-    p2 = (await client.post("/api/v1/persons", json={"first_name": "Alice", "last_name": "Zeta", "primary_email": "alice@test.com", "city": "Paris", "country": "FR"}, headers=auth_headers)).json()
-    p3 = (await client.post("/api/v1/persons", json={"first_name": "Bob", "last_name": "Alpha", "primary_email": "bob@test.com", "city": "London", "country": "GB"}, headers=auth_headers)).json()
+    p1 = (
+        await client.post(
+            "/api/v1/persons",
+            json={
+                "first_name": "Charlie",
+                "last_name": "Brown",
+                "primary_email": "charlie@test.com",
+                "city": "Berlin",
+                "country": "DE",
+            },
+            headers=auth_headers,
+        )
+    ).json()
+    p2 = (
+        await client.post(
+            "/api/v1/persons",
+            json={
+                "first_name": "Alice",
+                "last_name": "Zeta",
+                "primary_email": "alice@test.com",
+                "city": "Paris",
+                "country": "FR",
+            },
+            headers=auth_headers,
+        )
+    ).json()
+    p3 = (
+        await client.post(
+            "/api/v1/persons",
+            json={
+                "first_name": "Bob",
+                "last_name": "Alpha",
+                "primary_email": "bob@test.com",
+                "city": "London",
+                "country": "GB",
+            },
+            headers=auth_headers,
+        )
+    ).json()
 
     # 1. Test sorting by first_name asc
-    res_sort_asc = await client.get("/api/v1/persons?sort=first_name&order=asc", headers=auth_headers)
+    res_sort_asc = await client.get(
+        "/api/v1/persons?sort=first_name&order=asc", headers=auth_headers
+    )
     assert res_sort_asc.status_code == 200
     names_asc = [p["first_name"] for p in res_sort_asc.json()["data"]]
     assert names_asc == ["Alice", "Bob", "Charlie"]
 
     # 2. Test sorting by first_name desc
-    res_sort_desc = await client.get("/api/v1/persons?sort=first_name&order=desc", headers=auth_headers)
+    res_sort_desc = await client.get(
+        "/api/v1/persons?sort=first_name&order=desc", headers=auth_headers
+    )
     names_desc = [p["first_name"] for p in res_sort_desc.json()["data"]]
     assert names_desc == ["Charlie", "Bob", "Alice"]
 
@@ -97,13 +139,17 @@ async def test_person_sorting_pagination_and_bulk_operations(client: AsyncClient
     assert first_summary["country"] == "FR"
 
     # 4. Test pagination
-    p_page1 = await client.get("/api/v1/persons?sort=first_name&order=asc&page=1&page_size=2", headers=auth_headers)
+    p_page1 = await client.get(
+        "/api/v1/persons?sort=first_name&order=asc&page=1&page_size=2", headers=auth_headers
+    )
     assert len(p_page1.json()["data"]) == 2
     assert p_page1.json()["data"][0]["first_name"] == "Alice"
     assert p_page1.json()["data"][1]["first_name"] == "Bob"
     assert p_page1.json()["pagination"]["total"] == 3
 
-    p_page2 = await client.get("/api/v1/persons?sort=first_name&order=asc&page=2&page_size=2", headers=auth_headers)
+    p_page2 = await client.get(
+        "/api/v1/persons?sort=first_name&order=asc&page=2&page_size=2", headers=auth_headers
+    )
     assert len(p_page2.json()["data"]) == 1
     assert p_page2.json()["data"][0]["first_name"] == "Charlie"
 
@@ -227,7 +273,9 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     assert l_resp.json()["stage"] == "new"
 
     # 2. Advance lead
-    adv_resp = await client.post(f"/api/v1/leads/{lead_id}/advance", json={"notes": "Called client"}, headers=auth_headers)
+    adv_resp = await client.post(
+        f"/api/v1/leads/{lead_id}/advance", json={"notes": "Called client"}, headers=auth_headers
+    )
     assert adv_resp.status_code == 200
     assert adv_resp.json()["stage"] == "contacted"
 
@@ -331,12 +379,20 @@ async def test_ingestion_and_er_queue(client: AsyncClient, auth_headers: dict[st
     # Test merging with unique linkedin_url transfer (Faizan Khan scenario)
     await client.post(
         "/api/v1/persons",
-        json={"first_name": "Faizan", "last_name": "Khan", "primary_email": "faizan.sub@substack.com"},
+        json={
+            "first_name": "Faizan",
+            "last_name": "Khan",
+            "primary_email": "faizan.sub@substack.com",
+        },
         headers=auth_headers,
     )
     await client.post(
         "/api/v1/persons",
-        json={"first_name": "Faizan", "last_name": "Khan", "linkedin_url": "https://linkedin.com/in/ifaizankhan"},
+        json={
+            "first_name": "Faizan",
+            "last_name": "Khan",
+            "linkedin_url": "https://linkedin.com/in/ifaizankhan",
+        },
         headers=auth_headers,
     )
     await client.post("/api/v1/er/run", headers=auth_headers)
@@ -353,7 +409,3 @@ async def test_ingestion_and_er_queue(client: AsyncClient, auth_headers: dict[st
     master_person = await client.get(f"/api/v1/persons/{master_pid}", headers=auth_headers)
     assert master_person.status_code == 200
     assert master_person.json()["linkedin_url"] == "linkedin.com/in/ifaizankhan"
-
-
-
-

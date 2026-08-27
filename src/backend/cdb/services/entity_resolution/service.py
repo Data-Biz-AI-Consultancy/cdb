@@ -34,8 +34,12 @@ async def list_er_queue(
 
     items: list[ERCandidatePairResponse] = []
     for pair in pairs:
-        pa = (await db.execute(select(Person).where(Person.id == pair.person_a_id))).scalar_one_or_none()
-        pb = (await db.execute(select(Person).where(Person.id == pair.person_b_id))).scalar_one_or_none()
+        pa = (
+            await db.execute(select(Person).where(Person.id == pair.person_a_id))
+        ).scalar_one_or_none()
+        pb = (
+            await db.execute(select(Person).where(Person.id == pair.person_b_id))
+        ).scalar_one_or_none()
 
         if not pa or not pb:
             continue
@@ -90,7 +94,9 @@ async def list_er_queue(
 async def accept_er_candidate(
     db: AsyncSession, pair_id: uuid.UUID, user_id: uuid.UUID | None = None
 ) -> ERMergeResult:
-    pair = (await db.execute(select(ERCandidatePair).where(ERCandidatePair.id == pair_id))).scalar_one_or_none()
+    pair = (
+        await db.execute(select(ERCandidatePair).where(ERCandidatePair.id == pair_id))
+    ).scalar_one_or_none()
     if not pair:
         raise NotFoundError(f"Candidate pair {pair_id} not found.")
 
@@ -101,7 +107,9 @@ async def accept_er_candidate(
 async def reject_er_candidate(
     db: AsyncSession, pair_id: uuid.UUID, user_id: uuid.UUID | None = None
 ) -> None:
-    pair = (await db.execute(select(ERCandidatePair).where(ERCandidatePair.id == pair_id))).scalar_one_or_none()
+    pair = (
+        await db.execute(select(ERCandidatePair).where(ERCandidatePair.id == pair_id))
+    ).scalar_one_or_none()
     if not pair:
         raise NotFoundError(f"Candidate pair {pair_id} not found.")
 
@@ -110,7 +118,6 @@ async def reject_er_candidate(
         pair.reviewed_by = user_id
     pair.reviewed_at = datetime.datetime.now(datetime.UTC)
     await db.commit()
-
 
 
 async def run_full_er_scan(db: AsyncSession) -> ERJobResponse:
@@ -164,4 +171,3 @@ async def run_full_er_scan(db: AsyncSession) -> ERJobResponse:
                     await db.commit()
 
     return ERJobResponse(job_id=str(uuid.uuid4()), status="completed")
-

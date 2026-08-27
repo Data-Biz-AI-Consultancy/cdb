@@ -1,4 +1,3 @@
-
 from cdb.services.entity_resolution.normalise import (
     email_prefix,
     normalise_email,
@@ -16,7 +15,10 @@ def test_normalise_email():
 
 
 def test_normalise_linkedin_url():
-    assert normalise_linkedin_url("https://www.linkedin.com/in/alice-smith/") == "linkedin.com/in/alice-smith"
+    assert (
+        normalise_linkedin_url("https://www.linkedin.com/in/alice-smith/")
+        == "linkedin.com/in/alice-smith"
+    )
     assert normalise_linkedin_url("http://linkedin.com/in/bob") == "linkedin.com/in/bob"
     assert normalise_linkedin_url("https://google.com") is None
     assert normalise_linkedin_url(None) is None
@@ -60,4 +62,3 @@ def test_generate_company_domain():
     assert generate_company_domain("BioTech GmbH & Co. KG") == "biotech.com"
     assert generate_company_domain("") == ""
     assert generate_company_domain(None) == ""
-

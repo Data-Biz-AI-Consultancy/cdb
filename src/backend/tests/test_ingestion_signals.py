@@ -1,4 +1,3 @@
-
 from cdb.services.ingestion.signals import detect_message_metadata
 
 

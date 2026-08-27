@@ -24,4 +24,3 @@ api_v1_router.include_router(ingestion_router)
 api_v1_router.include_router(segments_router)
 api_v1_router.include_router(er_router, prefix="/entity-resolution")
 api_v1_router.include_router(er_router, prefix="/er")
-

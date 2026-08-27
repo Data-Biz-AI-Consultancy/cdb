@@ -102,7 +102,9 @@ async def disqualify_lead(
     return await lead_service.disqualify_lead(db, lead_id, payload)
 
 
-@router.post("/{lead_id}/convert", response_model=OpportunityResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{lead_id}/convert", response_model=OpportunityResponse, status_code=status.HTTP_201_CREATED
+)
 async def convert_lead(
     lead_id: uuid.UUID,
     payload: LeadConvert,

@@ -1,6 +1,6 @@
 import datetime
-from typing import Any
 import uuid
+from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +38,7 @@ def _clean_sources(src: Any) -> list[str]:
         s = src.strip()
         if (s.startswith("[") and s.endswith("]")) or (s.startswith("{") and s.endswith("}")):
             import json
+
             try:
                 parsed = json.loads(s)
                 if isinstance(parsed, list):
@@ -49,8 +50,11 @@ def _clean_sources(src: Any) -> list[str]:
         return [s] if s else []
     if isinstance(src, (list, tuple, set)):
         joined = "".join(str(x) for x in src)
-        if (joined.startswith("[") and joined.endswith("]")) or (joined.startswith("{") and joined.endswith("}")):
+        if (joined.startswith("[") and joined.endswith("]")) or (
+            joined.startswith("{") and joined.endswith("}")
+        ):
             import json
+
             try:
                 parsed = json.loads(joined)
                 if isinstance(parsed, list):
@@ -63,8 +67,11 @@ def _clean_sources(src: Any) -> list[str]:
                 out.extend(_clean_sources(item))
             elif isinstance(item, str):
                 clean_item = item.strip()
-                if (clean_item.startswith("[") and clean_item.endswith("]")) or (clean_item.startswith("{") and clean_item.endswith("}")):
+                if (clean_item.startswith("[") and clean_item.endswith("]")) or (
+                    clean_item.startswith("{") and clean_item.endswith("}")
+                ):
                     import json
+
                     try:
                         parsed = json.loads(clean_item)
                         if isinstance(parsed, list):
@@ -124,6 +131,7 @@ async def list_persons(
 
     if has_open_opportunity is True:
         from cdb.models.opportunity import Opportunity
+
         subq_opp = (
             select(OpportunityPerson.person_id)
             .join(Opportunity, Opportunity.id == OpportunityPerson.opportunity_id)
@@ -170,7 +178,10 @@ async def list_persons(
         rel_stmt = (
             select(PersonCompanyRelationship, Company)
             .join(Company, Company.id == PersonCompanyRelationship.company_id)
-            .where(PersonCompanyRelationship.person_id == p.id, PersonCompanyRelationship.is_current.is_(True))
+            .where(
+                PersonCompanyRelationship.person_id == p.id,
+                PersonCompanyRelationship.is_current.is_(True),
+            )
             .limit(1)
         )
         rel_res = (await db.execute(rel_stmt)).first()
@@ -228,12 +239,16 @@ async def create_person(db: AsyncSession, data: PersonCreate) -> Person:
     norm_phone = normalise_phone(data.primary_phone)
 
     if norm_email:
-        existing = (await db.execute(select(Person).where(Person.primary_email == norm_email))).scalar_one_or_none()
+        existing = (
+            await db.execute(select(Person).where(Person.primary_email == norm_email))
+        ).scalar_one_or_none()
         if existing:
             raise ConflictError(f"Person with email '{norm_email}' already exists.")
 
     if norm_li:
-        existing = (await db.execute(select(Person).where(Person.linkedin_url == norm_li))).scalar_one_or_none()
+        existing = (
+            await db.execute(select(Person).where(Person.linkedin_url == norm_li))
+        ).scalar_one_or_none()
         if existing:
             raise ConflictError(f"Person with LinkedIn URL '{norm_li}' already exists.")
 
@@ -270,7 +285,9 @@ async def get_person_detail(db: AsyncSession, person_id: uuid.UUID) -> PersonDet
         select(PersonCompanyRelationship, Company)
         .join(Company, Company.id == PersonCompanyRelationship.company_id)
         .where(PersonCompanyRelationship.person_id == person.id)
-        .order_by(PersonCompanyRelationship.is_current.desc(), PersonCompanyRelationship.started_at.desc())
+        .order_by(
+            PersonCompanyRelationship.is_current.desc(), PersonCompanyRelationship.started_at.desc()
+        )
     )
     career_rows = (await db.execute(career_stmt)).all()
 
@@ -304,6 +321,7 @@ async def get_person_detail(db: AsyncSession, person_id: uuid.UUID) -> PersonDet
 
     # Open opportunities count
     from cdb.models.opportunity import Opportunity
+
     opps_count = (
         await db.execute(
             select(func.count(Opportunity.id))
@@ -341,7 +359,9 @@ async def get_person_detail(db: AsyncSession, person_id: uuid.UUID) -> PersonDet
     )
 
 
-async def update_person(db: AsyncSession, person_id: uuid.UUID, data: PersonUpdate) -> PersonDetailResponse:
+async def update_person(
+    db: AsyncSession, person_id: uuid.UUID, data: PersonUpdate
+) -> PersonDetailResponse:
     person = (await db.execute(select(Person).where(Person.id == person_id))).scalar_one_or_none()
     if not person:
         raise NotFoundError(f"Person with id {person_id} not found.")

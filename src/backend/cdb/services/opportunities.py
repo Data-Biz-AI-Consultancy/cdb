@@ -36,13 +36,13 @@ async def list_opportunities(
     if owner_id:
         stmt = stmt.where(Opportunity.owner_id == owner_id)
     if person_id:
-        stmt = stmt.join(OpportunityPerson, OpportunityPerson.opportunity_id == Opportunity.id).where(
-            OpportunityPerson.person_id == person_id
-        )
+        stmt = stmt.join(
+            OpportunityPerson, OpportunityPerson.opportunity_id == Opportunity.id
+        ).where(OpportunityPerson.person_id == person_id)
     if company_id:
-        stmt = stmt.join(OpportunityCompany, OpportunityCompany.opportunity_id == Opportunity.id).where(
-            OpportunityCompany.company_id == company_id
-        )
+        stmt = stmt.join(
+            OpportunityCompany, OpportunityCompany.opportunity_id == Opportunity.id
+        ).where(OpportunityCompany.company_id == company_id)
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar() or 0
@@ -71,16 +71,24 @@ async def list_opportunities(
 
 async def _build_opportunity_response(db: AsyncSession, opp: Opportunity) -> OpportunityResponse:
     p_rows = (
-        await db.execute(
-            select(OpportunityPerson).where(OpportunityPerson.opportunity_id == opp.id)
+        (
+            await db.execute(
+                select(OpportunityPerson).where(OpportunityPerson.opportunity_id == opp.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     c_rows = (
-        await db.execute(
-            select(OpportunityCompany).where(OpportunityCompany.opportunity_id == opp.id)
+        (
+            await db.execute(
+                select(OpportunityCompany).where(OpportunityCompany.opportunity_id == opp.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     return OpportunityResponse(
         id=opp.id,
@@ -95,7 +103,9 @@ async def _build_opportunity_response(db: AsyncSession, opp: Opportunity) -> Opp
         notes=opp.notes,
         attributes=opp.attributes or {},
         persons=[OpportunityPersonResponse(person_id=p.person_id, role=p.role) for p in p_rows],
-        companies=[OpportunityCompanyResponse(company_id=c.company_id, role=c.role) for c in c_rows],
+        companies=[
+            OpportunityCompanyResponse(company_id=c.company_id, role=c.role) for c in c_rows
+        ],
         created_at=opp.created_at,
         updated_at=opp.updated_at,
     )
@@ -129,14 +139,20 @@ async def create_opportunity(db: AsyncSession, data: OpportunityCreate) -> Oppor
 
 
 async def get_opportunity(db: AsyncSession, opp_id: uuid.UUID) -> OpportunityResponse:
-    opp = (await db.execute(select(Opportunity).where(Opportunity.id == opp_id))).scalar_one_or_none()
+    opp = (
+        await db.execute(select(Opportunity).where(Opportunity.id == opp_id))
+    ).scalar_one_or_none()
     if not opp:
         raise NotFoundError(f"Opportunity with id {opp_id} not found.")
     return await _build_opportunity_response(db, opp)
 
 
-async def update_opportunity(db: AsyncSession, opp_id: uuid.UUID, data: OpportunityUpdate) -> OpportunityResponse:
-    opp = (await db.execute(select(Opportunity).where(Opportunity.id == opp_id))).scalar_one_or_none()
+async def update_opportunity(
+    db: AsyncSession, opp_id: uuid.UUID, data: OpportunityUpdate
+) -> OpportunityResponse:
+    opp = (
+        await db.execute(select(Opportunity).where(Opportunity.id == opp_id))
+    ).scalar_one_or_none()
     if not opp:
         raise NotFoundError(f"Opportunity with id {opp_id} not found.")
 
@@ -150,7 +166,9 @@ async def update_opportunity(db: AsyncSession, opp_id: uuid.UUID, data: Opportun
 
 
 async def advance_opportunity(db: AsyncSession, opp_id: uuid.UUID) -> OpportunityResponse:
-    opp = (await db.execute(select(Opportunity).where(Opportunity.id == opp_id))).scalar_one_or_none()
+    opp = (
+        await db.execute(select(Opportunity).where(Opportunity.id == opp_id))
+    ).scalar_one_or_none()
     if not opp:
         raise NotFoundError(f"Opportunity with id {opp_id} not found.")
 
@@ -159,15 +177,21 @@ async def advance_opportunity(db: AsyncSession, opp_id: uuid.UUID) -> Opportunit
         if idx < len(OPP_STAGE_FLOW) - 1:
             opp.stage = OPP_STAGE_FLOW[idx + 1]
     elif opp.stage == "negotiation":
-        raise BadRequestError("Opportunity is at final negotiation stage. Use close endpoint to win or lose.")
+        raise BadRequestError(
+            "Opportunity is at final negotiation stage. Use close endpoint to win or lose."
+        )
 
     await db.commit()
     await db.refresh(opp)
     return await _build_opportunity_response(db, opp)
 
 
-async def close_opportunity(db: AsyncSession, opp_id: uuid.UUID, data: OpportunityClose) -> OpportunityResponse:
-    opp = (await db.execute(select(Opportunity).where(Opportunity.id == opp_id))).scalar_one_or_none()
+async def close_opportunity(
+    db: AsyncSession, opp_id: uuid.UUID, data: OpportunityClose
+) -> OpportunityResponse:
+    opp = (
+        await db.execute(select(Opportunity).where(Opportunity.id == opp_id))
+    ).scalar_one_or_none()
     if not opp:
         raise NotFoundError(f"Opportunity with id {opp_id} not found.")
 
@@ -190,7 +214,9 @@ async def close_opportunity(db: AsyncSession, opp_id: uuid.UUID, data: Opportuni
 
 
 async def delete_opportunity(db: AsyncSession, opp_id: uuid.UUID) -> None:
-    opp = (await db.execute(select(Opportunity).where(Opportunity.id == opp_id))).scalar_one_or_none()
+    opp = (
+        await db.execute(select(Opportunity).where(Opportunity.id == opp_id))
+    ).scalar_one_or_none()
     if not opp:
         raise NotFoundError(f"Opportunity with id {opp_id} not found.")
     await db.delete(opp)

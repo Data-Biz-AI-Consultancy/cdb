@@ -14,6 +14,7 @@ from cdb.models.base import Base
 
 sqlite3.register_adapter(list, json.dumps)
 
+
 # Teach SQLite how to compile PostgreSQL specific types during unit tests
 @compiles(JSONB, "sqlite")
 def compile_jsonb_sqlite(type_, compiler, **kw):

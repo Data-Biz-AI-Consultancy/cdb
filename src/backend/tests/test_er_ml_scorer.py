@@ -1,4 +1,3 @@
-
 from cdb.models.person import Person
 from cdb.services.entity_resolution.ml_scorer import compute_ml_match_score
 

@@ -31,9 +31,15 @@ class Activity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         index=True,
     )
 
-    type: Mapped[str] = mapped_column(String(50), nullable=False, index=True) # 'meeting' | 'email' | 'linkedin_message' | 'whatsapp' | 'call' | 'note'
-    source: Mapped[str] = mapped_column(String(100), nullable=False) # 'notion' | 'gmail' | 'linkedin' | 'whatsapp' | 'manual'
-    source_id: Mapped[str | None] = mapped_column(String(512), unique=True, nullable=True, index=True)
+    type: Mapped[str] = mapped_column(
+        String(50), nullable=False, index=True
+    )  # 'meeting' | 'email' | 'linkedin_message' | 'whatsapp' | 'call' | 'note'
+    source: Mapped[str] = mapped_column(
+        String(100), nullable=False
+    )  # 'notion' | 'gmail' | 'linkedin' | 'whatsapp' | 'manual'
+    source_id: Mapped[str | None] = mapped_column(
+        String(512), unique=True, nullable=True, index=True
+    )
 
     occurred_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),

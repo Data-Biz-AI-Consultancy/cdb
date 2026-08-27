@@ -135,7 +135,9 @@ async def advance_lead(db: AsyncSession, lead_id: uuid.UUID, data: LeadAdvance) 
     return LeadResponse.model_validate(lead)
 
 
-async def disqualify_lead(db: AsyncSession, lead_id: uuid.UUID, data: LeadDisqualify) -> LeadResponse:
+async def disqualify_lead(
+    db: AsyncSession, lead_id: uuid.UUID, data: LeadDisqualify
+) -> LeadResponse:
     lead = (await db.execute(select(Lead).where(Lead.id == lead_id))).scalar_one_or_none()
     if not lead:
         raise NotFoundError(f"Lead with id {lead_id} not found.")
@@ -173,7 +175,9 @@ async def convert_lead_to_opportunity(
     await db.flush()
 
     # Link person and company to opportunity
-    db.add(OpportunityPerson(opportunity_id=opp.id, person_id=lead.person_id, role="decision_maker"))
+    db.add(
+        OpportunityPerson(opportunity_id=opp.id, person_id=lead.person_id, role="decision_maker")
+    )
     if lead.company_id:
         db.add(OpportunityCompany(opportunity_id=opp.id, company_id=lead.company_id, role="client"))
 
@@ -186,4 +190,5 @@ async def convert_lead_to_opportunity(
     await db.refresh(opp)
 
     from cdb.services.opportunities import get_opportunity
+
     return await get_opportunity(db, opp.id)
