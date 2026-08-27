@@ -20,6 +20,32 @@
 
 ---
 
+## 🎯 Product Vision & Design Principles
+
+> **Vision**: Give every professional — from solo consultants to growing teams — the same depth of customer intelligence and relationship context that enterprise CRMs provide, without the cost, vendor lock-in, or manual entry fatigue.
+
+1. **People-First Data Model**: The individual person is the primary unit of relationship value, not an ephemeral lead or deal ticket.
+2. **Source-Agnostic Ingestion**: Ingest seamlessly from LinkedIn exports, Notion meeting notes, spreadsheets, and emails without being locked into proprietary formats.
+3. **Transparent & Auditable ER**: Entity resolution decisions are visible and directly reviewable side-by-side by the user rather than hidden in a black box.
+4. **Data Sovereignty & Privacy**: 100% self-hostable with Docker Compose. Your data, identity mappings, and contact records never leave your own PostgreSQL database.
+5. **Grows With Your Team**: Engineered for solo use today, boutique consultancies tomorrow, and multi-user mid-market teams as you scale.
+
+---
+
+## 👥 Target Personas & Use Cases
+
+* **Solo Professional & Consultant**:
+  - *Challenge*: Contacts scattered across LinkedIn exports, email threads, and meeting notes; forgetting past context or missing timely follow-ups.
+  - *Solution*: One-click ingestion, automatic cross-source deduplication, unified profile history, and consolidated interaction logs.
+* **Boutique Teams & Consultancies (3–15 people)**:
+  - *Challenge*: Multiple teammates tracking the same contact across disconnected spreadsheets without a shared pipeline.
+  - *Solution*: Shared team-wide directory, unified company relationship graphs, collaborative deal pipeline, and active client engagement delivery tracking.
+* **Growth & Mid-Market Organizations (50–500 FTE)**:
+  - *Challenge*: Enterprise CRMs are rigid, expensive, and require tedious manual entry.
+  - *Solution*: API-first ingestion, high-speed rule & ML entity resolution, clean architecture, and PostgreSQL 16 database portability.
+
+---
+
 ## 🏗️ Architecture & Domain Model
 
 ```
@@ -41,6 +67,29 @@ Pipeline & Engagements (CRM Lifecycle)       │
     └── Engagements ─────────────────────────┘
         (active jobs & client delivery)
 ```
+
+---
+
+## 🔄 Core Product Workflows & Capabilities
+
+### 1. Unified Person Golden Records
+* **Automatic Deduplication**: Merges contacts arriving across LinkedIn, Notion, and CSV imports into a single golden record.
+* **Attribution & Provenance**: Inspect which sources contributed to each field with complete traceability (`source_ids` and `sources` tracking).
+* **Career & Interaction Timelines**: Visualise employment histories (current & past roles) alongside chronological interaction feeds (meetings, calls, notes).
+
+### 2. Company Intelligence & Relationships
+* **First-Class Peer Entities**: View company profiles with linked contacts, active employees, alumni, domain metadata, and linked pipeline deals.
+* **Many-to-Many Graph**: Map complex affiliations where individuals consult for, advise, or lead multiple organizations simultaneously.
+
+### 3. Lead Qualification to Opportunity Funnel
+* **Lead Lifecycle**: Track interest signals (`New` → `Contacted` → `Qualified` → `Converted` / `Disqualified`).
+* **1-Click Conversion**: Promote qualified leads into active Opportunities while carrying over all person and company linkages.
+* **Deal Pipeline**: Kanban board and structured list views for opportunity stages (`Prospect` → `Qualified` → `Proposal` → `Negotiation` → `Closed Won/Lost`).
+
+### 4. Entity Resolution & Review Queue
+* **Deterministic Auto-Merge**: High-confidence exact matches (e.g. matching LinkedIn URL or verified primary email) auto-merge instantly.
+* **Interactive Review Queue**: Ambiguous pairs surface in the UI for side-by-side comparison, allowing one-click **Accept Merge** or **Keep Separate**.
+
 
 ---
 
@@ -161,7 +210,39 @@ See [scripts/README.md](scripts/README.md) for the complete list of options and 
 
 ---
 
+## 🔗 Jager Ecosystem & Automation Integration
+
+CDB serves as the authoritative source of truth for identities, companies, and interaction data across the Jager ecosystem and automated workflow pipelines (e.g. n8n).
+
+### 1. Deployment & Network Topology
+* **Container Registry Distribution**: CDB Docker images are built and pushed to GitHub Container Registry (`ghcr.io/data-biz-ai-consultancy/cdb:production`) via automated release pipelines.
+* **Internal Network Communication**: n8n and companion services call CDB over the shared Docker bridge network (`http://cdb-api:8000`).
+* **Port Collision Avoidance**: PostgreSQL maps to host port `5433` to run harmoniously alongside existing Postgres instances on `5432`.
+
+### 2. Service-to-Service Authentication
+Background automation workflows authenticate using a dedicated service API key via the `X-API-Key` HTTP header:
+
+```bash
+# Automated ingestion payload example
+curl -X POST http://localhost:8000/api/v1/ingest/linkedin-connections \
+  -H "X-API-Key: ${CDB_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"records": [...]}'
+```
+
+### 3. Automated Ingestion Endpoints
+
+| Ingestion Channel | Endpoint | Description |
+| :--- | :--- | :--- |
+| **LinkedIn Connections** | `POST /api/v1/ingest/linkedin-connections` | Ingests connection exports, names, company titles, and LinkedIn profile URLs. |
+| **LinkedIn Messages** | `POST /api/v1/ingest/linkedin-messages` | Ingests message threads, timestamps, and conversation participants. |
+| **Notion Meeting Notes** | `POST /api/v1/ingest/notion-meeting-notes` | Ingests meeting notes, attendee lists, summaries, and action items into Activities. |
+| **Manual & CSV Data** | `POST /api/v1/ingest/manual` | Ingests custom CSV/XLSX spreadsheets with dynamic column mappings. |
+
+---
+
 ## 📁 Repository Structure
+
 
 ```
 cdb/
@@ -198,11 +279,12 @@ cdb/
 │       │   └── test/              # Vitest setup & DOM polyfills
 │       ├── Dockerfile
 │       ├── package.json
+│       ├── README.md                  # Frontend Architecture & App Router specification
 │       └── vitest.config.ts
-├── docs/                          # Architecture & design specifications
+├── scripts/                           # Database cloning & management utilities
 ├── docker-compose.yml
 ├── .env.example
-├── README.md
+├── README.md                          # Root system overview & quickstart
 └── LICENSE
 ```
 
@@ -210,15 +292,17 @@ cdb/
 
 ## 📖 Documentation Index
 
-| Document | Purpose |
-|----------|---------|
-| [PRD.md](docs/PRD.md) | Product vision, personas, core requirements, and roadmap |
-| [Implementation_plan.md](docs/Implementation_plan.md) | Architecture blueprint, tech stack, and module design |
-| [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Authoritative PostgreSQL 16 schema reference (all 14 tables) |
-| [API_SPEC.md](docs/API_SPEC.md) | REST API contracts, envelopes, and authentication specifications |
-| [ENTITY_RESOLUTION_SPEC.md](docs/ENTITY_RESOLUTION_SPEC.md) | Normalization rules, matching hierarchy, and merge precedence |
-| [JAGER_INTEGRATION.md](docs/JAGER_INTEGRATION.md) | Jager n8n integration, service auth, and deployment model |
-| [DATA_MIGRATION.md](docs/DATA_MIGRATION.md) | Live migration plan from legacy Jager CDP tables to CDB |
+All core technical specifications are colocated directly alongside their respective codebase modules:
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **Database Schema** | [`src/backend/db/README.md`](src/backend/db/README.md) | Authoritative PostgreSQL 16 schema reference (all 14 tables, triggers, indexes) |
+| **API Specification** | [`src/backend/cdb/api/README.md`](src/backend/cdb/api/README.md) | REST API contracts, endpoints, error envelopes, and authentication |
+| **Entity Resolution Engine** | [`src/backend/cdb/services/entity_resolution/README.md`](src/backend/cdb/services/entity_resolution/README.md) | Normalization rules, matching signal hierarchy, and merge precedence |
+| **Backend Architecture** | [`src/backend/README.md`](src/backend/README.md) | Clean Architecture layer structure, services, models, and workers |
+| **Frontend Architecture** | [`src/frontend/README.md`](src/frontend/README.md) | Next.js 15 App Router structure, categorized navigation, and state patterns |
+| **Scripts & DB Utilities** | [`scripts/README.md`](scripts/README.md) | Production-to-dev clone script and database operations |
+
 
 ---
 
