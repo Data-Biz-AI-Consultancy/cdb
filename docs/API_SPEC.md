@@ -222,6 +222,32 @@ Soft-delete (sets `deleted_at`). Use `DELETE /persons/{id}?hard=true` (admin onl
 
 Full detail including linked persons (with current role) and open opportunities.
 
+### `GET /companies/{id}/employees`
+
+List all persons associated with the company, differentiating between currently active staff (`is_current=true`) and alumni/previous employees (`is_current=false`).
+
+**Query params:** `current_only` (bool, default `false`).
+
+**Response 200:**
+```json
+[
+  {
+    "relationship_id": "<uuid>",
+    "person_id": "<uuid>",
+    "first_name": "Alice",
+    "last_name": "Smith",
+    "primary_email": "alice@acme.com",
+    "linkedin_url": "linkedin.com/in/alice-smith",
+    "city": "London",
+    "country": "GB",
+    "title": "VP Engineering",
+    "is_current": true,
+    "started_at": "2023-03-01",
+    "ended_at": null
+  }
+]
+```
+
 ### `PATCH /companies/{id}` / `DELETE /companies/{id}`
 
 Same conventions as persons.
@@ -253,7 +279,42 @@ Removes the relationship row (not the company).
 
 ---
 
-## 6. Activities
+## 6. Segmentation & Contact Intelligence
+
+### `POST /segments/evaluate`
+
+Triggers batch evaluation of dynamic Person segments (`clients_and_prospects`, `former_colleagues_alumni`, `recruiters_and_talent`, `hiring_decision_makers`, `peer_collaborators`, `general_network`), Engagement Temperatures (`hot`, `warm`, `dormant`, `cold`), and GEO tags.
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "total_persons_evaluated": 1250,
+  "person_segments": {
+    "clients_and_prospects": 42,
+    "former_colleagues_alumni": 85,
+    "recruiters_and_talent": 110,
+    "hiring_decision_makers": 310,
+    "peer_collaborators": 95,
+    "general_network": 608
+  },
+  "engagement_temperatures": {
+    "hot": 56,
+    "warm": 210,
+    "dormant": 480,
+    "cold": 504
+  },
+  "geo_breakdown": {
+    "GB": 450,
+    "DE": 380,
+    "US": 220
+  }
+}
+```
+
+---
+
+## 7. Activities
 
 ### `GET /activities`
 
@@ -283,7 +344,7 @@ Standard CRUD. `source_id`-tagged activities (auto-imported) can be patched but 
 
 ---
 
-## 7. Leads
+## 8. Leads
 
 ### `GET /leads`
 
@@ -336,7 +397,7 @@ Convert a qualified lead into an Opportunity.
 
 ---
 
-## 8. Opportunities
+## 9. Opportunities
 
 ### `GET /opportunities`
 
@@ -371,7 +432,7 @@ Advance to next stage.
 
 ---
 
-## 9. Entity Resolution
+## 10. Entity Resolution
 
 ### `GET /entity-resolution/queue`
 
@@ -388,7 +449,7 @@ List pending candidate pairs.
       "person_a": { "id": "<uuid>", "first_name": "Alice", "last_name": "Smith", "primary_email": "alice@acme.com", "sources": ["linkedin"] },
       "person_b": { "id": "<uuid>", "first_name": "Alice", "last_name": "Smyth", "primary_email": null, "sources": ["notion"] },
       "match_signals": { "name_similarity": 0.96, "company_domain_match": true, "trigger_rule": 6 },
-      "ml_score": null,
+      "ml_score": 0.91,
       "status": "pending",
       "created_at": "2026-08-19T09:00:00Z"
     }
@@ -418,7 +479,7 @@ Trigger a full ER re-run (admin only, async — returns job ID).
 
 ---
 
-## 10. Ingestion (Internal — Jager use)
+## 11. Ingestion (Internal — Jager use)
 
 These endpoints are called by Jager's n8n workflows. They require a service-to-service API key header instead of a user JWT:
 
@@ -450,11 +511,11 @@ Idempotent batch upsert into `intake_linkedin_connections`. Triggers incremental
 
 ### `POST /ingest/linkedin-messages`
 
-Idempotent batch upsert into `intake_linkedin_messages`.
+Idempotent batch upsert into `intake_linkedin_messages`. Performs NLP intent & signal strength detection, automatically creates/enriches `Lead` objects.
 
 ### `POST /ingest/notion-meeting-notes`
 
-Idempotent batch upsert into `intake_notion_meeting_notes`.
+Idempotent batch upsert into `intake_notion_meeting_notes` with multi-attendee parsing.
 
 ### `POST /ingest/manual`
 

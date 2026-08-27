@@ -1,9 +1,10 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import jellyfish
 
 from cdb.models.person import Person
+from cdb.services.entity_resolution.ml_scorer import compute_ml_match_score
 from cdb.services.entity_resolution.normalise import (
     email_prefix,
     normalise_email,
@@ -20,6 +21,8 @@ class MatchResult:
     confidence: str  # "high" | "medium" | "low" | "none"
     trigger_rule: int | None
     match_signals: dict[str, Any]
+    ml_score: float | None = None
+    ml_features: dict[str, float] = field(default_factory=dict)
 
 
 def evaluate_person_match(
@@ -29,6 +32,13 @@ def evaluate_person_match(
     company_domain_b: str | None = None,
 ) -> MatchResult:
     signals: dict[str, Any] = {}
+
+    # Compute ML probabilistic score
+    ml_res = compute_ml_match_score(
+        person_a, person_b, company_domain_a, company_domain_b
+    )
+    signals["ml_score"] = ml_res.score
+    signals["ml_features"] = ml_res.feature_scores
 
     # 1. Email exact match
     email_a = normalise_email(person_a.primary_email)
@@ -42,6 +52,8 @@ def evaluate_person_match(
             confidence="high",
             trigger_rule=1,
             match_signals=signals,
+            ml_score=1.0,
+            ml_features=ml_res.feature_scores,
         )
 
     # Check secondary emails
@@ -66,6 +78,8 @@ def evaluate_person_match(
             confidence="high",
             trigger_rule=1,
             match_signals=signals,
+            ml_score=1.0,
+            ml_features=ml_res.feature_scores,
         )
 
     # 2. LinkedIn URL exact match
@@ -80,6 +94,8 @@ def evaluate_person_match(
             confidence="high",
             trigger_rule=2,
             match_signals=signals,
+            ml_score=1.0,
+            ml_features=ml_res.feature_scores,
         )
 
     # 3. Phone exact match
@@ -94,6 +110,8 @@ def evaluate_person_match(
             confidence="high",
             trigger_rule=3,
             match_signals=signals,
+            ml_score=1.0,
+            ml_features=ml_res.feature_scores,
         )
 
     # Prepare names for fuzzy matching
@@ -122,6 +140,8 @@ def evaluate_person_match(
             confidence="medium",
             trigger_rule=4,
             match_signals=signals,
+            ml_score=ml_res.score,
+            ml_features=ml_res.feature_scores,
         )
 
     # 5. Full name + company domain (Jaro-Winkler >= 0.92 and company domain match)
@@ -137,6 +157,8 @@ def evaluate_person_match(
                 confidence="medium",
                 trigger_rule=5,
                 match_signals=signals,
+                ml_score=ml_res.score,
+                ml_features=ml_res.feature_scores,
             )
 
     # 6. Full name only (Jaro-Winkler >= 0.95) -> Review Queue
@@ -148,6 +170,34 @@ def evaluate_person_match(
             confidence="low",
             trigger_rule=6,
             match_signals=signals,
+            ml_score=ml_res.score,
+            ml_features=ml_res.feature_scores,
+        )
+
+    # 7. Fallback to ML Probabilistic threshold
+    if ml_res.score >= 0.85:
+        signals["trigger_rule"] = 7
+        signals["ml_auto_merge"] = True
+        return MatchResult(
+            matched=True,
+            outcome="auto_merge",
+            confidence="high",
+            trigger_rule=7,
+            match_signals=signals,
+            ml_score=ml_res.score,
+            ml_features=ml_res.feature_scores,
+        )
+    elif ml_res.score >= 0.50:
+        signals["trigger_rule"] = 7
+        signals["ml_review_queue"] = True
+        return MatchResult(
+            matched=True,
+            outcome="review_queue",
+            confidence="medium",
+            trigger_rule=7,
+            match_signals=signals,
+            ml_score=ml_res.score,
+            ml_features=ml_res.feature_scores,
         )
 
     return MatchResult(
@@ -156,4 +206,7 @@ def evaluate_person_match(
         confidence="none",
         trigger_rule=None,
         match_signals=signals,
+        ml_score=ml_res.score,
+        ml_features=ml_res.feature_scores,
     )
+

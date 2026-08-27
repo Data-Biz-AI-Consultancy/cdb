@@ -83,3 +83,21 @@ class RelationshipResponse(BaseModel):
     ended_at: datetime.date | None = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
+
+
+class CompanyEmployeeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    relationship_id: uuid.UUID
+    person_id: uuid.UUID
+    first_name: str | None = None
+    last_name: str | None = None
+    primary_email: str | None = None
+    linkedin_url: str | None = None
+    city: str | None = None
+    country: str | None = None
+    title: str | None = None
+    is_current: bool = True
+    started_at: datetime.date | None = None
+    ended_at: datetime.date | None = None
+

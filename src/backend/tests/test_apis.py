@@ -211,3 +211,77 @@ async def test_ingestion_and_er_queue(client: AsyncClient, auth_headers: dict[st
     eva_id = persons_resp.json()["data"][0]["id"]
     assert eva_id is not None
     assert persons_resp.json()["data"][0]["primary_email"] == "eva@green.com"
+
+    # Create another person to form a candidate pair
+    await client.post(
+        "/api/v1/persons",
+        json={"first_name": "Eva", "last_name": "Greene", "primary_email": "eva.greene@other.com"},
+        headers=auth_headers,
+    )
+
+    # Run ER scan
+    run_resp = await client.post("/api/v1/er/run", headers=auth_headers)
+    assert run_resp.status_code == 202
+
+    # Check ER Queue
+    queue_resp = await client.get("/api/v1/er/queue", headers=auth_headers)
+    assert queue_resp.status_code == 200
+    queue_data = queue_resp.json()["data"]
+    assert len(queue_data) >= 1
+    candidate_id = queue_data[0]["id"]
+
+    # Test rejecting candidate pair (Keep Separate)
+    reject_resp = await client.post(f"/api/v1/er/queue/{candidate_id}/reject", headers=auth_headers)
+    assert reject_resp.status_code == 200
+    assert reject_resp.json()["status"] == "rejected"
+
+    # Create pair to test merging (accept) via review queue
+    await client.post(
+        "/api/v1/persons",
+        json={"first_name": "Frank", "last_name": "Castille", "primary_email": "fcastle@alpha.com"},
+        headers=auth_headers,
+    )
+    await client.post(
+        "/api/v1/persons",
+        json={"first_name": "Frank", "last_name": "Castille", "primary_email": "frank.c@beta.com"},
+        headers=auth_headers,
+    )
+    await client.post("/api/v1/er/run", headers=auth_headers)
+    q2 = await client.get("/api/v1/er/queue", headers=auth_headers)
+    assert len(q2.json()["data"]) >= 1
+    c2_id = q2.json()["data"][0]["id"]
+
+    # Test accepting / confirming merge
+    accept_resp = await client.post(f"/api/v1/er/queue/{c2_id}/accept", headers=auth_headers)
+    assert accept_resp.status_code == 200
+    assert "master_person_id" in accept_resp.json()
+
+    # Test merging with unique linkedin_url transfer (Faizan Khan scenario)
+    await client.post(
+        "/api/v1/persons",
+        json={"first_name": "Faizan", "last_name": "Khan", "primary_email": "faizan.sub@substack.com"},
+        headers=auth_headers,
+    )
+    await client.post(
+        "/api/v1/persons",
+        json={"first_name": "Faizan", "last_name": "Khan", "linkedin_url": "https://linkedin.com/in/ifaizankhan"},
+        headers=auth_headers,
+    )
+    await client.post("/api/v1/er/run", headers=auth_headers)
+    q3 = await client.get("/api/v1/er/queue", headers=auth_headers)
+    assert len(q3.json()["data"]) >= 1
+    c3_id = q3.json()["data"][0]["id"]
+
+    # Confirm & Merge
+    merge_resp = await client.post(f"/api/v1/er/queue/{c3_id}/accept", headers=auth_headers)
+    assert merge_resp.status_code == 200
+    master_pid = merge_resp.json()["master_person_id"]
+
+    # Verify master record has the merged linkedin_url
+    master_person = await client.get(f"/api/v1/persons/{master_pid}", headers=auth_headers)
+    assert master_person.status_code == 200
+    assert master_person.json()["linkedin_url"] == "linkedin.com/in/ifaizankhan"
+
+
+
+

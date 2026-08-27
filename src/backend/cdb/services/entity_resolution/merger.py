@@ -1,7 +1,9 @@
 import datetime
+import json
 import uuid
+from typing import Any
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.activity import Activity
@@ -31,14 +33,28 @@ def choose_master_record(person_a: Person, person_b: Person) -> tuple[Person, Pe
     return person_b, person_a
 
 
-def merge_field_precedence(master: Person, sub: Person) -> None:
+def _normalize_sources(src: Any) -> list[str]:
+    if isinstance(src, list):
+        return [str(s) for s in src if s]
+    elif isinstance(src, str):
+        try:
+            parsed = json.loads(src)
+            if isinstance(parsed, list):
+                return [str(s) for s in parsed if s]
+        except Exception:
+            pass
+        return [src] if src else []
+    return []
+
+
+def compute_merged_attributes(master: Person, sub: Person) -> dict[str, Any]:
+    updates: dict[str, Any] = {}
+
     # 1. Names: prefer longer / compound name
-    if sub.first_name:
-        if not master.first_name or len(sub.first_name) > len(master.first_name):
-            master.first_name = sub.first_name
-    if sub.last_name:
-        if not master.last_name or len(sub.last_name) > len(master.last_name):
-            master.last_name = sub.last_name
+    if sub.first_name and (not master.first_name or len(sub.first_name) > len(master.first_name)):
+        updates["first_name"] = sub.first_name
+    if sub.last_name and (not master.last_name or len(sub.last_name) > len(master.last_name)):
+        updates["last_name"] = sub.last_name
 
     # 2. Email: keep master primary_email, append sub emails to secondary_emails
     sec_emails = list(master.secondary_emails or [])
@@ -48,35 +64,37 @@ def merge_field_precedence(master: Person, sub: Person) -> None:
     for e in (sub.secondary_emails or []):
         if e and e != master.primary_email and e not in sec_emails:
             sec_emails.append(e)
-    master.secondary_emails = sec_emails
+    updates["secondary_emails"] = sec_emails
 
     # 3. Phone: prefer non-null
     if not master.primary_phone and sub.primary_phone:
-        master.primary_phone = sub.primary_phone
+        updates["primary_phone"] = sub.primary_phone
 
     # 4. LinkedIn: prefer non-null
     if not master.linkedin_url and sub.linkedin_url:
-        master.linkedin_url = sub.linkedin_url
+        updates["linkedin_url"] = sub.linkedin_url
 
     # 5. Other social/location fields
     for field in ["twitter_handle", "facebook_id", "whatsapp_phone", "city", "country", "avatar_url"]:
         if not getattr(master, field) and getattr(sub, field):
-            setattr(master, field, getattr(sub, field))
+            updates[field] = getattr(sub, field)
 
     # 6. Attributes: deep merge (keep master values on key conflict)
     merged_attrs = dict(sub.attributes or {})
     merged_attrs.update(master.attributes or {})
-    master.attributes = merged_attrs
+    updates["attributes"] = merged_attrs
 
     # 7. Sources: union
-    all_sources = set(master.sources or [])
-    all_sources.update(sub.sources or [])
-    master.sources = list(all_sources)
+    all_sources = set(_normalize_sources(master.sources))
+    all_sources.update(_normalize_sources(sub.sources))
+    updates["sources"] = list(all_sources)
 
     # 8. Source IDs: merge
     merged_source_ids = dict(sub.source_ids or {})
     merged_source_ids.update(master.source_ids or {})
-    master.source_ids = merged_source_ids
+    updates["source_ids"] = merged_source_ids
+
+    return updates
 
 
 async def merge_persons(
@@ -101,9 +119,10 @@ async def merge_persons(
     master_id = master.id
     sub_id = sub.id
 
-    merge_field_precedence(master, sub)
+    # 1. Compute merged attributes before modifying or deleting any rows
+    merged_updates = compute_merged_attributes(master, sub)
 
-    # Re-link Foreign Keys
+    # 2. Re-link Foreign Keys
     await db.execute(
         update(Activity).where(Activity.person_id == sub_id).values(person_id=master_id)
     )
@@ -117,7 +136,6 @@ async def merge_persons(
     ).scalars().all()
     for opp_p in opp_persons_sub:
         opp_id = opp_p.opportunity_id
-        # Check if master already linked to this opportunity
         existing = (
             await db.execute(
                 select(OpportunityPerson).where(
@@ -150,21 +168,47 @@ async def merge_persons(
         else:
             await db.delete(r)
 
-    # Update candidate pairs
-    await db.execute(
-        update(ERCandidatePair).where(ERCandidatePair.person_a_id == sub_id).values(person_a_id=master_id)
-    )
-    await db.execute(
-        update(ERCandidatePair).where(ERCandidatePair.person_b_id == sub_id).values(person_b_id=master_id)
-    )
-    # Clean up self-referencing candidate pairs that may have resulted
-    await db.execute(
-        delete(ERCandidatePair).where(ERCandidatePair.person_a_id == ERCandidatePair.person_b_id)
-    )
+    # 3. Update & clean up candidate pairs involving the subordinate person
+    sub_pairs = (
+        await db.execute(
+            select(ERCandidatePair).where(
+                (ERCandidatePair.person_a_id == sub_id) | (ERCandidatePair.person_b_id == sub_id)
+            )
+        )
+    ).scalars().all()
 
-    # Delete subordinate person
+    for p in sub_pairs:
+        other_id = p.person_b_id if p.person_a_id == sub_id else p.person_a_id
+        if other_id == master_id:
+            await db.delete(p)
+        else:
+            existing_pair = (
+                await db.execute(
+                    select(ERCandidatePair).where(
+                        ((ERCandidatePair.person_a_id == master_id) & (ERCandidatePair.person_b_id == other_id))
+                        | ((ERCandidatePair.person_a_id == other_id) & (ERCandidatePair.person_b_id == master_id))
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing_pair:
+                await db.delete(p)
+            else:
+                if p.person_a_id == sub_id:
+                    p.person_a_id = master_id
+                else:
+                    p.person_b_id = master_id
+
+    # 4. Delete subordinate person and flush to release unique constraints in DB
     await db.delete(sub)
+    await db.flush()
+
+    # 5. Apply merged updates to master record now that sub is deleted
+    for k, v in merged_updates.items():
+        setattr(master, k, v)
+
     await db.commit()
     await db.refresh(master)
 
     return master_id, sub_id
+
+

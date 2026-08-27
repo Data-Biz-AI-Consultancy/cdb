@@ -40,3 +40,24 @@ def test_email_prefix():
     assert email_prefix("al123@example.com") is None
     assert email_prefix("bob.smith@example.com") == "bob.smith"
     assert email_prefix(None) is None
+
+
+def test_clean_company_name():
+    from cdb.services.entity_resolution.normalise import clean_company_name
+
+    assert clean_company_name("Acme Corp.") == "Acme"
+    assert clean_company_name("BioTech GmbH & Co. KG") == "BioTech"
+    assert clean_company_name("Global Solutions LLC") == "Global Solutions"
+    assert clean_company_name("Startup Inc") == "Startup"
+    assert clean_company_name("") == ""
+    assert clean_company_name(None) == ""
+
+
+def test_generate_company_domain():
+    from cdb.services.entity_resolution.normalise import generate_company_domain
+
+    assert generate_company_domain("Acme Corp.") == "acme.com"
+    assert generate_company_domain("BioTech GmbH & Co. KG") == "biotech.com"
+    assert generate_company_domain("") == ""
+    assert generate_company_domain(None) == ""
+
