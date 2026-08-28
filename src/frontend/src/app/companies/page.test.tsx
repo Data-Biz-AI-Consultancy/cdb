@@ -93,70 +93,7 @@ describe('CompaniesPage Search & Aggregates', () => {
     expect(screen.getByText('€255,000')).toBeInTheDocument();
   });
 
-  it('orders companies by default: highest deal value -> most leads -> latest updated', async () => {
-    const multiCoResponse = {
-      data: [
-        {
-          id: 'c1',
-          name: 'Co A (Mid Deal, Few Leads)',
-          total_opportunities_value: 100000,
-          leads_count: 2,
-          updated_at: '2026-08-01T10:00:00Z',
-        },
-        {
-          id: 'c2',
-          name: 'Co B (Mid Deal, More Leads)',
-          total_opportunities_value: 100000,
-          leads_count: 5,
-          updated_at: '2026-08-01T10:00:00Z',
-        },
-        {
-          id: 'c3',
-          name: 'Co C (Highest Deal)',
-          total_opportunities_value: 250000,
-          leads_count: 1,
-          updated_at: '2026-08-01T10:00:00Z',
-        },
-        {
-          id: 'c4',
-          name: 'Co D (No Deal, Same Leads, Older)',
-          total_opportunities_value: 0,
-          leads_count: 3,
-          updated_at: '2026-06-01T10:00:00Z',
-        },
-        {
-          id: 'c5',
-          name: 'Co E (No Deal, Same Leads, Newer)',
-          total_opportunities_value: 0,
-          leads_count: 3,
-          updated_at: '2026-08-20T10:00:00Z',
-        },
-      ],
-      pagination: { total: 5, has_more: false },
-    };
-    (api.apiFetch as any).mockResolvedValue(multiCoResponse);
-
-    render(<CompaniesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Co C (Highest Deal)')).toBeInTheDocument();
-    });
-
-    const rows = screen.getAllByRole('row');
-    // Header is row 0.
-    // Row 1 should be Co C (250k)
-    expect(rows[1]).toHaveTextContent('Co C (Highest Deal)');
-    // Row 2 should be Co B (100k, 5 leads)
-    expect(rows[2]).toHaveTextContent('Co B (Mid Deal, More Leads)');
-    // Row 3 should be Co A (100k, 2 leads)
-    expect(rows[3]).toHaveTextContent('Co A (Mid Deal, Few Leads)');
-    // Row 4 should be Co E (0 deal, 3 leads, newer: Aug 20)
-    expect(rows[4]).toHaveTextContent('Co E (No Deal, Same Leads, Newer)');
-    // Row 5 should be Co D (0 deal, 3 leads, older: June 1)
-    expect(rows[5]).toHaveTextContent('Co D (No Deal, Same Leads, Older)');
-  });
-
-  it('supports changing sort to Connected People, Related Leads, and Recently Added', async () => {
+  it('requests companies with default sort pipeline and supports changing sort option', async () => {
     render(<CompaniesPage />);
 
     await waitFor(() => {
@@ -165,14 +102,25 @@ describe('CompaniesPage Search & Aggregates', () => {
 
     const sortSelect = screen.getByRole('combobox', { name: /Sort companies/i });
     expect(sortSelect).toBeInTheDocument();
+    expect((sortSelect as HTMLSelectElement).value).toBe('pipeline');
 
     // Change sort to Leads
     fireEvent.change(sortSelect, { target: { value: 'leads' } });
-    expect(screen.getByText('Acme AI Corp')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(expect.stringContaining('sort=leads'));
+    });
 
     // Change sort to Contacts
     fireEvent.change(sortSelect, { target: { value: 'contacts' } });
-    expect(screen.getByText('Acme AI Corp')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(expect.stringContaining('sort=contacts'));
+    });
+
+    // Change sort to Recently Updated
+    fireEvent.change(sortSelect, { target: { value: 'updated_at' } });
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(expect.stringContaining('sort=updated_at'));
+    });
   });
 
   it('toggles Create Company drawer and submits new company', async () => {
@@ -197,6 +145,43 @@ describe('CompaniesPage Search & Aggregates', () => {
           method: 'POST',
         })
       );
+    });
+  });
+
+  it('renders pagination bar and handles page transitions', async () => {
+    const paginatedResponse = {
+      data: [
+        {
+          id: 'c1',
+          name: 'Page 1 Company',
+          contacts_count: 3,
+          leads_count: 1,
+          open_opportunities_count: 1,
+          total_opportunities_value: 50000,
+        },
+      ],
+      pagination: {
+        total: 75,
+        has_more: true,
+      },
+    };
+    (api.apiFetch as any).mockResolvedValue(paginatedResponse);
+
+    render(<CompaniesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Page 1 Company')).toBeInTheDocument();
+    });
+
+    // Check pagination bar text
+    expect(screen.getByText(/Showing/i)).toBeInTheDocument();
+    expect(screen.getByText(/Page 1 of 3/i)).toBeInTheDocument();
+
+    // Click Next
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(expect.stringContaining('page=2'));
     });
   });
 });

@@ -31,10 +31,46 @@ async def list_companies(
     include_deleted: bool = False,
     limit: int = 50,
     cursor: str | None = None,
-    sort: str = "created_at",
+    sort: str = "pipeline_default",
     order: str = "desc",
 ) -> tuple[list[CompanySummaryResponse], PaginationMetadata]:
-    stmt = select(Company)
+    contacts_subq = (
+        select(func.count(PersonCompanyRelationship.id))
+        .where(PersonCompanyRelationship.company_id == Company.id)
+        .scalar_subquery()
+    )
+
+    leads_subq = select(func.count(Lead.id)).where(Lead.company_id == Company.id).scalar_subquery()
+
+    open_opps_subq = (
+        select(func.count(Opportunity.id))
+        .join(OpportunityCompany, OpportunityCompany.opportunity_id == Opportunity.id)
+        .where(
+            OpportunityCompany.company_id == Company.id,
+            Opportunity.stage.in_(["prospect", "qualified", "proposal", "negotiation"]),
+        )
+        .scalar_subquery()
+    )
+
+    opps_val_subq = (
+        select(func.coalesce(func.sum(Opportunity.value), 0.0))
+        .join(OpportunityCompany, OpportunityCompany.opportunity_id == Opportunity.id)
+        .where(
+            OpportunityCompany.company_id == Company.id,
+            Opportunity.stage.in_(
+                ["prospect", "qualified", "proposal", "negotiation", "closed_won"]
+            ),
+        )
+        .scalar_subquery()
+    )
+
+    stmt = select(
+        Company,
+        contacts_subq,
+        leads_subq,
+        open_opps_subq,
+        opps_val_subq,
+    )
 
     if not include_deleted:
         stmt = stmt.where(Company.deleted_at.is_(None))
@@ -54,59 +90,69 @@ async def list_companies(
     if industry:
         stmt = stmt.where(Company.industry.ilike(f"%{industry}%"))
 
-    count_stmt = select(func.count()).select_from(stmt.subquery())
+    count_stmt = select(func.count()).select_from(
+        select(Company.id)
+        .where(Company.deleted_at.is_(None) if not include_deleted else True)
+        .subquery()
+    )
+    if q or country or industry:
+        base_filter_stmt = select(Company.id)
+        if not include_deleted:
+            base_filter_stmt = base_filter_stmt.where(Company.deleted_at.is_(None))
+        if q:
+            base_filter_stmt = base_filter_stmt.where(
+                or_(Company.name.ilike(f"%{q}%"), Company.domain.ilike(f"%{q}%"))
+            )
+        if country:
+            base_filter_stmt = base_filter_stmt.where(Company.country == country.upper())
+        if industry:
+            base_filter_stmt = base_filter_stmt.where(Company.industry.ilike(f"%{industry}%"))
+        count_stmt = select(func.count()).select_from(base_filter_stmt.subquery())
+
     total = (await db.execute(count_stmt)).scalar() or 0
 
-    if order.lower() == "asc":
-        stmt = stmt.order_by(getattr(Company, sort, Company.created_at).asc())
+    # SQL-level sorting
+    if sort in ["pipeline", "deal_value", "pipeline_default"]:
+        if order.lower() == "asc":
+            stmt = stmt.order_by(opps_val_subq.asc(), Company.name.asc())
+        else:
+            stmt = stmt.order_by(opps_val_subq.desc(), Company.name.asc())
+    elif sort == "leads":
+        if order.lower() == "asc":
+            stmt = stmt.order_by(leads_subq.asc(), Company.name.asc())
+        else:
+            stmt = stmt.order_by(leads_subq.desc(), Company.name.asc())
+    elif sort == "contacts":
+        if order.lower() == "asc":
+            stmt = stmt.order_by(contacts_subq.asc(), Company.name.asc())
+        else:
+            stmt = stmt.order_by(contacts_subq.desc(), Company.name.asc())
+    elif sort == "updated_at":
+        if order.lower() == "asc":
+            stmt = stmt.order_by(Company.updated_at.asc(), Company.name.asc())
+        else:
+            stmt = stmt.order_by(Company.updated_at.desc(), Company.name.asc())
+    elif sort == "name":
+        if order.lower() == "desc":
+            stmt = stmt.order_by(Company.name.desc())
+        else:
+            stmt = stmt.order_by(Company.name.asc())
     else:
-        stmt = stmt.order_by(getattr(Company, sort, Company.created_at).desc())
+        col = getattr(Company, sort, Company.created_at)
+        if order.lower() == "asc":
+            stmt = stmt.order_by(col.asc(), Company.name.asc())
+        else:
+            stmt = stmt.order_by(col.desc(), Company.name.asc())
 
     offset = 0
     if cursor and cursor.isdigit():
         offset = int(cursor)
 
     stmt = stmt.offset(offset).limit(limit)
-    companies = (await db.execute(stmt)).scalars().all()
+    rows = (await db.execute(stmt)).all()
 
     items: list[CompanySummaryResponse] = []
-    for c in companies:
-        contacts_count = (
-            await db.execute(
-                select(func.count(PersonCompanyRelationship.id)).where(
-                    PersonCompanyRelationship.company_id == c.id
-                )
-            )
-        ).scalar() or 0
-
-        leads_count = (
-            await db.execute(select(func.count(Lead.id)).where(Lead.company_id == c.id))
-        ).scalar() or 0
-
-        opps_count = (
-            await db.execute(
-                select(func.count(Opportunity.id))
-                .join(OpportunityCompany, OpportunityCompany.opportunity_id == Opportunity.id)
-                .where(
-                    OpportunityCompany.company_id == c.id,
-                    Opportunity.stage.in_(["prospect", "qualified", "proposal", "negotiation"]),
-                )
-            )
-        ).scalar() or 0
-
-        opps_val = (
-            await db.execute(
-                select(func.coalesce(func.sum(Opportunity.value), 0))
-                .join(OpportunityCompany, OpportunityCompany.opportunity_id == Opportunity.id)
-                .where(
-                    OpportunityCompany.company_id == c.id,
-                    Opportunity.stage.in_(
-                        ["prospect", "qualified", "proposal", "negotiation", "closed_won"]
-                    ),
-                )
-            )
-        ).scalar() or 0.0
-
+    for c, contacts_count, leads_count, opps_count, opps_val in rows:
         items.append(
             CompanySummaryResponse(
                 id=c.id,
@@ -116,10 +162,10 @@ async def list_companies(
                 size_range=c.size_range,
                 country=c.country,
                 city=c.city,
-                contacts_count=contacts_count,
-                leads_count=leads_count,
-                open_opportunities_count=opps_count,
-                total_opportunities_value=float(opps_val),
+                contacts_count=int(contacts_count or 0),
+                leads_count=int(leads_count or 0),
+                open_opportunities_count=int(opps_count or 0),
+                total_opportunities_value=float(opps_val or 0.0),
                 created_at=c.created_at,
                 updated_at=c.updated_at,
             )

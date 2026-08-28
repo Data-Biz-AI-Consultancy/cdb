@@ -10,7 +10,7 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState('');
   const [industryFilter, setIndustryFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [sortBy, setSortBy] = useState<'pipeline_default' | 'contacts' | 'leads' | 'name' | 'created_at'>('pipeline_default');
+  const [sortBy, setSortBy] = useState<'pipeline' | 'leads' | 'contacts' | 'updated_at' | 'created_at' | 'name'>('pipeline');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
@@ -43,7 +43,10 @@ export default function CompaniesPage() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      params.set('page', String(page));
       params.set('page_size', String(pageSize));
+      params.set('sort', sortBy);
+      params.set('order', sortBy === 'name' ? 'asc' : 'desc');
       if (search.trim()) params.set('q', search.trim());
       if (industryFilter.trim()) params.set('industry', industryFilter.trim());
       if (countryFilter.trim()) params.set('country', countryFilter.trim().toUpperCase());
@@ -72,7 +75,7 @@ export default function CompaniesPage() {
 
   useEffect(() => {
     loadCompanies();
-  }, [page, pageSize, industryFilter, countryFilter]);
+  }, [page, pageSize, sortBy, industryFilter, countryFilter]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,33 +126,8 @@ export default function CompaniesPage() {
     }
   };
 
-  // Client-side multi-tier sorting (Default: Pipeline Value -> Leads -> Latest Updated)
-  const sortedCompanies = [...companies].sort((a, b) => {
-    if (sortBy === 'pipeline_default') {
-      // 1. Highest value opportunity first
-      const valA = Number(a.total_opportunities_value || 0);
-      const valB = Number(b.total_opportunities_value || 0);
-      if (valB !== valA) return valB - valA;
-
-      // 2. Number of leads (descending)
-      const leadsA = Number(a.leads_count || 0);
-      const leadsB = Number(b.leads_count || 0);
-      if (leadsB !== leadsA) return leadsB - leadsA;
-
-      // 3. Latest updated / created timestamp (descending)
-      const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
-      const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
-      if (dateB !== dateA) return dateB - dateA;
-
-      // Tiebreaker: Name A-Z
-      return (a.name || '').localeCompare(b.name || '');
-    }
-
-    if (sortBy === 'contacts') return (b.contacts_count || 0) - (a.contacts_count || 0);
-    if (sortBy === 'leads') return (b.leads_count || 0) - (a.leads_count || 0);
-    if (sortBy === 'created_at') return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-    return (a.name || '').localeCompare(b.name || '');
-  });
+  // Companies are sorted server-side in SQL before pagination
+  const sortedCompanies = companies;
 
   // Calculate aggregates across loaded companies
   const totalContacts = companies.reduce((sum, c) => sum + (c.contacts_count || 0), 0);
@@ -350,14 +328,18 @@ export default function CompaniesPage() {
             <select
               aria-label="Sort companies"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => {
+                setSortBy(e.target.value as any);
+                setPage(1);
+              }}
               className="px-2.5 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 font-semibold"
             >
-              <option value="pipeline_default">💼 Highest Deal Value → Leads → Updated</option>
-              <option value="leads">🎯 Related Leads (Most)</option>
-              <option value="contacts">👥 Connected People (Most)</option>
-              <option value="name">🔤 Name (A-Z)</option>
-              <option value="created_at">📅 Recently Added</option>
+              <option value="pipeline">💼 Highest Deal Value</option>
+              <option value="leads">🎯 Most Related Leads</option>
+              <option value="contacts">👥 Most Connected People</option>
+              <option value="updated_at">🕒 Recently Updated</option>
+              <option value="created_at">✨ Recently Added</option>
+              <option value="name">🔤 Company Name (A-Z)</option>
             </select>
           </div>
         </div>
@@ -540,6 +522,81 @@ export default function CompaniesPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Bar */}
+        {(() => {
+          const totalPages = Math.max(1, Math.ceil(total / pageSize));
+          const startRecord = (page - 1) * pageSize + 1;
+          const endRecord = Math.min(page * pageSize, total);
+
+          return (
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-slate-600 font-medium">
+              <div>
+                Showing <span className="font-bold text-slate-800">{total === 0 ? 0 : startRecord}</span> to{' '}
+                <span className="font-bold text-slate-800">{endRecord}</span> of{' '}
+                <span className="font-bold text-slate-800">{total}</span> companies
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span>Per page:</span>
+                  <select
+                    aria-label="Per page"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="px-2 py-1 border border-slate-300 rounded-lg bg-white text-xs font-semibold text-slate-700 focus:outline-none"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage(1)}
+                    className="px-2.5 py-1 border border-slate-300 rounded-lg bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-semibold transition"
+                    title="First Page"
+                  >
+                    «
+                  </button>
+                  <button
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1 border border-slate-300 rounded-lg bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-semibold transition"
+                  >
+                    Previous
+                  </button>
+
+                  <span className="px-3 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 shadow-xs">
+                    Page {page} of {totalPages}
+                  </span>
+
+                  <button
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="px-3 py-1 border border-slate-300 rounded-lg bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-semibold transition"
+                  >
+                    Next
+                  </button>
+                  <button
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage(totalPages)}
+                    className="px-2.5 py-1 border border-slate-300 rounded-lg bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-semibold transition"
+                    title="Last Page"
+                  >
+                    »
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

@@ -338,9 +338,46 @@ Soft-delete (sets `deleted_at`). Use `DELETE /persons/{id}?hard=true` (admin onl
 
 ### `GET /companies`
 
-**Query params:** `q`, `country`, `industry`.
+**Query params:**
+- `q` (string search by name or domain)
+- `country` (2-letter ISO country code)
+- `industry` (string filter)
+- `page` (int >= 1, default 1)
+- `page_size` / `limit` (int 1-200, default 50)
+- `cursor` (string offset)
+- `sort` (`pipeline_default` | `leads` | `contacts` | `name` | `created_at`, default `pipeline_default`)
+- `order` (`asc` | `desc`, default `desc`)
 
-**Response 200:** paginated list with `{ id, name, domain, industry, size_range, country, city, contacts_count, leads_count, open_opportunities_count, total_opportunities_value }`.
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "<uuid>",
+      "name": "Acme AI Corp",
+      "domain": "acme.ai",
+      "industry": "Artificial Intelligence",
+      "size_range": "51-200",
+      "country": "DE",
+      "city": "Munich",
+      "contacts_count": 5,
+      "leads_count": 3,
+      "open_opportunities_count": 2,
+      "total_opportunities_value": 175000.0,
+      "created_at": "2026-01-15T10:00:00Z",
+      "updated_at": "2026-08-01T12:00:00Z"
+    }
+  ],
+  "pagination": {
+    "next_cursor": "50",
+    "has_more": true,
+    "total": 320,
+    "total_contacts_count": 3041,
+    "total_leads_count": 142,
+    "total_pipeline_value": 1250000.0
+  }
+}
+```
 
 ### `POST /companies`
 

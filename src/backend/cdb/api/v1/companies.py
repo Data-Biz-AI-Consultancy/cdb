@@ -32,13 +32,15 @@ async def list_companies(
     include_deleted: bool = Query(False),
     limit: int | None = Query(None, ge=1, le=200),
     page_size: int | None = Query(None, ge=1, le=200),
+    page: int | None = Query(None, ge=1),
     cursor: str | None = Query(None),
-    sort: str = Query("created_at"),
+    sort: str = Query("pipeline"),
     order: str = Query("desc"),
     db: AsyncSession = Depends(get_db),
     auth_user: User | None = Depends(get_current_user_or_api_key),
 ):
     effective_limit = limit or page_size or 50
+    effective_cursor = str((page - 1) * effective_limit) if (page and page > 1) else cursor
     items, pagination = await company_service.list_companies(
         db,
         q=q,
@@ -46,7 +48,7 @@ async def list_companies(
         industry=industry,
         include_deleted=include_deleted,
         limit=effective_limit,
-        cursor=cursor,
+        cursor=effective_cursor,
         sort=sort,
         order=order,
     )
