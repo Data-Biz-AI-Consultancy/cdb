@@ -185,12 +185,41 @@ async def evaluate_segments_and_temperature(db: AsyncSession) -> dict[str, Any]:
             tags.add(f"city:{person.city.lower()}")
 
         # Update attributes on Person
+        old_segment = person.attributes.get("segment") if person.attributes else None
+        old_temp = person.attributes.get("engagement_temperature") if person.attributes else None
+
         attr = dict(person.attributes or {})
         attr["segment"] = assigned_segment
         attr["engagement_temperature"] = temperature
         attr["tags"] = sorted(list(tags))
         attr["last_evaluated_at"] = now.isoformat()
         person.attributes = attr
+
+        from cdb.services.person_history import record_person_history
+
+        if old_segment and old_segment != assigned_segment:
+            await record_person_history(
+                db,
+                person_id=person.id,
+                action_id="segment_changed",
+                field_name="segment",
+                old_value=old_segment,
+                new_value=assigned_segment,
+                changes={"segment": {"old": old_segment, "new": assigned_segment}},
+                summary=f"Segment changed from '{old_segment}' to '{assigned_segment}'",
+            )
+
+        if old_temp and old_temp != temperature:
+            await record_person_history(
+                db,
+                person_id=person.id,
+                action_id="temperature_changed",
+                field_name="engagement_temperature",
+                old_value=old_temp,
+                new_value=temperature,
+                changes={"engagement_temperature": {"old": old_temp, "new": temperature}},
+                summary=f"Engagement temperature changed from '{old_temp}' to '{temperature}'",
+            )
 
     await db.commit()
 

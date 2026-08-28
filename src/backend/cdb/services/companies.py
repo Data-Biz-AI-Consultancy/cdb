@@ -258,6 +258,22 @@ async def add_person_to_company(
         ended_at=data.ended_at,
     )
     db.add(rel)
+
+    from cdb.services.person_history import record_person_history
+
+    await record_person_history(
+        db,
+        person_id=person_id,
+        action_id="company_linked",
+        changes={
+            "company_id": str(data.company_id),
+            "company_name": c.name,
+            "title": data.title,
+            "is_current": data.is_current,
+        },
+        summary=f"Linked to company '{c.name}' as '{data.title or 'Role'}'",
+    )
+
     await db.commit()
     await db.refresh(rel)
     return RelationshipResponse.model_validate(rel)

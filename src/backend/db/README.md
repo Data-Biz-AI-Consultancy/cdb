@@ -233,6 +233,56 @@ CREATE INDEX idx_persons_fts ON persons
 
 ---
 
+### `person_actions` (Dimension Table)
+
+A standardized dimension table cataloging all lifecycle action and status change types for person records.
+
+```sql
+CREATE TABLE person_actions (
+    id            VARCHAR(50) PRIMARY KEY,           -- slug e.g. 'record_created', 'profile_updated', 'segment_changed'
+    name          VARCHAR(100) NOT NULL,             -- human-readable action label
+    category      VARCHAR(50) NOT NULL,              -- 'profile' | 'segmentation' | 'career' | 'entity_resolution' | 'pipeline' | 'bulk_ops'
+    description   TEXT,
+    icon          VARCHAR(50),
+    color         VARCHAR(50),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_person_actions_category ON person_actions (category);
+```
+
+---
+
+### `person_history` (Fact / Changelog Table)
+
+Audit trail and status changelog tracking every modification, field diff, and lifecycle event for a person.
+
+```sql
+CREATE TABLE person_history (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    person_id     UUID NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+    action_id     VARCHAR(50) NOT NULL REFERENCES person_actions(id) ON DELETE RESTRICT,
+    changed_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+
+    field_name    VARCHAR(100),                      -- specific field modified (if single field)
+    old_value     JSONB,                             -- old state
+    new_value     JSONB,                             -- new state
+    changes       JSONB NOT NULL DEFAULT '{}',       -- structured field diff: {"field": {"old": ..., "new": ...}}
+    summary       TEXT,                              -- human-readable audit notes
+
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_person_history_person_id    ON person_history (person_id);
+CREATE INDEX idx_person_history_action_id    ON person_history (action_id);
+CREATE INDEX idx_person_history_changed_by_id ON person_history (changed_by_id);
+CREATE INDEX idx_person_history_created_at   ON person_history (created_at DESC);
+```
+
+---
+
 ### `companies`
 
 An organisation associated with one or more persons.

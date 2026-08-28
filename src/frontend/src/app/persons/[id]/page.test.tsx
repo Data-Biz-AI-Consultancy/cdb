@@ -104,6 +104,28 @@ describe('PersonDetailPage Full History and Pipeline Integration', () => {
     ],
   };
 
+  const mockHistory = {
+    data: [
+      {
+        id: 'hist-1',
+        person_id: '11111111-1111-1111-1111-111111111111',
+        action_id: 'profile_updated',
+        action: {
+          id: 'profile_updated',
+          name: 'Profile Updated',
+          category: 'profile',
+          icon: '✏️',
+        },
+        summary: 'Updated primary phone and location',
+        changes: {
+          city: { old: 'Frankfurt', new: 'Berlin' },
+          primary_phone: { old: null, new: '+1 555 1234' },
+        },
+        created_at: '2026-08-27T12:00:00Z',
+      },
+    ],
+  };
+
   const mockCompanies = {
     data: [
       { id: 'comp-1', name: 'Acme AI Corp', domain: 'acme.ai' },
@@ -114,6 +136,9 @@ describe('PersonDetailPage Full History and Pipeline Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (api.apiFetch as any).mockImplementation((url: string) => {
+      if (url.includes('/api/v1/persons/11111111-1111-1111-1111-111111111111/history')) {
+        return Promise.resolve(mockHistory);
+      }
       if (url.includes('/api/v1/persons/11111111-1111-1111-1111-111111111111')) {
         return Promise.resolve(mockPerson);
       }
@@ -166,7 +191,7 @@ describe('PersonDetailPage Full History and Pipeline Integration', () => {
     expect(screen.getByText(/Discussed high level requirements/)).toBeInTheDocument();
   });
 
-  it('switches between tabs to view employment history, opportunities, and leads', async () => {
+  it('switches between tabs to view employment history, opportunities, leads, and changelog', async () => {
     render(<PersonDetailPage params={Promise.resolve({ id: '11111111-1111-1111-1111-111111111111' })} />);
 
     await waitFor(() => {
@@ -188,6 +213,12 @@ describe('PersonDetailPage Full History and Pipeline Integration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Leads/i }));
     expect(screen.getByText('Inbound inquiry from LinkedIn')).toBeInTheDocument();
     expect(screen.getByText('Convert to Opp →')).toBeInTheDocument();
+
+    // Switch to Changelog
+    fireEvent.click(screen.getByRole('button', { name: /Changelog/i }));
+    expect(screen.getByText('Profile Updated')).toBeInTheDocument();
+    expect(screen.getByText('Updated primary phone and location')).toBeInTheDocument();
+    expect(screen.getByText(/Frankfurt/)).toBeInTheDocument();
 
     // Switch to Profile Details & Intelligence
     fireEvent.click(screen.getByRole('button', { name: /Contact & Intelligence Info/i }));
