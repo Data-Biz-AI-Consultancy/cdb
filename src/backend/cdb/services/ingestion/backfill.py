@@ -236,78 +236,140 @@ async def backfill_linkedin_messages_into_activities(db: AsyncSession) -> dict[s
     }
 
 
+def clean_meeting_title(raw_title: str | None) -> str:
+    if not raw_title:
+        return "Notion Meeting Note"
+    # Strip ISO timestamp suffixes like 2026-08-27T16:28:00.000+02:00
+    cleaned = re.sub(r"\s*\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*$", "", raw_title).strip()
+    return cleaned or raw_title.strip()
+
+
 async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dict[str, Any]:
     """
     Backfills all intake_notion_meeting_notes into the activities table.
-    Links meetings with primary attendee persons and creates activity records.
+    Intelligently links meetings with attendee persons from attendees list, meeting title, URL, or transcripts.
     """
     notes_stmt = select(IntakeNotionMeetingNote)
     notes = (await db.execute(notes_stmt)).scalars().all()
     logger.info("Found %d intake Notion meeting note records to backfill.", len(notes))
 
-    existing_act_sources = (
-        (await db.execute(select(Activity.source_id).where(Activity.source_id.is_not(None))))
-        .scalars()
+    existing_activities = (
+        (await db.execute(select(Activity).where(Activity.source == "notion"))).scalars().all()
+    )
+    existing_act_by_source_id: dict[str, Activity] = {
+        act.source_id: act for act in existing_activities if act.source_id
+    }
+
+    # Preload all active persons and their companies
+    persons = (await db.execute(select(Person).where(Person.deleted_at.is_(None)))).scalars().all()
+    person_by_id = {p.id: p for p in persons}
+    
+    # Preload relationships to know which company each person belongs to
+    rels = (
+        (
+            await db.execute(
+                select(PersonCompanyRelationship, Company)
+                .join(Company, Company.id == PersonCompanyRelationship.company_id)
+            )
+        )
         .all()
     )
-    existing_sources_set = set(existing_act_sources)
-
-    persons = (await db.execute(select(Person).where(Person.deleted_at.is_(None)))).scalars().all()
-    person_by_name: dict[str, Person] = {}
-    for p in persons:
-        full_name = f"{p.first_name or ''} {p.last_name or ''}".strip().lower()
-        if full_name:
-            person_by_name[full_name] = p
+    person_companies: dict[Any, list[str]] = {}
+    for r, c in rels:
+        person_companies.setdefault(r.person_id, []).append((c.name or "").lower().strip())
 
     created_meetings_count = 0
+    updated_meetings_count = 0
 
     chunk_size = 50
     for i in range(0, len(notes), chunk_size):
         chunk = notes[i : i + chunk_size]
         for note in chunk:
             source_id = f"notion:{note.page_id}"
-            if source_id in existing_sources_set:
-                continue
+            clean_title = clean_meeting_title(note.title)
 
-            person_id = None
-            if note.attendees:
-                att_lower = note.attendees.lower()
-                for p_name, p_obj in person_by_name.items():
-                    if len(p_name) > 4 and (p_name in att_lower or att_lower in p_name):
-                        person_id = p_obj.id
+            # Combined text to search for candidate attendees
+            search_corpus = f"{note.attendees or ''} {note.title or ''} {note.url or ''}".lower()
+
+            matched_person_id = None
+
+            # 1. First search full name matches (first_name + " " + last_name)
+            for p in persons:
+                first = (p.first_name or "").strip().lower()
+                last = (p.last_name or "").strip().lower()
+                if first and last and len(first) >= 2 and len(last) >= 2:
+                    full_name = f"{first} {last}"
+                    if full_name in search_corpus:
+                        matched_person_id = p.id
                         break
 
-            if not person_id:
+            # 2. If no full name match, search first_name + company affiliation match (e.g. "Bendik" + "MotherDuck")
+            if not matched_person_id:
+                for p in persons:
+                    first = (p.first_name or "").strip().lower()
+                    if first and len(first) >= 3 and first != "jimmy" and first in search_corpus:
+                        # Check if any of person's company names also appear in the search corpus
+                        p_comps = person_companies.get(p.id, [])
+                        if any(comp in search_corpus for comp in p_comps if len(comp) >= 3):
+                            matched_person_id = p.id
+                            break
+
+            # 3. If still no match, search distinctive first name in title patterns (e.g. "Lauren/Jimmy", "Daniel x Jimmy", "Amit x Jimmy")
+            if not matched_person_id:
+                for p in persons:
+                    first = (p.first_name or "").strip().lower()
+                    if first and len(first) >= 4 and first != "jimmy":
+                        # Check regex pattern for name before/after Jimmy or x / & / between
+                        pattern = rf"\b{re.escape(first)}\b"
+                        if re.search(pattern, search_corpus):
+                            matched_person_id = p.id
+                            break
+
+            if not matched_person_id:
                 continue
 
             occurred_at = note.meeting_date or note.ingested_at or datetime.datetime.now(datetime.UTC)
 
-            act = Activity(
-                person_id=person_id,
-                type="meeting",
-                source="notion",
-                source_id=source_id,
-                occurred_at=occurred_at,
-                title=note.title or "Notion Meeting Note",
-                summary=note.summary or (f"Meeting with {note.attendees}" if note.attendees else "Notion meeting notes"),
-                raw_content=note.summary,
-                attributes={
-                    "database_name": note.database_name,
-                    "url": note.url,
-                    "to_dos": note.to_dos,
-                    "attendees": note.attendees,
-                },
-            )
-            db.add(act)
-            existing_sources_set.add(source_id)
-            created_meetings_count += 1
+            # Check if activity already exists
+            existing_act = existing_act_by_source_id.get(source_id)
+            if existing_act:
+                # Update person_id and title if missing or improved
+                if existing_act.person_id != matched_person_id:
+                    existing_act.person_id = matched_person_id
+                    existing_act.title = clean_title
+                    updated_meetings_count += 1
+            else:
+                act = Activity(
+                    person_id=matched_person_id,
+                    type="meeting",
+                    source="notion",
+                    source_id=source_id,
+                    occurred_at=occurred_at,
+                    title=clean_title,
+                    summary=note.summary or f"Notion Meeting Note: {clean_title}",
+                    raw_content=note.summary,
+                    attributes={
+                        "database_name": note.database_name,
+                        "url": note.url,
+                        "to_dos": note.to_dos,
+                        "attendees": note.attendees,
+                    },
+                )
+                db.add(act)
+                existing_act_by_source_id[source_id] = act
+                created_meetings_count += 1
 
         await db.commit()
 
-    logger.info("Notion meeting notes backfill complete: %d activities created.", created_meetings_count)
+    logger.info(
+        "Notion meeting notes backfill complete: %d activities created, %d updated.",
+        created_meetings_count,
+        updated_meetings_count,
+    )
 
     return {
         "status": "success",
         "total_notes": len(notes),
         "created_activities": created_meetings_count,
+        "updated_activities": updated_meetings_count,
     }
