@@ -40,9 +40,15 @@ class CompanySummaryResponse(BaseModel):
     name: str
     domain: str | None = None
     industry: str | None = None
+    size_range: str | None = None
     country: str | None = None
+    city: str | None = None
     contacts_count: int = 0
+    leads_count: int = 0
     open_opportunities_count: int = 0
+    total_opportunities_value: float = 0.0
+    created_at: datetime.datetime | None = None
+    updated_at: datetime.datetime | None = None
 
 
 class CompanyDetailResponse(CompanyBase):
@@ -50,7 +56,9 @@ class CompanyDetailResponse(CompanyBase):
 
     id: uuid.UUID
     contacts_count: int = 0
+    leads_count: int = 0
     open_opportunities_count: int = 0
+    total_opportunities_value: float = 0.0
     created_at: datetime.datetime
     updated_at: datetime.datetime
     deleted_at: datetime.datetime | None = None
@@ -100,3 +108,4 @@ class CompanyEmployeeResponse(BaseModel):
     is_current: bool = True
     started_at: datetime.date | None = None
     ended_at: datetime.date | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
