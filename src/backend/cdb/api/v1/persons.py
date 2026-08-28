@@ -16,9 +16,19 @@ from cdb.schemas.person import (
     PersonSummaryResponse,
     PersonUpdate,
 )
+from cdb.schemas.person_history import PersonActionResponse, PersonHistoryResponse
+from cdb.services import person_history as person_history_service
 from cdb.services import persons as person_service
 
 router = APIRouter(prefix="/persons", tags=["Persons"])
+
+
+@router.get("/actions", response_model=list[PersonActionResponse])
+async def list_person_actions(
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+):
+    return await person_history_service.list_person_actions(db)
 
 
 @router.get("", response_model=PaginatedResponse[PersonSummaryResponse])
@@ -49,6 +59,29 @@ async def list_persons(
         include_deleted=include_deleted,
         limit=effective_limit,
         page=page,
+        cursor=cursor,
+        sort=sort,
+        order=order,
+    )
+    return PaginatedResponse(data=items, pagination=pagination)
+
+
+@router.get("/{person_id}/history", response_model=PaginatedResponse[PersonHistoryResponse])
+async def get_person_history(
+    person_id: uuid.UUID,
+    limit: int | None = Query(None, ge=1, le=200),
+    page_size: int | None = Query(None, ge=1, le=200),
+    cursor: str | None = Query(None),
+    sort: str = Query("created_at"),
+    order: str = Query("desc"),
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+):
+    effective_limit = limit or page_size or 50
+    items, pagination = await person_history_service.list_person_history(
+        db,
+        person_id=person_id,
+        limit=effective_limit,
         cursor=cursor,
         sort=sort,
         order=order,

@@ -12,6 +12,28 @@ from cdb.models.user import User
 logger = logging.getLogger(__name__)
 
 
+def run_migrations() -> None:
+    """
+    Executes Alembic migrations to upgrade the database schema to the latest head.
+    """
+    try:
+        from pathlib import Path
+
+        from alembic import command
+        from alembic.config import Config
+
+        # Locate alembic.ini
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        ini_path = base_dir / "db" / "alembic.ini"
+        if ini_path.exists():
+            alembic_cfg = Config(str(ini_path))
+            alembic_cfg.set_main_option("script_location", str(base_dir / "db" / "alembic"))
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Alembic database migrations applied successfully to head.")
+    except Exception as exc:
+        logger.warning("Could not automatically run Alembic migrations: %s", exc)
+
+
 def ensure_database_exists(db_url: str | None = None) -> None:
     """
     Ensures that the PostgreSQL target database specified in db_url exists.

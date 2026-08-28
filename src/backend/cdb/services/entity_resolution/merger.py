@@ -256,6 +256,16 @@ async def merge_persons(
     for k, v in merged_updates.items():
         setattr(master, k, v)
 
+    from cdb.services.person_history import record_person_history
+
+    await record_person_history(
+        db,
+        person_id=master_id,
+        action_id="records_merged",
+        changes=merged_updates,
+        summary=f"Merged subordinate record (ID: {sub_id}) into master record",
+    )
+
     await db.commit()
     await db.refresh(master)
 

@@ -222,6 +222,73 @@ Bulk soft-delete or permanently delete multiple persons.
 }
 ```
 
+### `GET /persons/actions`
+
+Lists all person action dimension entries for categorizing changelog entries.
+
+**Response 200:**
+```json
+[
+  {
+    "id": "record_created",
+    "name": "Record Created",
+    "category": "profile",
+    "description": "Initial creation of the person golden record",
+    "icon": "✨",
+    "color": "emerald",
+    "created_at": "2026-08-28T10:00:00Z",
+    "updated_at": "2026-08-28T10:00:00Z"
+  }
+]
+```
+
+### `GET /persons/{id}/history`
+
+Retrieves the paginated audit changelog and status change history for a person.
+
+**Query params:**
+- `limit` / `page_size` (int 1-200, default 50)
+- `cursor` (string offset)
+- `sort` (`created_at`, default `created_at`)
+- `order` (`asc` | `desc`, default `desc`)
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "<uuid>",
+      "person_id": "<uuid>",
+      "action_id": "profile_updated",
+      "action": {
+        "id": "profile_updated",
+        "name": "Profile Updated",
+        "category": "profile",
+        "icon": "✏️",
+        "color": "blue",
+        "created_at": "2026-08-28T10:00:00Z",
+        "updated_at": "2026-08-28T10:00:00Z"
+      },
+      "changed_by_id": "<uuid>",
+      "field_name": null,
+      "old_value": null,
+      "new_value": null,
+      "changes": {
+        "city": { "old": "Berlin", "new": "Munich" }
+      },
+      "summary": "Updated profile fields: city",
+      "created_at": "2026-08-28T10:05:00Z",
+      "updated_at": "2026-08-28T10:05:00Z"
+    }
+  ],
+  "pagination": {
+    "next_cursor": null,
+    "has_more": false,
+    "total": 1
+  }
+}
+```
+
 ### `GET /persons/{id}`
 
 Full person detail including career timeline and linked leads/opportunities.

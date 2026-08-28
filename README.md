@@ -72,10 +72,11 @@ Pipeline & Engagements (CRM Lifecycle)       │
 
 ## 🔄 Core Product Workflows & Capabilities
 
-### 1. Unified Person Golden Records
+### 1. Unified Person Golden Records & Audit Changelog (`person_history`)
 * **Automatic Deduplication**: Merges contacts arriving across LinkedIn, Notion, and CSV imports into a single golden record.
 * **Attribution & Provenance**: Inspect which sources contributed to each field with complete traceability (`source_ids` and `sources` tracking).
-* **Career & Interaction Timelines**: Visualise employment histories (current & past roles) alongside chronological interaction feeds (meetings, calls, notes).
+* **Career & Interaction Timelines**: Visualise employment histories (current & past roles) alongside chronological interaction feeds (LinkedIn messages, Notion meeting notes, emails, calls).
+* **Full Audit Changelog & Action Dimensions (`person_history` & `person_actions`)**: Automated, immutable changelog tracking every profile update, segment re-evaluation, temperature shift, ER merge, career affiliation change, and bulk operation with field-level diffs (`old_value` → `new_value`).
 
 ### 2. Company Intelligence & Relationships
 * **First-Class Peer Entities**: View company profiles with linked contacts, active employees, alumni, domain metadata, and linked pipeline deals.

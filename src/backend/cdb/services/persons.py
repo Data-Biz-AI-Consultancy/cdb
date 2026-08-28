@@ -29,6 +29,7 @@ from cdb.services.entity_resolution.normalise import (
     normalise_linkedin_url,
     normalise_phone,
 )
+from cdb.services.person_history import record_person_history
 
 
 def _clean_sources(src: Any) -> list[str]:
@@ -270,6 +271,15 @@ async def create_person(db: AsyncSession, data: PersonCreate) -> Person:
         source_ids={},
     )
     db.add(person)
+    await db.flush()
+
+    await record_person_history(
+        db,
+        person_id=person.id,
+        action_id="record_created",
+        summary=f"Created person record: {person.first_name or ''} {person.last_name or ''}".strip(),
+    )
+
     await db.commit()
     await db.refresh(person)
     return person
@@ -376,8 +386,21 @@ async def update_person(
     if "country" in update_dict and update_dict["country"]:
         update_dict["country"] = update_dict["country"].upper()
 
+    diff_changes: dict[str, Any] = {}
     for k, v in update_dict.items():
+        old_v = getattr(person, k)
+        if old_v != v:
+            diff_changes[k] = {"old": old_v, "new": v}
         setattr(person, k, v)
+
+    if diff_changes:
+        await record_person_history(
+            db,
+            person_id=person.id,
+            action_id="profile_updated",
+            changes=diff_changes,
+            summary=f"Updated profile fields: {', '.join(diff_changes.keys())}",
+        )
 
     await db.commit()
     await db.refresh(person)
@@ -412,9 +435,15 @@ async def bulk_update_persons(db: AsyncSession, data: PersonBulkUpdate) -> BulkO
 
     now = datetime.datetime.now(datetime.UTC)
     for p in persons:
-        if data.city is not None:
+        diff_changes: dict[str, Any] = {}
+        if data.city is not None and p.city != data.city.strip():
+            diff_changes["city"] = {"old": p.city, "new": data.city.strip() or None}
             p.city = data.city.strip() if data.city.strip() else None
-        if data.country is not None:
+        if data.country is not None and p.country != data.country.strip().upper():
+            diff_changes["country"] = {
+                "old": p.country,
+                "new": data.country.strip().upper() or None,
+            }
             p.country = data.country.strip().upper() if data.country.strip() else None
         if data.add_sources:
             cur = _clean_sources(p.sources)
@@ -431,6 +460,14 @@ async def bulk_update_persons(db: AsyncSession, data: PersonBulkUpdate) -> BulkO
             attrs.update(data.attributes)
             p.attributes = attrs
         p.updated_at = now
+
+        await record_person_history(
+            db,
+            person_id=p.id,
+            action_id="bulk_updated",
+            changes=diff_changes,
+            summary="Updated via bulk batch operation",
+        )
 
     await db.commit()
 

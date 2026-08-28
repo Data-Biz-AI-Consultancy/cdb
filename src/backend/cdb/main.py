@@ -10,6 +10,7 @@ from cdb.core.errors import register_error_handlers
 from cdb.core.init_db import (
     ensure_database_exists,
     ensure_initial_admin,
+    run_migrations,
 )
 
 
@@ -17,6 +18,8 @@ from cdb.core.init_db import (
 async def lifespan(app: FastAPI):
     # Startup logic: ensure PostgreSQL target database exists
     ensure_database_exists(settings.SYNC_DATABASE_URL)
+    # Run Alembic migrations automatically on startup
+    run_migrations()
     # Seed initial admin user if configured and missing
     await ensure_initial_admin()
     yield

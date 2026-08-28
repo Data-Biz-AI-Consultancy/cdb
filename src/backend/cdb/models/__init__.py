@@ -11,6 +11,7 @@ from cdb.models.intake import (
 from cdb.models.lead import Lead
 from cdb.models.opportunity import Opportunity, OpportunityCompany, OpportunityPerson
 from cdb.models.person import Person
+from cdb.models.person_history import PersonAction, PersonHistory
 from cdb.models.relationship import PersonCompanyRelationship
 from cdb.models.user import User
 
@@ -20,6 +21,8 @@ __all__ = [
     "Person",
     "Company",
     "PersonCompanyRelationship",
+    "PersonAction",
+    "PersonHistory",
     "Activity",
     "Lead",
     "Opportunity",

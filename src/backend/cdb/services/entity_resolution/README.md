@@ -48,14 +48,15 @@ def normalise_email(raw: str | None) -> str | None:
 ```python
 import re
 
+
 def normalise_linkedin_url(raw: str | None) -> str | None:
     if not raw:
         return None
     url = raw.strip()
     # Strip scheme and www, strip trailing slash
-    url = re.sub(r'^https?://(www\.)?', '', url).rstrip('/')
+    url = re.sub(r"^https?://(www\.)?", "", url).rstrip("/")
     # Must look like a LinkedIn profile path
-    if not url.startswith('linkedin.com/in/'):
+    if not url.startswith("linkedin.com/in/"):
         return None
     return url.lower()
 ```
@@ -65,11 +66,12 @@ def normalise_linkedin_url(raw: str | None) -> str | None:
 ```python
 import re
 
+
 def normalise_phone(raw: str | None) -> str | None:
     if not raw:
         return None
     # Strip all non-digit characters except leading +
-    digits = re.sub(r'[^\d+]', '', raw.strip())
+    digits = re.sub(r"[^\d+]", "", raw.strip())
     if len(digits) < 7:
         return None
     return digits
@@ -93,7 +95,7 @@ def email_prefix(email: str | None) -> str | None:
     if not email or "@" not in email:
         return None
     local = email.split("@")[0].lower()
-    stripped = re.sub(r'\d+$', '', local)
+    stripped = re.sub(r"\d+$", "", local)
     return stripped if len(stripped) >= 5 else None
 ```
 
