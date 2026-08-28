@@ -50,7 +50,7 @@ src/frontend/
 The application navigation is organized into 3 clear functional categories:
 
 1. **Directory**
-   - **Persons** (`/persons`): Golden records of natural persons, contact info, timeline, and company links.
+   - **Persons** (`/persons`, `/persons/[id]`): Golden records of natural persons, contact intelligence, segment badges, engagement temperature, full history timeline (LinkedIn messages, Notion meeting notes, emails, calls), employment history, attached opportunities, and attached leads.
    - **Companies** (`/companies`): Company profiles, domain mappings, and linked employees.
    - **Review Queue** (`/review`): Side-by-side comparison for ambiguous Entity Resolution pairs.
 
