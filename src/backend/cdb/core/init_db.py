@@ -17,10 +17,10 @@ def run_migrations() -> None:
     Executes Alembic migrations to upgrade the database schema to the latest head.
     """
     try:
-        import os
         from pathlib import Path
-        from alembic.config import Config
+
         from alembic import command
+        from alembic.config import Config
 
         # Locate alembic.ini
         base_dir = Path(__file__).resolve().parent.parent.parent

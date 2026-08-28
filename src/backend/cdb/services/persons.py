@@ -440,7 +440,10 @@ async def bulk_update_persons(db: AsyncSession, data: PersonBulkUpdate) -> BulkO
             diff_changes["city"] = {"old": p.city, "new": data.city.strip() or None}
             p.city = data.city.strip() if data.city.strip() else None
         if data.country is not None and p.country != data.country.strip().upper():
-            diff_changes["country"] = {"old": p.country, "new": data.country.strip().upper() or None}
+            diff_changes["country"] = {
+                "old": p.country,
+                "new": data.country.strip().upper() or None,
+            }
             p.country = data.country.strip().upper() if data.country.strip() else None
         if data.add_sources:
             cur = _clean_sources(p.sources)

@@ -3,12 +3,16 @@ import logging
 import re
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.activity import Activity
 from cdb.models.company import Company
-from cdb.models.intake import IntakeLinkedInConnection, IntakeLinkedInMessage, IntakeNotionMeetingNote
+from cdb.models.intake import (
+    IntakeLinkedInConnection,
+    IntakeLinkedInMessage,
+    IntakeNotionMeetingNote,
+)
 from cdb.models.lead import Lead
 from cdb.models.person import Person
 from cdb.models.relationship import PersonCompanyRelationship
@@ -29,7 +33,9 @@ async def backfill_linkedin_companies_and_relationships(db: AsyncSession) -> dic
         IntakeLinkedInConnection.company != "",
     )
     rows = (await db.execute(stmt)).scalars().all()
-    logger.info("Found %d intake LinkedIn connection records with company info to process.", len(rows))
+    logger.info(
+        "Found %d intake LinkedIn connection records with company info to process.", len(rows)
+    )
 
     existing_companies = (await db.execute(select(Company))).scalars().all()
     company_by_name: dict[str, Company] = {c.name.lower().strip(): c for c in existing_companies}
@@ -72,9 +78,7 @@ async def backfill_linkedin_companies_and_relationships(db: AsyncSession) -> dic
             started_at = None
             if intake.connected_at:
                 started_at = (
-                    intake.connected_at.date()
-                    if hasattr(intake.connected_at, "date")
-                    else None
+                    intake.connected_at.date() if hasattr(intake.connected_at, "date") else None
                 )
 
             rel = PersonCompanyRelationship(
@@ -157,11 +161,18 @@ async def backfill_linkedin_messages_into_activities(db: AsyncSession) -> dict[s
 
             occurred_at = msg.ingested_at or datetime.datetime.now(datetime.UTC)
             if msg.raw_payload and isinstance(msg.raw_payload, dict):
-                for dt_key in ["last_sent_at", "latest_message_date", "first_sent_at", "created_at"]:
+                for dt_key in [
+                    "last_sent_at",
+                    "latest_message_date",
+                    "first_sent_at",
+                    "created_at",
+                ]:
                     val = msg.raw_payload.get(dt_key)
                     if val:
                         try:
-                            occurred_at = datetime.datetime.fromisoformat(val.replace("Z", "+00:00"))
+                            occurred_at = datetime.datetime.fromisoformat(
+                                val.replace("Z", "+00:00")
+                            )
                             break
                         except Exception:
                             pass
@@ -262,18 +273,15 @@ async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dic
 
     # Preload all active persons and their companies
     persons = (await db.execute(select(Person).where(Person.deleted_at.is_(None)))).scalars().all()
-    person_by_id = {p.id: p for p in persons}
-    
+
     # Preload relationships to know which company each person belongs to
     rels = (
-        (
-            await db.execute(
-                select(PersonCompanyRelationship, Company)
-                .join(Company, Company.id == PersonCompanyRelationship.company_id)
+        await db.execute(
+            select(PersonCompanyRelationship, Company).join(
+                Company, Company.id == PersonCompanyRelationship.company_id
             )
         )
-        .all()
-    )
+    ).all()
     person_companies: dict[Any, list[str]] = {}
     for r, c in rels:
         person_companies.setdefault(r.person_id, []).append((c.name or "").lower().strip())
@@ -328,7 +336,9 @@ async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dic
             if not matched_person_id:
                 continue
 
-            occurred_at = note.meeting_date or note.ingested_at or datetime.datetime.now(datetime.UTC)
+            occurred_at = (
+                note.meeting_date or note.ingested_at or datetime.datetime.now(datetime.UTC)
+            )
 
             # Check if activity already exists
             existing_act = existing_act_by_source_id.get(source_id)
