@@ -128,7 +128,29 @@ async def list_companies(
     has_more = (offset + limit) < total
     next_cursor = str(offset + limit) if has_more else None
 
-    return items, PaginationMetadata(next_cursor=next_cursor, has_more=has_more, total=total)
+    # Global aggregate metrics across entire CRM
+    global_contacts_count = (
+        await db.execute(select(func.count(PersonCompanyRelationship.id)))
+    ).scalar() or 0
+    global_leads_count = (await db.execute(select(func.count(Lead.id)))).scalar() or 0
+    global_pipeline_value = (
+        await db.execute(
+            select(func.coalesce(func.sum(Opportunity.value), 0.0)).where(
+                Opportunity.stage.in_(
+                    ["prospect", "qualified", "proposal", "negotiation", "closed_won"]
+                )
+            )
+        )
+    ).scalar() or 0.0
+
+    return items, PaginationMetadata(
+        next_cursor=next_cursor,
+        has_more=has_more,
+        total=total,
+        total_contacts_count=global_contacts_count,
+        total_leads_count=global_leads_count,
+        total_pipeline_value=float(global_pipeline_value),
+    )
 
 
 async def create_company(db: AsyncSession, data: CompanyCreate) -> Company:

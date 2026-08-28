@@ -132,3 +132,53 @@ async def test_evaluate_segments_and_temperature_api(
     assert attrs["segment"] == "recruiters_and_talent"
     assert "segment:recruiters_and_talent" in attrs["tags"]
     assert "geo:de" in attrs["tags"]
+
+
+@pytest.mark.asyncio
+async def test_backfill_linkedin_connections_without_resolved_person(
+    client: AsyncClient, auth_headers: dict[str, str], db_session
+):
+    from cdb.models.intake import IntakeLinkedInConnection
+    from cdb.services.ingestion.backfill import backfill_linkedin_companies_and_relationships
+
+    # 1. Insert unlinked intake connections
+    conn1 = IntakeLinkedInConnection(
+        connection_id="li-conn-001",
+        first_name="Diana",
+        last_name="Prince",
+        profile_url="https://www.linkedin.com/in/dianaprince",
+        email_address="diana@themyscira.io",
+        company="Themyscira AI Labs GmbH",
+        position="Chief AI Officer",
+        status="pending",
+        resolved_person_id=None,
+    )
+    conn2 = IntakeLinkedInConnection(
+        connection_id="li-conn-002",
+        first_name="Bruce",
+        last_name="Wayne",
+        profile_url="https://www.linkedin.com/in/brucewayne",
+        email_address="bruce@wayneenterprises.com",
+        company="Wayne Enterprises",
+        position="Chairman",
+        status="pending",
+        resolved_person_id=None,
+    )
+    db_session.add_all([conn1, conn2])
+    await db_session.commit()
+
+    # 2. Run backfill
+    res = await backfill_linkedin_companies_and_relationships(db_session)
+    assert res["status"] == "success"
+    assert res["processed_connections"] >= 2
+    assert res["created_persons"] >= 2
+    assert res["created_companies"] >= 2
+    assert res["created_relationships"] >= 2
+
+    # 3. Verify in API
+    comp_list = await client.get("/api/v1/companies?q=Wayne", headers=auth_headers)
+    assert comp_list.status_code == 200
+    comp_data = comp_list.json()["data"]
+    assert len(comp_data) >= 1
+    wayne_co = comp_data[0]
+    assert wayne_co["contacts_count"] >= 1

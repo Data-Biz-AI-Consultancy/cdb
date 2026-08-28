@@ -25,10 +25,14 @@ logger = logging.getLogger(__name__)
 async def backfill_linkedin_companies_and_relationships(db: AsyncSession) -> dict[str, Any]:
     """
     Backfills companies and person_company_relationships from intake_linkedin_connections.
-    Creates missing companies and associates resolved persons with their respective company and position.
+    Resolves persons if not yet resolved, creates missing companies, and establishes employment links.
     """
+    from cdb.services.entity_resolution.normalise import (
+        normalise_email,
+        normalise_linkedin_url,
+    )
+
     stmt = select(IntakeLinkedInConnection).where(
-        IntakeLinkedInConnection.resolved_person_id.is_not(None),
         IntakeLinkedInConnection.company.is_not(None),
         IntakeLinkedInConnection.company != "",
     )
@@ -37,64 +41,159 @@ async def backfill_linkedin_companies_and_relationships(db: AsyncSession) -> dic
         "Found %d intake LinkedIn connection records with company info to process.", len(rows)
     )
 
+    # Preload existing persons
+    existing_persons = (
+        (await db.execute(select(Person).where(Person.deleted_at.is_(None)))).scalars().all()
+    )
+    person_by_id: dict[Any, Person] = {p.id: p for p in existing_persons}
+    person_by_li: dict[str, Person] = {
+        p.linkedin_url.lower().strip(): p for p in existing_persons if p.linkedin_url
+    }
+    person_by_email: dict[str, Person] = {
+        p.primary_email.lower().strip(): p for p in existing_persons if p.primary_email
+    }
+    person_by_name: dict[str, Person] = {
+        f"{p.first_name or ''} {p.last_name or ''}".strip().lower(): p
+        for p in existing_persons
+        if (p.first_name or p.last_name)
+    }
+
+    # Preload existing companies
     existing_companies = (await db.execute(select(Company))).scalars().all()
     company_by_name: dict[str, Company] = {c.name.lower().strip(): c for c in existing_companies}
     company_by_domain: dict[str, Company] = {
         c.domain.lower().strip(): c for c in existing_companies if c.domain
     }
 
+    # Preload existing relationships
     existing_rels = (await db.execute(select(PersonCompanyRelationship))).scalars().all()
     rel_set: set[tuple[Any, Any]] = {(r.person_id, r.company_id) for r in existing_rels}
 
+    created_persons_count = 0
     created_companies_count = 0
     created_rels_count = 0
 
-    for intake in rows:
-        raw_comp = (intake.company or "").strip()
-        if not raw_comp:
-            continue
+    for idx, intake in enumerate(rows, start=1):
+        try:
+            raw_comp = (intake.company or "").strip()
+            if not raw_comp:
+                continue
 
-        comp_clean = clean_company_name(raw_comp) or raw_comp
-        comp_domain = generate_company_domain(raw_comp)
+            # 1. Resolve or create person
+            person_id = intake.resolved_person_id
+            target_person = person_by_id.get(person_id) if person_id else None
 
-        comp = company_by_name.get(comp_clean.lower())
-        if not comp and comp_domain:
-            comp = company_by_domain.get(comp_domain.lower())
+            if not target_person:
+                norm_li = normalise_linkedin_url(intake.profile_url)
+                norm_email = normalise_email(intake.email_address)
+                full_name = f"{intake.first_name or ''} {intake.last_name or ''}".strip().lower()
 
-        if not comp:
-            comp = Company(
-                name=comp_clean,
-                domain=comp_domain or None,
-            )
-            db.add(comp)
-            await db.flush()
-            created_companies_count += 1
-            company_by_name[comp_clean.lower()] = comp
-            if comp_domain:
-                company_by_domain[comp_domain.lower()] = comp
+                if norm_li and norm_li in person_by_li:
+                    target_person = person_by_li[norm_li]
+                elif norm_email and norm_email in person_by_email:
+                    target_person = person_by_email[norm_email]
+                elif full_name and full_name in person_by_name:
+                    target_person = person_by_name[full_name]
 
-        rel_key = (intake.resolved_person_id, comp.id)
-        if rel_key not in rel_set:
-            started_at = None
-            if intake.connected_at:
-                started_at = (
-                    intake.connected_at.date() if hasattr(intake.connected_at, "date") else None
+                if not target_person:
+                    # Safe unique checks
+                    safe_li = norm_li if (norm_li and norm_li not in person_by_li) else None
+                    safe_email = (
+                        norm_email if (norm_email and norm_email not in person_by_email) else None
+                    )
+                    target_person = Person(
+                        first_name=intake.first_name,
+                        last_name=intake.last_name,
+                        primary_email=safe_email,
+                        linkedin_url=safe_li,
+                        sources=["linkedin"],
+                        source_ids={"linkedin": intake.connection_id},
+                    )
+                    db.add(target_person)
+                    await db.flush()
+                    created_persons_count += 1
+                    person_by_id[target_person.id] = target_person
+                    if safe_li:
+                        person_by_li[safe_li] = target_person
+                    if safe_email:
+                        person_by_email[safe_email] = target_person
+                    if full_name:
+                        person_by_name[full_name] = target_person
+
+                intake.resolved_person_id = target_person.id
+                intake.status = "resolved"
+
+            # 2. Resolve or create company
+            comp_clean = clean_company_name(raw_comp) or raw_comp
+            comp_domain = generate_company_domain(raw_comp)
+
+            comp = company_by_name.get(comp_clean.lower())
+            if not comp:
+                comp = company_by_name.get(raw_comp.lower())
+            if not comp and comp_domain:
+                comp = company_by_domain.get(comp_domain.lower())
+
+            if not comp:
+                final_domain = (
+                    comp_domain
+                    if (comp_domain and comp_domain.lower() not in company_by_domain)
+                    else None
                 )
+                comp = Company(
+                    name=comp_clean,
+                    domain=final_domain,
+                )
+                db.add(comp)
+                await db.flush()
+                created_companies_count += 1
+                company_by_name[comp_clean.lower()] = comp
+                company_by_name[raw_comp.lower()] = comp
+                if final_domain:
+                    company_by_domain[final_domain.lower()] = comp
 
-            rel = PersonCompanyRelationship(
-                person_id=intake.resolved_person_id,
-                company_id=comp.id,
-                title=intake.position.strip() if intake.position else None,
-                is_current=True,
-                started_at=started_at,
+            # 3. Create or ensure relationship
+            rel_key = (intake.resolved_person_id, comp.id)
+            if rel_key not in rel_set:
+                started_at = None
+                if intake.connected_at:
+                    started_at = (
+                        intake.connected_at.date() if hasattr(intake.connected_at, "date") else None
+                    )
+
+                rel = PersonCompanyRelationship(
+                    person_id=intake.resolved_person_id,
+                    company_id=comp.id,
+                    title=intake.position.strip() if intake.position else None,
+                    is_current=True,
+                    started_at=started_at,
+                )
+                db.add(rel)
+                rel_set.add(rel_key)
+                created_rels_count += 1
+
+            # Progress logging and periodic commit every 200 records
+            if idx % 200 == 0 or idx == len(rows):
+                await db.commit()
+                logger.info(
+                    "Processed %d/%d connections (created %d persons, %d companies, %d relationships)...",
+                    idx,
+                    len(rows),
+                    created_persons_count,
+                    created_companies_count,
+                    created_rels_count,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Error processing intake connection %s: %s",
+                getattr(intake, "connection_id", "unknown"),
+                exc,
             )
-            db.add(rel)
-            rel_set.add(rel_key)
-            created_rels_count += 1
+            continue
 
     await db.commit()
     logger.info(
-        "LinkedIn backfill complete: %d new companies, %d new relationships created.",
+        "LinkedIn backfill complete: %d new persons, %d new companies, %d new relationships created.",
+        created_persons_count,
         created_companies_count,
         created_rels_count,
     )
@@ -102,6 +201,7 @@ async def backfill_linkedin_companies_and_relationships(db: AsyncSession) -> dic
     return {
         "status": "success",
         "processed_connections": len(rows),
+        "created_persons": created_persons_count,
         "created_companies": created_companies_count,
         "created_relationships": created_rels_count,
         "total_relationships": len(rel_set),
@@ -436,7 +536,6 @@ async def run_background_backfill_if_needed() -> None:
             conn_count = (
                 await session.execute(
                     select(func.count(IntakeLinkedInConnection.id)).where(
-                        IntakeLinkedInConnection.resolved_person_id.is_not(None),
                         IntakeLinkedInConnection.company.is_not(None),
                         IntakeLinkedInConnection.company != "",
                     )
@@ -447,7 +546,7 @@ async def run_background_backfill_if_needed() -> None:
             ).scalar() or 0
 
             if (msg_count > 0 and act_msg_count == 0) or (
-                conn_count > 0 and rel_count < conn_count // 2
+                conn_count > 0 and rel_count < conn_count
             ):
                 logger.info(
                     "Detected unbackfilled intake records (messages: %d vs activities: %d, connections: %d vs relationships: %d). Starting automatic background backfill...",
@@ -458,4 +557,4 @@ async def run_background_backfill_if_needed() -> None:
                 )
                 await run_all_backfills(session)
     except Exception as exc:
-        logger.warning("Automatic background backfill encountered an error: %s", exc)
+        logger.exception("Automatic background backfill encountered an error: %s", exc)

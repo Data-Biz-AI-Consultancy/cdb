@@ -14,6 +14,11 @@ export default function CompaniesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
+  const [globalStats, setGlobalStats] = useState({
+    totalContacts: 0,
+    totalLeads: 0,
+    totalPipelineValue: 0,
+  });
   const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -44,8 +49,20 @@ export default function CompaniesPage() {
       if (countryFilter.trim()) params.set('country', countryFilter.trim().toUpperCase());
 
       const res = await apiFetch<ApiResponse<any[]>>(`/api/v1/companies?${params.toString()}`);
-      setCompanies(res.data || []);
-      setTotal(res.pagination?.total ?? res.meta?.total ?? res.data?.length ?? 0);
+      const items = res.data || [];
+      setCompanies(items);
+      const totalCount = res.pagination?.total ?? res.meta?.total ?? items.length ?? 0;
+      setTotal(totalCount);
+
+      const computedContacts = (res.pagination as any)?.total_contacts_count ?? (res.meta as any)?.total_contacts_count ?? items.reduce((sum: number, c: any) => sum + (c.contacts_count || 0), 0);
+      const computedLeads = (res.pagination as any)?.total_leads_count ?? (res.meta as any)?.total_leads_count ?? items.reduce((sum: number, c: any) => sum + (c.leads_count || 0), 0);
+      const computedPipeline = (res.pagination as any)?.total_pipeline_value ?? (res.meta as any)?.total_pipeline_value ?? items.reduce((sum: number, c: any) => sum + (Number(c.total_opportunities_value) || 0), 0);
+
+      setGlobalStats({
+        totalContacts: computedContacts,
+        totalLeads: computedLeads,
+        totalPipelineValue: computedPipeline,
+      });
     } catch (err: any) {
       setError(err.message || 'Failed to load companies');
     } finally {
@@ -184,20 +201,20 @@ export default function CompaniesPage() {
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Connected People</div>
-          <div className="text-2xl font-bold text-blue-600 mt-1">👥 {totalContacts}</div>
+          <div className="text-2xl font-bold text-blue-600 mt-1">👥 {globalStats.totalContacts}</div>
           <div className="text-[11px] text-slate-500 mt-0.5">Linked employees & alumni</div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Related Leads</div>
-          <div className="text-2xl font-bold text-amber-600 mt-1">🎯 {totalLeads}</div>
+          <div className="text-2xl font-bold text-amber-600 mt-1">🎯 {globalStats.totalLeads}</div>
           <div className="text-[11px] text-slate-500 mt-0.5">Inbound & outbound signals</div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pipeline Value</div>
-          <div className="text-2xl font-bold text-emerald-700 mt-1">€{totalPipelineValue.toLocaleString()}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Across {totalOpps} active opportunities</div>
+          <div className="text-2xl font-bold text-emerald-700 mt-1">€{globalStats.totalPipelineValue.toLocaleString()}</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">Across active opportunities</div>
         </div>
       </div>
 

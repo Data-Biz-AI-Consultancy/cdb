@@ -19,6 +19,9 @@ class PaginationMetadata(BaseModel):
     next_cursor: str | None = None
     has_more: bool = False
     total: int | None = None
+    total_contacts_count: int | None = None
+    total_leads_count: int | None = None
+    total_pipeline_value: float | None = None
 
 
 class PaginatedResponse[T](BaseModel):
