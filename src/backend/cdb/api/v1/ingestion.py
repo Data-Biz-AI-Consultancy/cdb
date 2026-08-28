@@ -51,3 +51,20 @@ async def ingest_notion_meeting_notes(
     api_key: str = Depends(require_api_key),
 ):
     return await ingestion_service.ingest_notion_meeting_notes(db, payload)
+
+
+@router.post(
+    "/backfill",
+    status_code=status.HTTP_200_OK,
+)
+async def trigger_backfill(
+    db: AsyncSession = Depends(get_db),
+    api_key: str = Depends(require_api_key),
+):
+    """
+    Triggers a 1-off backfill across LinkedIn companies, LinkedIn conversations,
+    Notion meeting notes, and person segmentation.
+    """
+    from cdb.services.ingestion.backfill import run_all_backfills
+
+    return await run_all_backfills(db)

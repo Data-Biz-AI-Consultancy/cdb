@@ -647,6 +647,19 @@ Idempotent batch upsert into `intake_linkedin_messages`. Performs NLP intent & s
 
 Idempotent batch upsert into `intake_notion_meeting_notes` with multi-attendee parsing.
 
+### `POST /ingest/backfill`
+
+Triggers a 1-off backfill across all historical intake tables:
+- Resolves companies from `intake_linkedin_connections` into `companies` and `person_company_relationships`.
+- Ingests `intake_linkedin_messages` into `activities` and generates `Lead` entries.
+- Links `intake_notion_meeting_notes` to matching person contacts and logs meeting activities.
+- Re-evaluates all person segments and dynamic engagement temperatures.
+
+```bash
+curl -X POST "https://api.cdb.internal/api/v1/ingest/backfill" \
+  -H "X-API-Key: <your_api_key>"
+```
+
 ### `POST /ingest/manual`
 
 Upload a CSV/XLSX batch. Multipart form:

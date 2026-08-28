@@ -383,3 +383,79 @@ async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dic
         "created_activities": created_meetings_count,
         "updated_activities": updated_meetings_count,
     }
+
+
+async def run_all_backfills(db: AsyncSession) -> dict[str, Any]:
+    """
+    Orchestrates the complete 1-off backfill:
+    1. Backfills LinkedIn companies and employment relationships.
+    2. Backfills LinkedIn messages into activities and leads.
+    3. Backfills Notion meeting notes into activities.
+    4. Re-evaluates dynamic segmentation and engagement temperature.
+    """
+    from cdb.services.segmentation.service import evaluate_segments_and_temperature
+
+    logger.info(
+        "Executing comprehensive backfill across companies, messages, notes, and segments..."
+    )
+    comp_res = await backfill_linkedin_companies_and_relationships(db)
+    msg_res = await backfill_linkedin_messages_into_activities(db)
+    notion_res = await backfill_notion_meeting_notes_into_activities(db)
+    seg_res = await evaluate_segments_and_temperature(db)
+
+    return {
+        "status": "success",
+        "companies_and_relationships": comp_res,
+        "linkedin_messages": msg_res,
+        "notion_meeting_notes": notion_res,
+        "segmentation": seg_res,
+    }
+
+
+async def run_background_backfill_if_needed() -> None:
+    """
+    Background startup check that triggers 1-off backfilling if unlinked intake records exist.
+    """
+    from sqlalchemy import func
+
+    from cdb.core.database import AsyncSessionLocal
+
+    try:
+        async with AsyncSessionLocal() as session:
+            # Check if activities exist for LinkedIn messages
+            msg_count = (
+                await session.execute(select(func.count(IntakeLinkedInMessage.id)))
+            ).scalar() or 0
+            act_msg_count = (
+                await session.execute(
+                    select(func.count(Activity.id)).where(Activity.type == "linkedin_message")
+                )
+            ).scalar() or 0
+
+            # Check if relationships exist for LinkedIn connections
+            conn_count = (
+                await session.execute(
+                    select(func.count(IntakeLinkedInConnection.id)).where(
+                        IntakeLinkedInConnection.resolved_person_id.is_not(None),
+                        IntakeLinkedInConnection.company.is_not(None),
+                        IntakeLinkedInConnection.company != "",
+                    )
+                )
+            ).scalar() or 0
+            rel_count = (
+                await session.execute(select(func.count(PersonCompanyRelationship.id)))
+            ).scalar() or 0
+
+            if (msg_count > 0 and act_msg_count == 0) or (
+                conn_count > 0 and rel_count < conn_count // 2
+            ):
+                logger.info(
+                    "Detected unbackfilled intake records (messages: %d vs activities: %d, connections: %d vs relationships: %d). Starting automatic background backfill...",
+                    msg_count,
+                    act_msg_count,
+                    conn_count,
+                    rel_count,
+                )
+                await run_all_backfills(session)
+    except Exception as exc:
+        logger.warning("Automatic background backfill encountered an error: %s", exc)

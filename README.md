@@ -238,6 +238,7 @@ curl -X POST http://localhost:8000/api/v1/ingest/linkedin-connections \
 | **LinkedIn Connections** | `POST /api/v1/ingest/linkedin-connections` | Ingests connection exports, names, company titles, and LinkedIn profile URLs. |
 | **LinkedIn Messages** | `POST /api/v1/ingest/linkedin-messages` | Ingests message threads, timestamps, and conversation participants. |
 | **Notion Meeting Notes** | `POST /api/v1/ingest/notion-meeting-notes` | Ingests meeting notes, attendee lists, summaries, and action items into Activities. |
+| **Complete Backfill (1-Off / Sync)** | `POST /api/v1/ingest/backfill` | Backfills all unlinked LinkedIn companies, message threads, Notion notes, and recomputes segments. |
 | **Manual & CSV Data** | `POST /api/v1/ingest/manual` | Ingests custom CSV/XLSX spreadsheets with dynamic column mappings. |
 
 ---
