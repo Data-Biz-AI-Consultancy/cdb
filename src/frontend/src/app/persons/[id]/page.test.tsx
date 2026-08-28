@@ -73,6 +73,15 @@ describe('PersonDetailPage Full History and Pipeline Integration', () => {
         summary: 'Met to align on data governance and LLM infrastructure.',
         occurred_at: '2026-08-25T14:30:00Z',
       },
+      {
+        id: 'act-3',
+        person_id: '11111111-1111-1111-1111-111111111111',
+        type: 'note',
+        source: 'manual',
+        title: 'Client Preference Note',
+        summary: 'Prefers communication via async email rather than phone calls.',
+        occurred_at: '2026-08-26T09:00:00Z',
+      },
     ],
   };
 
@@ -191,55 +200,61 @@ describe('PersonDetailPage Full History and Pipeline Integration', () => {
     expect(screen.getByText(/Discussed high level requirements/)).toBeInTheDocument();
   });
 
-  it('switches between tabs to view employment history, opportunities, leads, and changelog', async () => {
+  it('switches between tabs to view notes, employment history, opportunities, leads, and changelog', async () => {
     render(<PersonDetailPage params={Promise.resolve({ id: '11111111-1111-1111-1111-111111111111' })} />);
 
     await waitFor(() => {
       expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     });
 
+    // Switch to Notes tab
+    fireEvent.click(screen.getByText(/Notes \(/i));
+    expect(screen.getByText('Client Preference Note')).toBeInTheDocument();
+    expect(screen.getByText(/Prefers communication via async email/)).toBeInTheDocument();
+    expect(screen.getByText(/Internal CRM Scratchpad/)).toBeInTheDocument();
+
     // Switch to Employment History
-    fireEvent.click(screen.getByRole('button', { name: /Employment History/i }));
+    fireEvent.click(screen.getByText(/Employment \(/i));
     expect(screen.getAllByText('Acme AI Corp').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Legacy Soft')).toBeInTheDocument();
     expect(screen.getByText('Current Role')).toBeInTheDocument();
 
     // Switch to Opportunities
-    fireEvent.click(screen.getByRole('button', { name: /Opportunities/i }));
+    fireEvent.click(screen.getByText(/Opportunities \(/i));
     expect(screen.getByText('Enterprise AI Governance Advisory')).toBeInTheDocument();
     expect(screen.getAllByText(/85,000/).length).toBeGreaterThanOrEqual(1);
 
     // Switch to Leads
-    fireEvent.click(screen.getByRole('button', { name: /Leads/i }));
+    fireEvent.click(screen.getByText(/Leads \(/i));
     expect(screen.getByText('Inbound inquiry from LinkedIn')).toBeInTheDocument();
     expect(screen.getByText('Convert to Opp →')).toBeInTheDocument();
 
     // Switch to Changelog
-    fireEvent.click(screen.getByRole('button', { name: /Changelog/i }));
+    fireEvent.click(screen.getByText(/Changelog/i));
     expect(screen.getByText('Profile Updated')).toBeInTheDocument();
     expect(screen.getByText('Updated primary phone and location')).toBeInTheDocument();
     expect(screen.getByText(/Frankfurt/)).toBeInTheDocument();
 
     // Switch to Profile Details & Intelligence
-    fireEvent.click(screen.getByRole('button', { name: /Contact & Intelligence Info/i }));
+    fireEvent.click(screen.getByText(/Contact & Intelligence Info/i));
     expect(screen.getByText('jane.doe@example.com')).toBeInTheDocument();
     expect(screen.getByText('+1 555 1234')).toBeInTheDocument();
   });
 
-  it('opens and closes action modals', async () => {
+  it('opens and closes action modals including Add Note', async () => {
     render(<PersonDetailPage params={Promise.resolve({ id: '11111111-1111-1111-1111-111111111111' })} />);
 
     await waitFor(() => {
       expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     });
 
-    // Open Log Activity modal
-    const logButtons = screen.getAllByText(/Log Activity/i);
-    fireEvent.click(logButtons[0]);
-    expect(screen.getByText('Log Interaction for Jane Doe')).toBeInTheDocument();
+    // Open Add Note modal
+    const addNoteButtons = screen.getAllByText(/\+ Add Note/i);
+    fireEvent.click(addNoteButtons[0]);
+    expect(screen.getByText('Add Note for Jane Doe')).toBeInTheDocument();
 
     // Close modal
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByText('Log Interaction for Jane Doe')).not.toBeInTheDocument();
+    expect(screen.queryByText('Add Note for Jane Doe')).not.toBeInTheDocument();
   });
 });

@@ -74,6 +74,24 @@ async def create_activity(db: AsyncSession, data: ActivityCreate) -> ActivityRes
         attributes=data.attributes,
     )
     db.add(act)
+    await db.flush()
+
+    if act.person_id:
+        from cdb.services.person_history import record_person_history
+
+        action_id = "note_added" if act.type == "note" else "activity_logged"
+        summary = (
+            f"Added note: {act.title or act.summary or 'Quick note'}"
+            if act.type == "note"
+            else f"Logged {act.type}: {act.title or act.summary or ''}"
+        )
+        await record_person_history(
+            db,
+            person_id=act.person_id,
+            action_id=action_id,
+            summary=summary,
+        )
+
     await db.commit()
     await db.refresh(act)
     return ActivityResponse.model_validate(act)

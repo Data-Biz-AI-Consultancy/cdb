@@ -88,8 +88,8 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Active Tab: 'timeline' | 'employment' | 'opportunities' | 'leads' | 'changelog' | 'profile'
-  const [activeTab, setActiveTab] = useState<'timeline' | 'employment' | 'opportunities' | 'leads' | 'changelog' | 'profile'>('timeline');
+  // Active Tab: 'timeline' | 'notes' | 'employment' | 'opportunities' | 'leads' | 'changelog' | 'profile'
+  const [activeTab, setActiveTab] = useState<'timeline' | 'notes' | 'employment' | 'opportunities' | 'leads' | 'changelog' | 'profile'>('timeline');
 
   // Filter for activities timeline
   const [activityTypeFilter, setActivityTypeFilter] = useState<string>('all');
@@ -101,6 +101,13 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
   const [showLogActivity, setShowLogActivity] = useState(false);
   const [showAddOpp, setShowAddOpp] = useState(false);
   const [showAddLead, setShowAddLead] = useState(false);
+  const [showAddNote, setShowAddNote] = useState(false);
+
+  // Quick note form state
+  const [noteForm, setNoteForm] = useState({
+    title: '',
+    summary: '',
+  });
 
   // Link company form state
   const [linkForm, setLinkForm] = useState({
@@ -238,6 +245,30 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
       loadAllData(id);
     } catch (err: any) {
       alert('Error logging activity: ' + err.message);
+    }
+  };
+
+  const handleAddNote = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!id || !noteForm.summary.trim()) return;
+    try {
+      await apiFetch('/api/v1/activities', {
+        method: 'POST',
+        body: JSON.stringify({
+          person_id: id,
+          type: 'note',
+          source: 'manual',
+          title: noteForm.title.trim() || 'Internal Note',
+          summary: noteForm.summary.trim(),
+          occurred_at: new Date().toISOString(),
+        }),
+      });
+      setShowAddNote(false);
+      setNoteForm({ title: '', summary: '' });
+      showSuccess('Note added to person record.');
+      loadAllData(id);
+    } catch (err: any) {
+      alert('Error adding note: ' + err.message);
     }
   };
 
@@ -520,6 +551,13 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
           {/* Right Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={() => setShowAddNote(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+            >
+              <span>📝</span>
+              <span>+ Add Note</span>
+            </button>
+            <button
               onClick={() => setShowLogActivity(true)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-sm transition"
             >
@@ -535,7 +573,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
             </button>
             <button
               onClick={() => setShowAddLead(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-sm transition"
             >
               <span>+</span>
               <span>Add Lead</span>
@@ -591,7 +629,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
           className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 cursor-pointer transition"
         >
           <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Leads Attached</div>
-          <div className="text-2xl font-bold text-amber-700 mt-1">{leads.length}</div>
+          <div className="text-2xl font-bold text-blue-700 mt-1">{leads.length}</div>
           <div className="text-xs text-slate-500 mt-0.5">
             {leads.filter((l) => l.stage === 'new' || l.stage === 'contacted').length} Open Leads
           </div>
@@ -599,34 +637,46 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200 gap-1 bg-white px-4 pt-2 rounded-t-xl shadow-sm">
+      <div className="flex border-b border-slate-200 gap-1 bg-white px-4 pt-2 rounded-t-xl shadow-sm overflow-x-auto">
         <button
           onClick={() => setActiveTab('timeline')}
-          className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 ${
+          className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'timeline'
               ? 'border-slate-900 text-slate-900'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>🕒</span>
-          <span>Activities & Messages Feed ({activities.length})</span>
+          <span>Timeline ({activities.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('notes')}
+          className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'notes'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>📝</span>
+          <span>Notes ({activities.filter((a) => a.type === 'note').length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('employment')}
-          className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 ${
+          className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'employment'
               ? 'border-slate-900 text-slate-900'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>💼</span>
-          <span>Employment History ({careerItems.length})</span>
+          <span>Employment ({careerItems.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('opportunities')}
-          className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 ${
+          className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'opportunities'
               ? 'border-slate-900 text-slate-900'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -638,7 +688,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
 
         <button
           onClick={() => setActiveTab('leads')}
-          className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 ${
+          className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'leads'
               ? 'border-slate-900 text-slate-900'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -793,7 +843,122 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {/* Tab 2: Employment & Career History */}
+      {/* Tab 2: Notes & Scratchpad */}
+      {activeTab === 'notes' && (
+        <div className="space-y-6">
+          {/* Quick Note Composer Card */}
+          <div className="bg-white border border-amber-200/80 rounded-xl p-5 shadow-sm space-y-3 bg-gradient-to-br from-amber-50/30 to-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📝</span>
+                <h3 className="text-sm font-bold text-slate-900">Add Quick Note for {fullName}</h3>
+              </div>
+              <span className="text-xs text-amber-700 bg-amber-100/70 border border-amber-200 px-2 py-0.5 rounded-md font-medium">
+                Internal CRM Scratchpad
+              </span>
+            </div>
+
+            <form onSubmit={handleAddNote} className="space-y-3">
+              <input
+                placeholder="Note Title or Subject (optional, e.g. Sync notes, Personality traits, Preferences)"
+                value={noteForm.title}
+                onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition"
+              />
+
+              <textarea
+                required
+                rows={3}
+                placeholder="Write observations, meeting follow-ups, decision-making notes, or key details..."
+                value={noteForm.summary}
+                onChange={(e) => setNoteForm({ ...noteForm, summary: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition resize-y"
+              />
+
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-[11px] text-slate-400">
+                  Notes are saved immediately and recorded in the audit changelog.
+                </span>
+                <button
+                  type="submit"
+                  disabled={!noteForm.summary.trim()}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
+                >
+                  <span>+</span>
+                  <span>Post Note</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Notes List */}
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Notes History ({activities.filter((a) => a.type === 'note').length})
+                </h3>
+                <p className="text-xs text-slate-500">
+                  All internal notes and memos recorded for this person
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddNote(true)}
+                className="text-xs bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg font-medium shadow-sm transition"
+              >
+                + Add Note
+              </button>
+            </div>
+
+            {activities.filter((a) => a.type === 'note').length === 0 ? (
+              <div className="p-10 text-center text-slate-500 space-y-2">
+                <div className="text-3xl">📝</div>
+                <p className="text-sm font-medium text-slate-700">No notes written yet</p>
+                <p className="text-xs text-slate-500">
+                  Use the quick composer above or click "+ Add Note" to log your first note.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activities
+                  .filter((a) => a.type === 'note')
+                  .map((note) => {
+                    const dateStr = new Date(note.occurred_at || note.created_at).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+
+                    return (
+                      <div
+                        key={note.id}
+                        className="p-4 bg-amber-50/20 border border-amber-200/60 rounded-xl shadow-sm hover:border-amber-300 transition space-y-2"
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">📝</span>
+                            <h4 className="font-bold text-slate-900 text-sm">
+                              {note.title || 'Internal Note'}
+                            </h4>
+                          </div>
+                          <span className="text-xs text-slate-400 font-mono">{dateStr}</span>
+                        </div>
+
+                        <p className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed bg-white/80 p-3 rounded-lg border border-amber-100">
+                          {note.summary}
+                        </p>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Employment & Career History */}
       {activeTab === 'employment' && (
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100">
@@ -1331,6 +1496,68 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
                   className="px-5 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold"
                 >
                   Save Relationship
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Quick Note */}
+      {showAddNote && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 border border-slate-200">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📝</span>
+                <h3 className="text-lg font-bold text-slate-900">Add Note for {fullName}</h3>
+              </div>
+              <button
+                onClick={() => setShowAddNote(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleAddNote} className="space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Note Title (optional)
+                </label>
+                <input
+                  placeholder="e.g. Sync follow-up, Project scope note, Preferred contact hours"
+                  value={noteForm.title}
+                  onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Note Content *
+                </label>
+                <textarea
+                  required
+                  rows={5}
+                  placeholder="Write your note or observations here..."
+                  value={noteForm.summary}
+                  onChange={(e) => setNoteForm({ ...noteForm, summary: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs resize-y"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowAddNote(false)}
+                  className="px-4 py-2 border rounded-lg text-slate-700 text-xs font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!noteForm.summary.trim()}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm"
+                >
+                  Save Note
                 </button>
               </div>
             </form>

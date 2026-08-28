@@ -90,6 +90,14 @@ DEFAULT_ACTIONS: list[dict[str, Any]] = [
         "color": "sky",
     },
     {
+        "id": "note_added",
+        "name": "Note Added",
+        "category": "profile",
+        "description": "Internal note or observation added to person record",
+        "icon": "📝",
+        "color": "amber",
+    },
+    {
         "id": "bulk_updated",
         "name": "Bulk Updated",
         "category": "bulk_ops",
