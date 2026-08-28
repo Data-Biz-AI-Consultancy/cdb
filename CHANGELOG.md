@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.18.0...v1.19.0) (2026-08-28)
+
+
+### Features
+
+* implement manual and automatic background ingestion backfill service for intake data ([938d9bd](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/938d9bd78635f6cec86e4f556a15b7b53187903a))
+
 # [1.18.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.17.0...v1.18.0) (2026-08-28)
 
 
