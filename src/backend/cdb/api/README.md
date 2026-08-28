@@ -373,7 +373,11 @@ List all persons associated with the company, differentiating between currently 
     "title": "VP Engineering",
     "is_current": true,
     "started_at": "2023-03-01",
-    "ended_at": null
+    "ended_at": null,
+    "attributes": {
+      "segment": "hiring_decision_makers",
+      "temperature": "hot"
+    }
   }
 ]
 ```

@@ -373,6 +373,7 @@ async def list_company_employees(
             is_current=rel.is_current,
             started_at=rel.started_at,
             ended_at=rel.ended_at,
+            attributes=person.attributes or {},
         )
         for rel, person in rows
     ]
