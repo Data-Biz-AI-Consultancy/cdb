@@ -1,3 +1,14 @@
+# [1.20.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.19.0...v1.20.0) (2026-08-28)
+
+
+### Features
+
+* add leads tracking and pipeline value to company schemas, services, and directory UI. ([b039aba](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/b039abafa8698d12e987b9467eb9dea1a1a9235c))
+* implement automated person resolution and record linking in LinkedIn backfill service ([cdb4c5a](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/cdb4c5a3e595401720607461f865e7ad6ec51454))
+* implement company detail page features including employee filtering, sorting, and tabbed view management with unit tests. ([47fda39](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/47fda39f6e831993260f3f7c2f95b93737f2f0df))
+* implement multi-tier default sorting and include timestamp fields in company schema ([b2d7e4b](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/b2d7e4bd680adbbffa74316b4e87909390aacabf))
+* migrate company sorting and pagination to server-side implementation ([5fe5f4d](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/5fe5f4dc600b7ddfa45b14f2ae73fe898f395abe))
+
 # [1.19.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.18.0...v1.19.0) (2026-08-28)
 
 
