@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.core.errors import ConflictError, NotFoundError
 from cdb.models.company import Company
+from cdb.models.lead import Lead
 from cdb.models.opportunity import Opportunity, OpportunityCompany
 from cdb.models.person import Person
 from cdb.models.relationship import PersonCompanyRelationship
@@ -78,6 +79,10 @@ async def list_companies(
             )
         ).scalar() or 0
 
+        leads_count = (
+            await db.execute(select(func.count(Lead.id)).where(Lead.company_id == c.id))
+        ).scalar() or 0
+
         opps_count = (
             await db.execute(
                 select(func.count(Opportunity.id))
@@ -89,15 +94,32 @@ async def list_companies(
             )
         ).scalar() or 0
 
+        opps_val = (
+            await db.execute(
+                select(func.coalesce(func.sum(Opportunity.value), 0))
+                .join(OpportunityCompany, OpportunityCompany.opportunity_id == Opportunity.id)
+                .where(
+                    OpportunityCompany.company_id == c.id,
+                    Opportunity.stage.in_(
+                        ["prospect", "qualified", "proposal", "negotiation", "closed_won"]
+                    ),
+                )
+            )
+        ).scalar() or 0.0
+
         items.append(
             CompanySummaryResponse(
                 id=c.id,
                 name=c.name,
                 domain=c.domain,
                 industry=c.industry,
+                size_range=c.size_range,
                 country=c.country,
+                city=c.city,
                 contacts_count=contacts_count,
+                leads_count=leads_count,
                 open_opportunities_count=opps_count,
+                total_opportunities_value=float(opps_val),
             )
         )
 
@@ -148,6 +170,10 @@ async def get_company_detail(db: AsyncSession, company_id: uuid.UUID) -> Company
         )
     ).scalar() or 0
 
+    leads_count = (
+        await db.execute(select(func.count(Lead.id)).where(Lead.company_id == company.id))
+    ).scalar() or 0
+
     opps_count = (
         await db.execute(
             select(func.count(Opportunity.id))
@@ -158,6 +184,19 @@ async def get_company_detail(db: AsyncSession, company_id: uuid.UUID) -> Company
             )
         )
     ).scalar() or 0
+
+    opps_val = (
+        await db.execute(
+            select(func.coalesce(func.sum(Opportunity.value), 0))
+            .join(OpportunityCompany, OpportunityCompany.opportunity_id == Opportunity.id)
+            .where(
+                OpportunityCompany.company_id == company.id,
+                Opportunity.stage.in_(
+                    ["prospect", "qualified", "proposal", "negotiation", "closed_won"]
+                ),
+            )
+        )
+    ).scalar() or 0.0
 
     return CompanyDetailResponse(
         id=company.id,
@@ -171,7 +210,9 @@ async def get_company_detail(db: AsyncSession, company_id: uuid.UUID) -> Company
         avatar_url=company.avatar_url,
         attributes=company.attributes or {},
         contacts_count=contacts_count,
+        leads_count=leads_count,
         open_opportunities_count=opps_count,
+        total_opportunities_value=float(opps_val),
         created_at=company.created_at,
         updated_at=company.updated_at,
         deleted_at=company.deleted_at,

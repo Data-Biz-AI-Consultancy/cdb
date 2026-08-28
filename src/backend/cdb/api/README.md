@@ -340,7 +340,7 @@ Soft-delete (sets `deleted_at`). Use `DELETE /persons/{id}?hard=true` (admin onl
 
 **Query params:** `q`, `country`, `industry`.
 
-**Response 200:** paginated list with `{ id, name, domain, industry, country, contacts_count, open_opportunities_count }`.
+**Response 200:** paginated list with `{ id, name, domain, industry, size_range, country, city, contacts_count, leads_count, open_opportunities_count, total_opportunities_value }`.
 
 ### `POST /companies`
 
