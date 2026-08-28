@@ -1,3 +1,15 @@
+# [1.18.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.17.0...v1.18.0) (2026-08-28)
+
+
+### Features
+
+* add backfill service for LinkedIn company and relationship ingestion with accompanying CLI script ([a7508de](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/a7508de3e8314e553119cf6575a364f427ce4706))
+* add note-taking functionality with dedicated tab and activity type support ([a2609d6](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/a2609d6a239728d39ce122a4bad2d29c9150767f))
+* enhance person detail view with activity timeline, opportunity tracking, and lead management integrations ([a86d888](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/a86d888feba9e9a219435bea5831daf42af7a754))
+* implement automatic Alembic migration execution on application startup and rename revision 0002 ([671a428](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/671a428c50278ab8c4b535570be123da93ae74cf))
+* implement backfill services to ingest LinkedIn messages and Notion meeting notes into the activities table ([e77f905](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/e77f905996d4480a955059e698578bb9357ae9b7))
+* implement person activity history tracking with database models, API endpoints, and audit logging services ([a65250f](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/a65250f13269b7cb8c06e98ecddf9b61b25849a6))
+
 # [1.17.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.16.0...v1.17.0) (2026-08-27)
 
 
