@@ -22,6 +22,12 @@ async def lifespan(app: FastAPI):
     run_migrations()
     # Seed initial admin user if configured and missing
     await ensure_initial_admin()
+    # Automatic background check to backfill unlinked intake records if present
+    import asyncio
+
+    from cdb.services.ingestion.backfill import run_background_backfill_if_needed
+
+    asyncio.create_task(run_background_backfill_if_needed())
     yield
     # Shutdown logic
 
