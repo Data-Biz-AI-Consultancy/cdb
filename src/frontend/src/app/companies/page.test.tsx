@@ -93,7 +93,70 @@ describe('CompaniesPage Search & Aggregates', () => {
     expect(screen.getByText('€255,000')).toBeInTheDocument();
   });
 
-  it('supports sorting by Connected People, Related Leads, and Pipeline Value', async () => {
+  it('orders companies by default: highest deal value -> most leads -> latest updated', async () => {
+    const multiCoResponse = {
+      data: [
+        {
+          id: 'c1',
+          name: 'Co A (Mid Deal, Few Leads)',
+          total_opportunities_value: 100000,
+          leads_count: 2,
+          updated_at: '2026-08-01T10:00:00Z',
+        },
+        {
+          id: 'c2',
+          name: 'Co B (Mid Deal, More Leads)',
+          total_opportunities_value: 100000,
+          leads_count: 5,
+          updated_at: '2026-08-01T10:00:00Z',
+        },
+        {
+          id: 'c3',
+          name: 'Co C (Highest Deal)',
+          total_opportunities_value: 250000,
+          leads_count: 1,
+          updated_at: '2026-08-01T10:00:00Z',
+        },
+        {
+          id: 'c4',
+          name: 'Co D (No Deal, Same Leads, Older)',
+          total_opportunities_value: 0,
+          leads_count: 3,
+          updated_at: '2026-06-01T10:00:00Z',
+        },
+        {
+          id: 'c5',
+          name: 'Co E (No Deal, Same Leads, Newer)',
+          total_opportunities_value: 0,
+          leads_count: 3,
+          updated_at: '2026-08-20T10:00:00Z',
+        },
+      ],
+      pagination: { total: 5, has_more: false },
+    };
+    (api.apiFetch as any).mockResolvedValue(multiCoResponse);
+
+    render(<CompaniesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Co C (Highest Deal)')).toBeInTheDocument();
+    });
+
+    const rows = screen.getAllByRole('row');
+    // Header is row 0.
+    // Row 1 should be Co C (250k)
+    expect(rows[1]).toHaveTextContent('Co C (Highest Deal)');
+    // Row 2 should be Co B (100k, 5 leads)
+    expect(rows[2]).toHaveTextContent('Co B (Mid Deal, More Leads)');
+    // Row 3 should be Co A (100k, 2 leads)
+    expect(rows[3]).toHaveTextContent('Co A (Mid Deal, Few Leads)');
+    // Row 4 should be Co E (0 deal, 3 leads, newer: Aug 20)
+    expect(rows[4]).toHaveTextContent('Co E (No Deal, Same Leads, Newer)');
+    // Row 5 should be Co D (0 deal, 3 leads, older: June 1)
+    expect(rows[5]).toHaveTextContent('Co D (No Deal, Same Leads, Older)');
+  });
+
+  it('supports changing sort to Connected People, Related Leads, and Recently Added', async () => {
     render(<CompaniesPage />);
 
     await waitFor(() => {
@@ -103,12 +166,12 @@ describe('CompaniesPage Search & Aggregates', () => {
     const sortSelect = screen.getByRole('combobox', { name: /Sort companies/i });
     expect(sortSelect).toBeInTheDocument();
 
-    // Change sort to Pipeline Value
-    fireEvent.change(sortSelect, { target: { value: 'pipeline' } });
-    expect(screen.getByText('Acme AI Corp')).toBeInTheDocument();
-
     // Change sort to Leads
     fireEvent.change(sortSelect, { target: { value: 'leads' } });
+    expect(screen.getByText('Acme AI Corp')).toBeInTheDocument();
+
+    // Change sort to Contacts
+    fireEvent.change(sortSelect, { target: { value: 'contacts' } });
     expect(screen.getByText('Acme AI Corp')).toBeInTheDocument();
   });
 

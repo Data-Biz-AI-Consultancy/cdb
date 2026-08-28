@@ -120,6 +120,8 @@ async def list_companies(
                 leads_count=leads_count,
                 open_opportunities_count=opps_count,
                 total_opportunities_value=float(opps_val),
+                created_at=c.created_at,
+                updated_at=c.updated_at,
             )
         )
 

@@ -10,7 +10,7 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState('');
   const [industryFilter, setIndustryFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'contacts' | 'leads' | 'pipeline' | 'created_at'>('name');
+  const [sortBy, setSortBy] = useState<'pipeline_default' | 'contacts' | 'leads' | 'name' | 'created_at'>('pipeline_default');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
@@ -106,11 +106,30 @@ export default function CompaniesPage() {
     }
   };
 
-  // Client-side sorting for rapid exploration
+  // Client-side multi-tier sorting (Default: Pipeline Value -> Leads -> Latest Updated)
   const sortedCompanies = [...companies].sort((a, b) => {
+    if (sortBy === 'pipeline_default') {
+      // 1. Highest value opportunity first
+      const valA = Number(a.total_opportunities_value || 0);
+      const valB = Number(b.total_opportunities_value || 0);
+      if (valB !== valA) return valB - valA;
+
+      // 2. Number of leads (descending)
+      const leadsA = Number(a.leads_count || 0);
+      const leadsB = Number(b.leads_count || 0);
+      if (leadsB !== leadsA) return leadsB - leadsA;
+
+      // 3. Latest updated / created timestamp (descending)
+      const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
+      const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+
+      // Tiebreaker: Name A-Z
+      return (a.name || '').localeCompare(b.name || '');
+    }
+
     if (sortBy === 'contacts') return (b.contacts_count || 0) - (a.contacts_count || 0);
     if (sortBy === 'leads') return (b.leads_count || 0) - (a.leads_count || 0);
-    if (sortBy === 'pipeline') return (b.total_opportunities_value || 0) - (a.total_opportunities_value || 0);
     if (sortBy === 'created_at') return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
     return (a.name || '').localeCompare(b.name || '');
   });
@@ -317,10 +336,10 @@ export default function CompaniesPage() {
               onChange={(e) => setSortBy(e.target.value as any)}
               className="px-2.5 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 font-semibold"
             >
-              <option value="name">🔤 Name (A-Z)</option>
-              <option value="contacts">👥 Connected People (Most)</option>
+              <option value="pipeline_default">💼 Highest Deal Value → Leads → Updated</option>
               <option value="leads">🎯 Related Leads (Most)</option>
-              <option value="pipeline">💼 Pipeline Value (€ Highest)</option>
+              <option value="contacts">👥 Connected People (Most)</option>
+              <option value="name">🔤 Name (A-Z)</option>
               <option value="created_at">📅 Recently Added</option>
             </select>
           </div>

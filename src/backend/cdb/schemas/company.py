@@ -47,6 +47,8 @@ class CompanySummaryResponse(BaseModel):
     leads_count: int = 0
     open_opportunities_count: int = 0
     total_opportunities_value: float = 0.0
+    created_at: datetime.datetime | None = None
+    updated_at: datetime.datetime | None = None
 
 
 class CompanyDetailResponse(CompanyBase):
