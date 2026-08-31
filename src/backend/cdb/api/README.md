@@ -721,15 +721,34 @@ Permanently remove multiple leads simultaneously.
 
 ## 9. Opportunities
 
+Track and advance sales deals through a multi-stage pipeline with Kanban interaction, enriched contact & organization affiliations, and complete audit history tracking.
+
 ### `GET /opportunities`
 
-**Query params:** `stage`, `owner_id`, `person_id`, `company_id`.
+List all opportunities (paginated).
+
+**Query params:** 
+- `stage` (`prospect` | `qualified` | `proposal` | `negotiation` | `closed_won` | `closed_lost`)
+- `owner_id` (UUID)
+- `person_id` (UUID)
+- `company_id` (UUID)
+- `limit` / `page_size` (int 1-200, default 50)
+- `cursor` (string offset)
+- `sort` (`created_at` | `updated_at` | `title` | `value` | `stage` | `probability`)
+- `order` (`desc` | `asc`)
+
+### `GET /opportunities/actions`
+
+Lists available opportunity action dimensions for history auditing.
 
 ### `POST /opportunities`
+
+Create a new opportunity.
 
 ```json
 {
   "title": "Consulting engagement — Acme Corp Q3",
+  "description": "Multi-phase analytics transformation and executive advisory.",
   "stage": "prospect",
   "value": 15000,
   "currency": "EUR",
@@ -742,14 +761,43 @@ Permanently remove multiple leads simultaneously.
 
 ### `GET /opportunities/{id}` / `PATCH /opportunities/{id}` / `DELETE /opportunities/{id}`
 
+Get, update or delete an opportunity. Updates automatically log history changes (e.g. `stage_changed`, `value_updated`, `field_updated`).
+
 ### `POST /opportunities/{id}/advance`
 
-Advance to next stage.
+Advance to the next sales stage in the pipeline flow (`prospect` → `qualified` → `proposal` → `negotiation`).
 
 ### `POST /opportunities/{id}/close`
 
+Mark deal as won or lost, auto-updating probability (100% for won, 0% for lost) and recording closure notes.
+
 ```json
-{ "outcome": "closed_won" }   // or "closed_lost"
+{
+  "outcome": "closed_won",
+  "notes": "Signed 1-year enterprise license."
+}
+```
+
+### `POST /opportunities/{id}/persons` & `DELETE /opportunities/{id}/persons/{person_id}`
+
+Attach or detach contact persons to/from an opportunity with assigned roles (`decision_maker`, `champion`, `influencer`, etc.).
+
+### `POST /opportunities/{id}/companies` & `DELETE /opportunities/{id}/companies/{company_id}`
+
+Attach or detach client/partner companies to/from an opportunity.
+
+### `GET /opportunities/{id}/history`
+
+Retrieve paginated history timeline with categorized audit actions, before/after diffs, and summaries.
+
+### `POST /opportunities/{id}/history/notes`
+
+Log meeting notes, call logs, or progress updates directly into the opportunity activity history.
+
+```json
+{
+  "note": "Discovery call completed with VP of Engineering. Proposal draft requested."
+}
 ```
 
 ---

@@ -10,6 +10,7 @@ from cdb.models.intake import (
 )
 from cdb.models.lead import Lead
 from cdb.models.opportunity import Opportunity, OpportunityCompany, OpportunityPerson
+from cdb.models.opportunity_history import OpportunityAction, OpportunityHistory
 from cdb.models.person import Person
 from cdb.models.person_history import PersonAction, PersonHistory
 from cdb.models.relationship import PersonCompanyRelationship
@@ -28,6 +29,8 @@ __all__ = [
     "Opportunity",
     "OpportunityPerson",
     "OpportunityCompany",
+    "OpportunityAction",
+    "OpportunityHistory",
     "IntakeLinkedInConnection",
     "IntakeLinkedInMessage",
     "IntakeNotionMeetingNote",
