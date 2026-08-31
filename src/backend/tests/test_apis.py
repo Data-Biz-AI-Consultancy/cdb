@@ -262,15 +262,44 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     )
     person_id = p_resp.json()["id"]
 
-    # 1. Create lead
+    # 1. Create lead with description
     l_resp = await client.post(
         "/api/v1/leads",
-        json={"person_id": person_id, "source": "linkedin_message", "intent": "consulting"},
+        json={
+            "person_id": person_id,
+            "source": "linkedin_message",
+            "intent": "consulting",
+            "description": "Discussion regarding cloud migration strategy",
+            "signal_strength": "strong",
+        },
         headers=auth_headers,
     )
     assert l_resp.status_code == 201
-    lead_id = l_resp.json()["id"]
-    assert l_resp.json()["stage"] == "new"
+    lead_data = l_resp.json()
+    lead_id = lead_data["id"]
+    assert lead_data["stage"] == "new"
+    assert lead_data["description"] == "Discussion regarding cloud migration strategy"
+    assert lead_data["person_name"] == "Dave Miller"
+    assert "is_stale" in lead_data and lead_data["is_stale"] is False
+    assert "is_expired" in lead_data and lead_data["is_expired"] is False
+    assert "days_inactive" in lead_data and lead_data["days_inactive"] == 0
+    assert lead_data["staleness_status"] == "active"
+
+    # Test list leads sorted by most recent first with pagination
+    list_resp = await client.get(
+        "/api/v1/leads?page=1&page_size=10&sort=created_at&order=desc", headers=auth_headers
+    )
+    assert list_resp.status_code == 200
+    list_json = list_resp.json()
+    list_items = list_json["data"]
+    assert len(list_items) >= 1
+    assert list_json["pagination"]["page"] == 1
+    assert list_json["pagination"]["page_size"] == 10
+    assert list_json["pagination"]["total"] >= 1
+    assert any(
+        i["id"] == lead_id and i["description"] == "Discussion regarding cloud migration strategy"
+        for i in list_items
+    )
 
     # 2. Advance lead
     adv_resp = await client.post(
@@ -278,6 +307,7 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     )
     assert adv_resp.status_code == 200
     assert adv_resp.json()["stage"] == "contacted"
+    assert "Called client" in (adv_resp.json()["description"] or "")
 
     # Advance to qualified
     adv_resp2 = await client.post(f"/api/v1/leads/{lead_id}/advance", json={}, headers=auth_headers)
@@ -299,6 +329,72 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     lead_check = await client.get(f"/api/v1/leads/{lead_id}", headers=auth_headers)
     assert lead_check.json()["stage"] == "converted"
     assert lead_check.json()["converted_opportunity_id"] == opp_data["id"]
+    assert lead_check.json()["person_name"] == "Dave Miller"
+
+    # 4. Test Bulk Operations
+    # Create two temporary leads
+    l2 = (
+        await client.post(
+            "/api/v1/leads",
+            json={"person_id": person_id, "source": "inbound", "intent": "recruitment"},
+            headers=auth_headers,
+        )
+    ).json()
+    l3 = (
+        await client.post(
+            "/api/v1/leads",
+            json={"person_id": person_id, "source": "referral", "intent": "partnership"},
+            headers=auth_headers,
+        )
+    ).json()
+
+    bulk_up = await client.post(
+        "/api/v1/leads/bulk-update",
+        json={
+            "lead_ids": [l2["id"], l3["id"]],
+            "stage": "contacted",
+            "signal_strength": "strong",
+            "append_notes": "Bulk outreach completed.",
+        },
+        headers=auth_headers,
+    )
+    assert bulk_up.status_code == 200
+    assert bulk_up.json()["updated_count"] == 2
+
+    # Test Bulk Disqualify
+    bulk_disq = await client.post(
+        "/api/v1/leads/bulk-disqualify",
+        json={
+            "lead_ids": [l2["id"]],
+            "reason": "wrong_fit",
+            "notes": "Not interested in enterprise plan.",
+        },
+        headers=auth_headers,
+    )
+    assert bulk_disq.status_code == 200
+    assert bulk_disq.json()["updated_count"] == 1
+
+    # Test Bulk Convert
+    bulk_conv = await client.post(
+        "/api/v1/leads/bulk-convert",
+        json={
+            "lead_ids": [l3["id"]],
+            "default_value": 8500,
+            "title_suffix": "— Enterprise Engagement",
+        },
+        headers=auth_headers,
+    )
+    assert bulk_conv.status_code == 200
+    assert bulk_conv.json()["updated_count"] == 1
+
+    # Bulk delete
+    bulk_del = await client.post(
+        "/api/v1/leads/bulk-delete",
+        json={"lead_ids": [l2["id"], l3["id"]]},
+        headers=auth_headers,
+    )
+    assert bulk_del.status_code == 200
+    assert bulk_del.json()["updated_count"] == 2
 
 
 @pytest.mark.asyncio

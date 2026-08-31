@@ -16,6 +16,8 @@ class ErrorResponse(BaseModel):
 
 
 class PaginationMetadata(BaseModel):
+    page: int | None = None
+    page_size: int | None = None
     next_cursor: str | None = None
     has_more: bool = False
     total: int | None = None

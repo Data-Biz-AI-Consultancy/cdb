@@ -417,10 +417,12 @@ CREATE INDEX idx_leads_owner_id   ON leads (owner_id);
 ```
 
 > **Note**: `converted_opportunity_id` has a forward reference to `opportunities`. Add this FK after the `opportunities` table is created, or use a deferred constraint.
+>
+> **Note on Description & Recency**: Lead `notes` stores rich conversation excerpts and descriptions (e.g. from LinkedIn messages or manual intake). The API and frontend support `description` as a first-class field mapped to `notes` and default to sorting by `created_at DESC` (most recent lead first).
 
 **Changes from Jager `cdp.leads`**:
 - Removed: `leads_linkedin` and `leads_manual` intake sub-tables (replaced by `intake_linkedin_messages` and `intake_manual`)
-- Removed: `conversation_id`, `full_name`, `description`, `message_count`, `summary`, `convo_history`, `opportunity_type`, `rate`, `lead_status_id`, `lead_status_name`, `lead_status_slug`, `lead_stage_*` (lead status is now the `stage` enum)
+- Removed: `conversation_id`, `full_name`, `message_count`, `summary`, `convo_history`, `opportunity_type`, `rate`, `lead_status_id`, `lead_status_name`, `lead_status_slug`, `lead_stage_*` (lead status is now the `stage` enum)
 - Added: `owner_id`, `signal_strength`, `disqualification_reason`, `converted_at`, `converted_opportunity_id`
 
 ---

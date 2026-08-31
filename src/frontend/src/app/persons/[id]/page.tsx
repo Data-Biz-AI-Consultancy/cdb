@@ -166,7 +166,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
         apiFetch<any>(`/api/v1/persons/${targetId}`),
         apiFetch<ApiResponse<any[]>>(`/api/v1/activities?person_id=${targetId}&page_size=100`).catch(() => ({ data: [] })),
         apiFetch<ApiResponse<any[]>>(`/api/v1/opportunities?person_id=${targetId}&page_size=100`).catch(() => ({ data: [] })),
-        apiFetch<ApiResponse<any[]>>(`/api/v1/leads?person_id=${targetId}&page_size=100`).catch(() => ({ data: [] })),
+        apiFetch<ApiResponse<any[]>>(`/api/v1/leads?person_id=${targetId}&page_size=100&sort=created_at&order=desc`).catch(() => ({ data: [] })),
         apiFetch<ApiResponse<any[]>>(`/api/v1/persons/${targetId}/history?page_size=100`).catch(() => ({ data: [] })),
         apiFetch<ApiResponse<any[]>>('/api/v1/companies?page_size=100').catch(() => ({ data: [] })),
       ]);
@@ -1168,7 +1168,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
                     <tr key={l.id} className="hover:bg-slate-50">
                       <td className="p-3">
                         <div className="font-semibold text-slate-900">{l.title || 'Untitled Lead'}</div>
-                        {l.notes && <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{l.notes}</div>}
+                        {(l.description || l.notes) && <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{l.description || l.notes}</div>}
                       </td>
                       <td className="p-3">
                         <span className="text-xs uppercase font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded">
