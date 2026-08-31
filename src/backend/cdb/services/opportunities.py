@@ -167,6 +167,14 @@ async def _build_opportunity_response(db: AsyncSession, opp: Opportunity) -> Opp
         compute_opportunity_staleness(opp, latest_hist_at)
     )
 
+    is_overdue = False
+    days_overdue = 0
+    if opp.expected_close_date and opp.stage not in ("closed_won", "closed_lost"):
+        today = datetime.datetime.now(datetime.UTC).date()
+        if opp.expected_close_date < today:
+            is_overdue = True
+            days_overdue = (today - opp.expected_close_date).days
+
     return OpportunityResponse(
         id=opp.id,
         title=opp.title,
@@ -189,6 +197,8 @@ async def _build_opportunity_response(db: AsyncSession, opp: Opportunity) -> Opp
         days_inactive=days_inactive,
         staleness_status=staleness_status,
         last_activity_at=last_activity_at,
+        is_overdue=is_overdue,
+        days_overdue=days_overdue,
     )
 
 

@@ -723,14 +723,15 @@ Permanently remove multiple leads simultaneously.
 
 Track and advance sales deals through a multi-stage pipeline with Kanban interaction, enriched contact & organization affiliations, complete audit history tracking, and automated staleness & expiration lifecycle management.
 
-### Staleness & Expiration Rules
-Active pipeline opportunities (`prospect`, `qualified`, `proposal`, `negotiation`) dynamically track inactivity based on their latest activity/history entry:
+### Staleness, Expiration & Overdue Resolution Rules
+Active pipeline opportunities (`prospect`, `qualified`, `proposal`, `negotiation`) dynamically track inactivity and resolution target dates:
 - **Active**: Activity within the last 30 days (`staleness_status: "active"`).
 - **Stale**: Inactive for 30+ days without new notes or stage updates (`is_stale: true`, `staleness_status: "stale"`).
 - **Expired**: Inactive for 90+ days (`is_expired: true`, `staleness_status: "expired"`).
-- **Closed Deals**: `closed_won` and `closed_lost` deals are never marked as stale or expired.
+- **Overdue Resolution**: If `expected_close_date` is earlier than today's date on an active deal (`is_overdue: true`, `days_overdue: int`).
+- **Closed Deals**: `closed_won` and `closed_lost` deals are never marked as stale, expired, or overdue.
 
-All opportunity responses include `is_stale`, `is_expired`, `days_inactive`, `staleness_status`, and `last_activity_at`.
+All opportunity responses include `is_stale`, `is_expired`, `days_inactive`, `staleness_status`, `last_activity_at`, `is_overdue`, and `days_overdue`.
 
 ### `GET /opportunities`
 

@@ -97,3 +97,5 @@ class OpportunityResponse(OpportunityBase):
         "active"  # 'active' | 'stale' | 'expired' | 'closed_won' | 'closed_lost'
     )
     last_activity_at: datetime.datetime | None = None
+    is_overdue: bool = False
+    days_overdue: int = 0

@@ -86,7 +86,7 @@ Pipeline & Engagements (CRM Lifecycle)       │
 * **Lead Lifecycle**: Track interest signals (`New` → `Contacted` → `Qualified` → `Converted` / `Disqualified`).
 * **1-Click Conversion**: Promote qualified leads into active Opportunities while carrying over all person and company linkages.
 * **Interactive Drag-and-Drop Kanban Board**: Advance deals across pipeline stages (`Prospect` → `Qualified` → `Proposal` → `Negotiation` → `Closed Won/Lost`) with HTML5 drag-and-drop, forecasting metrics (Active Pipeline, Confidence-Adjusted Weighted Value, Win Rate %), and automated Confidence Level adjustments.
-* **Automated Staleness & Expiration Lifecycle**: Inactive deals automatically get tagged as **Stale (30+ days inactive)** or **Expired (90+ days inactive)** with visual warning badges, border indicators, quick filters, and one-click reactivation via activity logs.
+* **Automated Staleness, Expiration & Overdue Warnings**: Inactive deals automatically get tagged as **Stale (30+ days inactive)** or **Expired (90+ days inactive)**. Active deals past their target close date are highlighted with prominent **🚨 Overdue ({days}d late)** badges and border accents. Quick filter buttons in the toolbar allow instant triage.
 * **Title, Rich Description & Entity Linking**: First-class Title and multiline Description fields with easy management of attached Decision Makers, Champions, Influencers, and Organizations.
 * **Full Audit History & Activity Timeline (`opportunity_history` & `opportunity_actions`)**: Track all stage shifts, deal adjustments, person/company affiliations, and custom meeting/call notes in an interactive chronological timeline.
 

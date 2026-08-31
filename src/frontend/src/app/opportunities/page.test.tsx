@@ -49,11 +49,13 @@ const mockOpportunities = [
     value: 45000,
     currency: 'USD',
     probability: 70,
-    expected_close_date: '2026-09-15',
+    expected_close_date: '2026-08-01',
     is_stale: false,
     is_expired: true,
     days_inactive: 95,
     staleness_status: 'expired',
+    is_overdue: true,
+    days_overdue: 30,
     persons: [],
     companies: [],
     created_at: '2026-08-29T10:00:00Z',
@@ -136,11 +138,13 @@ describe('OpportunitiesPage Kanban Board', () => {
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
 
-    // Check staleness badges
+    // Check staleness & overdue badges
     expect(screen.getByText(/⚠️ Stale/)).toBeInTheDocument();
     expect(screen.getByText(/⛔ Expired/)).toBeInTheDocument();
     expect(screen.getByText('Stale 30d+')).toBeInTheDocument();
     expect(screen.getByText('Expired 90d+')).toBeInTheDocument();
+    expect(screen.getByText(/🚨 Overdue/)).toBeInTheDocument();
+    expect(screen.getByText('Overdue Target')).toBeInTheDocument();
   });
 
   it('filters opportunities using search bar', async () => {

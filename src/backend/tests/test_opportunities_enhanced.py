@@ -224,3 +224,43 @@ async def test_opportunity_staleness_and_expiration(
     assert status == "closed_won"
     assert is_stale is False
     assert is_expired is False
+
+
+@pytest.mark.asyncio
+async def test_opportunity_overdue_resolution_date(
+    client: AsyncClient, auth_headers: dict[str, str]
+):
+    import datetime
+
+    past_date = (datetime.date.today() - datetime.timedelta(days=10)).isoformat()
+    future_date = (datetime.date.today() + datetime.timedelta(days=30)).isoformat()
+
+    # 1. Create opportunity with past close date
+    overdue_resp = await client.post(
+        "/api/v1/opportunities",
+        headers=auth_headers,
+        json={
+            "title": "Overdue Deal",
+            "stage": "proposal",
+            "expected_close_date": past_date,
+        },
+    )
+    assert overdue_resp.status_code == 201
+    overdue_data = overdue_resp.json()
+    assert overdue_data["is_overdue"] is True
+    assert overdue_data["days_overdue"] >= 10
+
+    # 2. Create opportunity with future close date
+    future_resp = await client.post(
+        "/api/v1/opportunities",
+        headers=auth_headers,
+        json={
+            "title": "Future Deal",
+            "stage": "qualified",
+            "expected_close_date": future_date,
+        },
+    )
+    assert future_resp.status_code == 201
+    future_data = future_resp.json()
+    assert future_data["is_overdue"] is False
+    assert future_data["days_overdue"] == 0

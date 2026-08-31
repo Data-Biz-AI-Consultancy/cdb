@@ -40,6 +40,8 @@ export interface Opportunity {
   days_inactive?: number;
   staleness_status?: string;
   last_activity_at?: string | null;
+  is_overdue?: boolean;
+  days_overdue?: number;
 }
 
 export interface OpportunityHistoryItem {
@@ -476,6 +478,25 @@ export default function OpportunitiesPage() {
     }
   };
 
+  const isOppOverdue = (opp: Opportunity): boolean => {
+    if (['closed_won', 'closed_lost'].includes(opp.stage)) return false;
+    if (opp.is_overdue) return true;
+    if (!opp.expected_close_date) return false;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return opp.expected_close_date < todayStr;
+  };
+
+  const getDaysOverdue = (opp: Opportunity): number => {
+    if (!isOppOverdue(opp) || !opp.expected_close_date) return 0;
+    if (opp.days_overdue && opp.days_overdue > 0) return opp.days_overdue;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(opp.expected_close_date);
+    target.setHours(0, 0, 0, 0);
+    const diff = today.getTime() - target.getTime();
+    return Math.max(1, Math.floor(diff / (1000 * 60 * 60 * 24)));
+  };
+
   // Pipeline Metric Calculations
   const activeOpps = opps.filter((o) => !['closed_won', 'closed_lost'].includes(o.stage));
   const totalActiveValue = activeOpps.reduce((sum, o) => sum + (o.value ? Number(o.value) : 0), 0);
@@ -487,6 +508,7 @@ export default function OpportunitiesPage() {
   const lostOpps = opps.filter((o) => o.stage === 'closed_lost');
   const staleOpps = activeOpps.filter((o) => o.is_stale);
   const expiredOpps = activeOpps.filter((o) => o.is_expired);
+  const overdueOpps = activeOpps.filter((o) => isOppOverdue(o));
   const closedCount = wonOpps.length + lostOpps.length;
   const winRate = closedCount > 0 ? Math.round((wonOpps.length / closedCount) * 100) : 0;
 
@@ -496,6 +518,8 @@ export default function OpportunitiesPage() {
       if (!opp.is_stale) return false;
     } else if (stageFilter === 'expired') {
       if (!opp.is_expired) return false;
+    } else if (stageFilter === 'overdue') {
+      if (!isOppOverdue(opp)) return false;
     } else if (stageFilter !== 'all' && opp.stage !== stageFilter) {
       return false;
     }
@@ -655,6 +679,22 @@ export default function OpportunitiesPage() {
             <span>Expired 90d+</span>
             <span className="text-[10px] font-bold">({expiredOpps.length})</span>
           </button>
+
+          {/* Quick Overdue Filter */}
+          <button
+            onClick={() => setStageFilter(stageFilter === 'overdue' ? 'all' : 'overdue')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+              stageFilter === 'overdue'
+                ? 'bg-red-700 text-white shadow-md'
+                : overdueOpps.length > 0
+                ? 'bg-red-50 text-red-800 border border-red-300 hover:bg-red-100'
+                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            }`}
+          >
+            <span>🚨</span>
+            <span>Overdue Target</span>
+            <span className="text-[10px] font-bold">({overdueOpps.length})</span>
+          </button>
         </div>
       </div>
 
@@ -716,6 +756,7 @@ export default function OpportunitiesPage() {
                     const isDragging = draggedOppId === opp.id;
                     const primaryPerson = opp.persons && opp.persons.length > 0 ? opp.persons[0] : null;
                     const primaryCompany = opp.companies && opp.companies.length > 0 ? opp.companies[0] : null;
+                    const overdue = isOppOverdue(opp);
 
                     return (
                       <div
@@ -725,7 +766,9 @@ export default function OpportunitiesPage() {
                         onDragStart={(e) => handleDragStart(e, opp.id)}
                         onClick={() => handleOpenDetail(opp)}
                         className={`bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md hover:border-indigo-300 transition cursor-grab active:cursor-grabbing group ${
-                          opp.is_expired
+                          overdue
+                            ? 'border-l-4 border-l-red-600 bg-red-50/10'
+                            : opp.is_expired
                             ? 'border-l-4 border-l-rose-500'
                             : opp.is_stale
                             ? 'border-l-4 border-l-amber-500'
@@ -734,35 +777,46 @@ export default function OpportunitiesPage() {
                           isDragging ? 'opacity-40 scale-95 border-dashed border-indigo-400' : ''
                         }`}
                       >
-                        {/* Staleness / Health Pill Warning */}
-                        <div className="mb-2 flex items-center justify-between">
-                          {opp.is_expired ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
-                              <span>⛔ Expired</span>
-                              <span>({opp.days_inactive}d inactive)</span>
-                            </span>
-                          ) : opp.is_stale ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-                              <span>⚠️ Stale</span>
-                              <span>({opp.days_inactive}d inactive)</span>
-                            </span>
-                          ) : opp.stage === 'closed_won' ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span>🏆 Won Deal</span>
-                            </span>
-                          ) : opp.stage === 'closed_lost' ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
-                              <span>Closed Lost</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span>🟢 Active</span>
-                              <span>· {opp.days_inactive === 0 || !opp.days_inactive ? 'Updated today' : `${opp.days_inactive}d ago`}</span>
-                            </span>
+                        {/* Overdue & Staleness Warning Row */}
+                        <div className="mb-2 space-y-1">
+                          {overdue && (
+                            <div className="flex items-center justify-between">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300">
+                                <span>🚨 Overdue</span>
+                                <span>({getDaysOverdue(opp)}d past target)</span>
+                              </span>
+                            </div>
                           )}
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {opp.days_inactive !== undefined && opp.days_inactive !== null ? `${opp.days_inactive}d` : ''}
-                          </span>
+
+                          <div className="flex items-center justify-between">
+                            {opp.is_expired ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                                <span>⛔ Expired</span>
+                                <span>({opp.days_inactive}d inactive)</span>
+                              </span>
+                            ) : opp.is_stale ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                                <span>⚠️ Stale</span>
+                                <span>({opp.days_inactive}d inactive)</span>
+                              </span>
+                            ) : opp.stage === 'closed_won' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span>🏆 Won Deal</span>
+                              </span>
+                            ) : opp.stage === 'closed_lost' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                                <span>Closed Lost</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span>🟢 Active</span>
+                                <span>· {opp.days_inactive === 0 || !opp.days_inactive ? 'Updated today' : `${opp.days_inactive}d ago`}</span>
+                              </span>
+                            )}
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {opp.days_inactive !== undefined && opp.days_inactive !== null ? `${opp.days_inactive}d` : ''}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Title & Value */}
@@ -847,10 +901,17 @@ export default function OpportunitiesPage() {
                         {/* Card Footer: Close Date & Quick Advance */}
                         <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
                           {opp.expected_close_date ? (
-                            <span className="flex items-center gap-1">
-                              <span>📅</span>
-                              <span>{opp.expected_close_date}</span>
-                            </span>
+                            overdue ? (
+                              <span className="flex items-center gap-1 font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded text-[10px]">
+                                <span>🚨 Target:</span>
+                                <span>{opp.expected_close_date}</span>
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <span>📅</span>
+                                <span>{opp.expected_close_date}</span>
+                              </span>
+                            )
                           ) : (
                             <span />
                           )}
@@ -1155,7 +1216,22 @@ export default function OpportunitiesPage() {
               </div>
             </div>
 
-            {/* Inactivity & Staleness Alert Banner */}
+            {/* Overdue, Inactivity & Staleness Alert Banners */}
+            {isOppOverdue(selectedOppForDetail) && (
+              <div className="px-5 py-3 bg-red-50 border-b border-red-200 flex items-center justify-between text-xs text-red-900">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🚨</span>
+                  <div>
+                    <span className="font-bold">Overdue Resolution:</span> Expected close date was{' '}
+                    <span className="font-extrabold">{selectedOppForDetail.expected_close_date}</span> ({getDaysOverdue(selectedOppForDetail)} days past target).
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-red-800 bg-red-100 px-2 py-0.5 rounded border border-red-300">
+                  Target Missed
+                </span>
+              </div>
+            )}
+
             {selectedOppForDetail.is_expired ? (
               <div className="px-5 py-3 bg-rose-50 border-b border-rose-200 flex items-center justify-between text-xs text-rose-900">
                 <div className="flex items-center gap-2">
@@ -1236,10 +1312,20 @@ export default function OpportunitiesPage() {
               {detailTab === 'overview' && (
                 <form onSubmit={handleSaveEdit} className="space-y-4">
                   {/* Deal Health & Inactivity Status Box */}
-                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+                    isOppOverdue(selectedOppForDetail)
+                      ? 'border-red-300 bg-red-50/70'
+                      : 'border-slate-200 bg-slate-50/80'
+                  }`}>
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Deal Health & Activity Tracking</div>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        {isOppOverdue(selectedOppForDetail) && (
+                          <span className="font-bold text-red-800 bg-red-100 px-2 py-0.5 rounded border border-red-300">
+                            🚨 Overdue ({getDaysOverdue(selectedOppForDetail)}d past target)
+                          </span>
+                        )}
+
                         {selectedOppForDetail.is_expired ? (
                           <span className="font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded border border-rose-300">
                             ⛔ Expired ({selectedOppForDetail.days_inactive}d inactive)
@@ -1354,12 +1440,21 @@ export default function OpportunitiesPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Expected Close Date</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-slate-700">Expected Close Date</label>
+                        {isOppOverdue(selectedOppForDetail) && (
+                          <span className="text-[10px] font-bold text-red-600">🚨 Overdue</span>
+                        )}
+                      </div>
                       <input
                         type="date"
                         value={editForm.expected_close_date || ''}
                         onChange={(e) => setEditForm({ ...editForm, expected_close_date: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:outline-none ${
+                          isOppOverdue(selectedOppForDetail)
+                            ? 'border-red-400 bg-red-50/50 focus:ring-red-500'
+                            : 'focus:ring-indigo-500'
+                        }`}
                       />
                     </div>
                   </div>
