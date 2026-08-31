@@ -180,7 +180,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
         apiFetch<any[]>(`/api/v1/companies/${targetId}/employees`).catch(() => []),
         apiFetch<ApiResponse<any[]>>(`/api/v1/activities?company_id=${targetId}&page_size=100`).catch(() => ({ data: [] })),
         apiFetch<ApiResponse<any[]>>(`/api/v1/opportunities?company_id=${targetId}&page_size=100`).catch(() => ({ data: [] })),
-        apiFetch<ApiResponse<any[]>>(`/api/v1/leads?company_id=${targetId}&page_size=100`).catch(() => ({ data: [] })),
+        apiFetch<ApiResponse<any[]>>(`/api/v1/leads?company_id=${targetId}&page_size=100&sort=created_at&order=desc`).catch(() => ({ data: [] })),
         apiFetch<ApiResponse<any[]>>('/api/v1/persons?page_size=100').catch(() => ({ data: [] })),
       ]);
 
@@ -1331,7 +1331,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
                       )}
                     </div>
 
-                    {lead.notes && <p className="text-xs text-slate-600 mt-3 bg-slate-50 p-2.5 rounded border">{lead.notes}</p>}
+                    {(lead.description || lead.notes) && <p className="text-xs text-slate-600 mt-3 bg-slate-50 p-2.5 rounded border leading-relaxed">{lead.description || lead.notes}</p>}
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">

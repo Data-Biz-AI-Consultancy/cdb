@@ -8,12 +8,14 @@ class LeadBase(BaseModel):
     person_id: uuid.UUID
     company_id: uuid.UUID | None = None
     owner_id: uuid.UUID | None = None
+    title: str | None = None
     stage: str = "new"  # 'new' | 'contacted' | 'qualified' | 'converted' | 'disqualified'
     source: str | None = None  # 'linkedin_message' | 'referral' | 'inbound' | 'event' | 'manual'
     source_ref_id: str | None = None
     intent: str | None = None
     signal_strength: str | None = None  # 'strong' | 'medium' | 'weak'
     notes: str | None = None
+    description: str | None = None
 
 
 class LeadCreate(LeadBase):
@@ -23,12 +25,14 @@ class LeadCreate(LeadBase):
 class LeadUpdate(BaseModel):
     company_id: uuid.UUID | None = None
     owner_id: uuid.UUID | None = None
+    title: str | None = None
     stage: str | None = None
     source: str | None = None
     source_ref_id: str | None = None
     intent: str | None = None
     signal_strength: str | None = None
     notes: str | None = None
+    description: str | None = None
     disqualification_reason: str | None = None
 
 
@@ -52,6 +56,13 @@ class LeadResponse(LeadBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    title: str | None = None
+    description: str | None = None
+    person_name: str | None = None
+    person_email: str | None = None
+    person_avatar_url: str | None = None
+    company_name: str | None = None
+    company_domain: str | None = None
     disqualification_reason: str | None = None
     converted_at: datetime.datetime | None = None
     converted_opportunity_id: uuid.UUID | None = None

@@ -519,7 +519,55 @@ Standard CRUD. `source_id`-tagged activities (auto-imported) can be patched but 
 
 ### `GET /leads`
 
-**Query params:** `stage`, `source`, `owner_id`, `person_id`, `company_id`.
+**Query params:** 
+- `q` (string, optional): Search query matching against description/notes, intent, contact name/email, and company name.
+- `stage` (`new` | `contacted` | `qualified` | `converted` | `disqualified`, optional).
+- `source` (`linkedin_message` | `referral` | `inbound` | `event` | `manual`, optional).
+- `signal_strength` (`strong` | `medium` | `weak`, optional).
+- `owner_id` (UUID, optional).
+- `person_id` (UUID, optional).
+- `company_id` (UUID, optional).
+- `sort` (`created_at` | `updated_at` | `stage` | `signal_strength`, default: `created_at`).
+- `order` (`desc` | `asc`, default: `desc` — **most recent lead first**).
+- `limit` / `page_size` (int, default 50).
+- `cursor` (string, pagination offset).
+
+**Response (Paginated):**
+```json
+{
+  "data": [
+    {
+      "id": "8e1361d5-703e-47cb-ae26-ef5401e3b84e",
+      "person_id": "a355d8f3-4765-4549-87ea-5b2677153c99",
+      "company_id": "99b1a50a-f901-4475-8121-6677464a0be9",
+      "owner_id": null,
+      "title": "Networking Inquiry",
+      "stage": "new",
+      "source": "linkedin_message",
+      "source_ref_id": "li_convo:2-ZDY...",
+      "intent": "networking_inquiry",
+      "signal_strength": "medium",
+      "notes": "LinkedIn Conversation Summary (3 messages, 2026-08-05 to 2026-08-05)...",
+      "description": "LinkedIn Conversation Summary (3 messages, 2026-08-05 to 2026-08-05)...",
+      "person_name": "Abdul Reyyan",
+      "person_email": "abdul.reyyan@example.com",
+      "person_avatar_url": null,
+      "company_name": "Data Biz - AI & Data Consultancy",
+      "company_domain": "databiz.ai",
+      "disqualification_reason": null,
+      "converted_at": null,
+      "converted_opportunity_id": null,
+      "created_at": "2026-08-07T22:01:31.623096Z",
+      "updated_at": "2026-08-07T22:01:31.623096Z"
+    }
+  ],
+  "pagination": {
+    "next_cursor": "50",
+    "has_more": true,
+    "total": 2143
+  }
+}
+```
 
 ### `POST /leads`
 
@@ -531,7 +579,8 @@ Standard CRUD. `source_id`-tagged activities (auto-imported) can be patched but 
   "source_ref_id": "conversation:abc123",
   "intent": "open to consulting",
   "signal_strength": "strong",
-  "notes": "Reached out after my post on async work."
+  "description": "Reached out after my post on async work regarding AI consulting.",
+  "notes": "Reached out after my post on async work regarding AI consulting."
 }
 ```
 

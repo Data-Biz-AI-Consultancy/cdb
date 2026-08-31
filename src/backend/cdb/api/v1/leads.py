@@ -23,24 +23,32 @@ router = APIRouter(prefix="/leads", tags=["Leads"])
 
 @router.get("", response_model=PaginatedResponse[LeadResponse])
 async def list_leads(
+    q: str | None = Query(
+        None, description="Search across notes, intent, person name/email, company"
+    ),
     stage: str | None = Query(None),
     source: str | None = Query(None),
+    signal_strength: str | None = Query(None),
     owner_id: uuid.UUID | None = Query(None),
     person_id: uuid.UUID | None = Query(None),
     company_id: uuid.UUID | None = Query(None),
     limit: int | None = Query(None, ge=1, le=200),
     page_size: int | None = Query(None, ge=1, le=200),
     cursor: str | None = Query(None),
-    sort: str = Query("created_at"),
-    order: str = Query("desc"),
+    sort: str = Query(
+        "created_at", description="Sort field: created_at, updated_at, stage, signal_strength"
+    ),
+    order: str = Query("desc", description="Sort order: desc (most recent first) or asc"),
     db: AsyncSession = Depends(get_db),
     auth_user: User | None = Depends(get_current_user_or_api_key),
 ):
     effective_limit = limit or page_size or 50
     items, pagination = await lead_service.list_leads(
         db,
+        q=q,
         stage=stage,
         source=source,
+        signal_strength=signal_strength,
         owner_id=owner_id,
         person_id=person_id,
         company_id=company_id,

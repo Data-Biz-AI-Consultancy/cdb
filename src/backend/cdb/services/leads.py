@@ -2,10 +2,11 @@ import datetime
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.core.errors import BadRequestError, NotFoundError
+from cdb.models.company import Company
 from cdb.models.lead import Lead
 from cdb.models.opportunity import Opportunity, OpportunityCompany, OpportunityPerson
 from cdb.models.person import Person
@@ -23,10 +24,60 @@ from cdb.schemas.opportunity import OpportunityResponse
 STAGE_FLOW = ["new", "contacted", "qualified"]
 
 
+def _format_lead_response(
+    lead: Lead, person: Person | None = None, company: Company | None = None
+) -> LeadResponse:
+    full_name = None
+    email = None
+    avatar = None
+    if person:
+        name_parts = [p for p in [person.first_name, person.last_name] if p]
+        full_name = " ".join(name_parts) if name_parts else (person.primary_email or None)
+        email = person.primary_email
+        avatar = person.avatar_url
+
+    comp_name = company.name if company else None
+    comp_domain = company.domain if company else None
+
+    # Derive human-friendly title if none exists
+    title = (
+        lead.intent.replace("_", " ").title()
+        if lead.intent
+        else f"Lead from {(lead.source or 'inbound').replace('_', ' ').title()}"
+    )
+
+    return LeadResponse(
+        id=lead.id,
+        person_id=lead.person_id,
+        company_id=lead.company_id,
+        owner_id=lead.owner_id,
+        title=title,
+        stage=lead.stage,
+        source=lead.source,
+        source_ref_id=lead.source_ref_id,
+        intent=lead.intent,
+        signal_strength=lead.signal_strength,
+        notes=lead.notes,
+        description=lead.notes,
+        disqualification_reason=lead.disqualification_reason,
+        converted_at=lead.converted_at,
+        converted_opportunity_id=lead.converted_opportunity_id,
+        created_at=lead.created_at,
+        updated_at=lead.updated_at,
+        person_name=full_name,
+        person_email=email,
+        person_avatar_url=avatar,
+        company_name=comp_name,
+        company_domain=comp_domain,
+    )
+
+
 async def list_leads(
     db: AsyncSession,
+    q: str | None = None,
     stage: str | None = None,
     source: str | None = None,
+    signal_strength: str | None = None,
     owner_id: uuid.UUID | None = None,
     person_id: uuid.UUID | None = None,
     company_id: uuid.UUID | None = None,
@@ -35,12 +86,31 @@ async def list_leads(
     sort: str = "created_at",
     order: str = "desc",
 ) -> tuple[list[LeadResponse], PaginationMetadata]:
-    stmt = select(Lead)
+    stmt = (
+        select(Lead, Person, Company)
+        .outerjoin(Person, Lead.person_id == Person.id)
+        .outerjoin(Company, Lead.company_id == Company.id)
+    )
 
+    if q and q.strip():
+        q_term = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Lead.notes.ilike(q_term),
+                Lead.intent.ilike(q_term),
+                Lead.source.ilike(q_term),
+                Person.first_name.ilike(q_term),
+                Person.last_name.ilike(q_term),
+                Person.primary_email.ilike(q_term),
+                Company.name.ilike(q_term),
+            )
+        )
     if stage:
         stmt = stmt.where(Lead.stage == stage)
     if source:
         stmt = stmt.where(Lead.source == source)
+    if signal_strength:
+        stmt = stmt.where(Lead.signal_strength == signal_strength)
     if owner_id:
         stmt = stmt.where(Lead.owner_id == owner_id)
     if person_id:
@@ -51,19 +121,20 @@ async def list_leads(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar() or 0
 
+    sort_col = getattr(Lead, sort, Lead.created_at)
     if order.lower() == "asc":
-        stmt = stmt.order_by(getattr(Lead, sort, Lead.created_at).asc())
+        stmt = stmt.order_by(sort_col.asc(), Lead.id.asc())
     else:
-        stmt = stmt.order_by(getattr(Lead, sort, Lead.created_at).desc())
+        stmt = stmt.order_by(sort_col.desc(), Lead.id.desc())
 
     offset = 0
     if cursor and cursor.isdigit():
         offset = int(cursor)
 
     stmt = stmt.offset(offset).limit(limit)
-    leads = (await db.execute(stmt)).scalars().all()
+    rows = (await db.execute(stmt)).all()
 
-    items = [LeadResponse.model_validate(lead_item) for lead_item in leads]
+    items = [_format_lead_response(lead, person, company) for lead, person, company in rows]
     has_more = (offset + limit) < total
     next_cursor = str(offset + limit) if has_more else None
 
@@ -76,6 +147,14 @@ async def create_lead(db: AsyncSession, data: LeadCreate) -> LeadResponse:
     if not p:
         raise NotFoundError(f"Person {data.person_id} not found.")
 
+    comp = None
+    if data.company_id:
+        comp = (
+            await db.execute(select(Company).where(Company.id == data.company_id))
+        ).scalar_one_or_none()
+
+    lead_notes = data.description if data.description is not None else data.notes
+
     lead = Lead(
         person_id=data.person_id,
         company_id=data.company_id,
@@ -85,19 +164,26 @@ async def create_lead(db: AsyncSession, data: LeadCreate) -> LeadResponse:
         source_ref_id=data.source_ref_id,
         intent=data.intent,
         signal_strength=data.signal_strength,
-        notes=data.notes,
+        notes=lead_notes,
     )
     db.add(lead)
     await db.commit()
     await db.refresh(lead)
-    return LeadResponse.model_validate(lead)
+    return _format_lead_response(lead, p, comp)
 
 
 async def get_lead(db: AsyncSession, lead_id: uuid.UUID) -> LeadResponse:
-    lead = (await db.execute(select(Lead).where(Lead.id == lead_id))).scalar_one_or_none()
-    if not lead:
+    stmt = (
+        select(Lead, Person, Company)
+        .outerjoin(Person, Lead.person_id == Person.id)
+        .outerjoin(Company, Lead.company_id == Company.id)
+        .where(Lead.id == lead_id)
+    )
+    row = (await db.execute(stmt)).first()
+    if not row:
         raise NotFoundError(f"Lead with id {lead_id} not found.")
-    return LeadResponse.model_validate(lead)
+    lead, person, company = row
+    return _format_lead_response(lead, person, company)
 
 
 async def update_lead(db: AsyncSession, lead_id: uuid.UUID, data: LeadUpdate) -> LeadResponse:
@@ -106,12 +192,18 @@ async def update_lead(db: AsyncSession, lead_id: uuid.UUID, data: LeadUpdate) ->
         raise NotFoundError(f"Lead with id {lead_id} not found.")
 
     update_dict = data.model_dump(exclude_unset=True)
+    if "description" in update_dict:
+        desc_val = update_dict.pop("description")
+        if desc_val is not None:
+            lead.notes = desc_val
+
     for k, v in update_dict.items():
-        setattr(lead, k, v)
+        if hasattr(lead, k):
+            setattr(lead, k, v)
 
     await db.commit()
     await db.refresh(lead)
-    return LeadResponse.model_validate(lead)
+    return await get_lead(db, lead_id)
 
 
 async def advance_lead(db: AsyncSession, lead_id: uuid.UUID, data: LeadAdvance) -> LeadResponse:
@@ -132,7 +224,7 @@ async def advance_lead(db: AsyncSession, lead_id: uuid.UUID, data: LeadAdvance) 
 
     await db.commit()
     await db.refresh(lead)
-    return LeadResponse.model_validate(lead)
+    return await get_lead(db, lead_id)
 
 
 async def disqualify_lead(
@@ -150,7 +242,7 @@ async def disqualify_lead(
 
     await db.commit()
     await db.refresh(lead)
-    return LeadResponse.model_validate(lead)
+    return await get_lead(db, lead_id)
 
 
 async def convert_lead_to_opportunity(

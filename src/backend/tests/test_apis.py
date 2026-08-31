@@ -262,15 +262,34 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     )
     person_id = p_resp.json()["id"]
 
-    # 1. Create lead
+    # 1. Create lead with description
     l_resp = await client.post(
         "/api/v1/leads",
-        json={"person_id": person_id, "source": "linkedin_message", "intent": "consulting"},
+        json={
+            "person_id": person_id,
+            "source": "linkedin_message",
+            "intent": "consulting",
+            "description": "Discussion regarding cloud migration strategy",
+            "signal_strength": "strong",
+        },
         headers=auth_headers,
     )
     assert l_resp.status_code == 201
-    lead_id = l_resp.json()["id"]
-    assert l_resp.json()["stage"] == "new"
+    lead_data = l_resp.json()
+    lead_id = lead_data["id"]
+    assert lead_data["stage"] == "new"
+    assert lead_data["description"] == "Discussion regarding cloud migration strategy"
+    assert lead_data["person_name"] == "Dave Miller"
+
+    # Test list leads sorted by most recent first
+    list_resp = await client.get("/api/v1/leads?sort=created_at&order=desc", headers=auth_headers)
+    assert list_resp.status_code == 200
+    list_items = list_resp.json()["data"]
+    assert len(list_items) >= 1
+    assert any(
+        i["id"] == lead_id and i["description"] == "Discussion regarding cloud migration strategy"
+        for i in list_items
+    )
 
     # 2. Advance lead
     adv_resp = await client.post(
@@ -278,6 +297,7 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     )
     assert adv_resp.status_code == 200
     assert adv_resp.json()["stage"] == "contacted"
+    assert "Called client" in (adv_resp.json()["description"] or "")
 
     # Advance to qualified
     adv_resp2 = await client.post(f"/api/v1/leads/{lead_id}/advance", json={}, headers=auth_headers)
@@ -299,6 +319,7 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     lead_check = await client.get(f"/api/v1/leads/{lead_id}", headers=auth_headers)
     assert lead_check.json()["stage"] == "converted"
     assert lead_check.json()["converted_opportunity_id"] == opp_data["id"]
+    assert lead_check.json()["person_name"] == "Dave Miller"
 
 
 @pytest.mark.asyncio
