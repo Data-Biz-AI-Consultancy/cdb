@@ -57,7 +57,7 @@ The application navigation is organized into 3 clear functional categories:
 2. **Pipeline & Engagements**
    - **Activities** (`/activities`): Full chronological activity feed (meetings, calls, notes, messages).
    - **Leads** (`/leads`): Interest qualification funnel (`New` → `Contacted` → `Qualified` → `Converted`) with conversation transcript & description viewer, default recency sorting (most recent lead first), signal strength badges, search, and one-click opportunity conversion modal.
-   - **Opportunities** (`/opportunities`): Interactive drag-and-drop Kanban deal pipeline with pipeline forecasting KPIs (Active Pipeline, Weighted Value, Win Rate %), first-class Title & Description fields, attached contact persons & companies management, and a complete opportunity history (audit log & activity timeline).
+   - **Opportunities** (`/opportunities`): Interactive drag-and-drop Kanban deal pipeline with pipeline forecasting KPIs (Active Pipeline, Confidence-Adjusted Weighted Value, Win Rate %), first-class Title & Description fields, Confidence Level meters, automated Stale (30d+) & Expired (90d+) inactivity alerts and quick filters, attached contact persons & companies management, and a complete opportunity history (audit log & activity timeline).
    - **Client Engagements** (`/engagements`): Active client engagements, deliverables, and relationship metrics.
 
 3. **Settings**

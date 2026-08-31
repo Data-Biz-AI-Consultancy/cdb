@@ -90,3 +90,10 @@ class OpportunityResponse(OpportunityBase):
     companies: list[OpportunityCompanyResponse] = Field(default_factory=list)
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    is_stale: bool = False
+    is_expired: bool = False
+    days_inactive: int = 0
+    staleness_status: str = (
+        "active"  # 'active' | 'stale' | 'expired' | 'closed_won' | 'closed_lost'
+    )
+    last_activity_at: datetime.datetime | None = None

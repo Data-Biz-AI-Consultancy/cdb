@@ -18,6 +18,10 @@ const mockOpportunities = [
     probability: 40,
     expected_close_date: '2026-11-30',
     notes: 'Initial intro call scheduled',
+    is_stale: true,
+    is_expired: false,
+    days_inactive: 35,
+    staleness_status: 'stale',
     persons: [
       {
         person_id: 'p-1',
@@ -46,6 +50,10 @@ const mockOpportunities = [
     currency: 'USD',
     probability: 70,
     expected_close_date: '2026-09-15',
+    is_stale: false,
+    is_expired: true,
+    days_inactive: 95,
+    staleness_status: 'expired',
     persons: [],
     companies: [],
     created_at: '2026-08-29T10:00:00Z',
@@ -127,6 +135,12 @@ describe('OpportunitiesPage Kanban Board', () => {
     // Check attached contact and organization rendered on card
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+
+    // Check staleness badges
+    expect(screen.getByText(/⚠️ Stale/)).toBeInTheDocument();
+    expect(screen.getByText(/⛔ Expired/)).toBeInTheDocument();
+    expect(screen.getByText('Stale 30d+')).toBeInTheDocument();
+    expect(screen.getByText('Expired 90d+')).toBeInTheDocument();
   });
 
   it('filters opportunities using search bar', async () => {

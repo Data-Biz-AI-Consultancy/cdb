@@ -721,7 +721,16 @@ Permanently remove multiple leads simultaneously.
 
 ## 9. Opportunities
 
-Track and advance sales deals through a multi-stage pipeline with Kanban interaction, enriched contact & organization affiliations, and complete audit history tracking.
+Track and advance sales deals through a multi-stage pipeline with Kanban interaction, enriched contact & organization affiliations, complete audit history tracking, and automated staleness & expiration lifecycle management.
+
+### Staleness & Expiration Rules
+Active pipeline opportunities (`prospect`, `qualified`, `proposal`, `negotiation`) dynamically track inactivity based on their latest activity/history entry:
+- **Active**: Activity within the last 30 days (`staleness_status: "active"`).
+- **Stale**: Inactive for 30+ days without new notes or stage updates (`is_stale: true`, `staleness_status: "stale"`).
+- **Expired**: Inactive for 90+ days (`is_expired: true`, `staleness_status: "expired"`).
+- **Closed Deals**: `closed_won` and `closed_lost` deals are never marked as stale or expired.
+
+All opportunity responses include `is_stale`, `is_expired`, `days_inactive`, `staleness_status`, and `last_activity_at`.
 
 ### `GET /opportunities`
 

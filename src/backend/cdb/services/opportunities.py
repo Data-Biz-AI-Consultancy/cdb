@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from typing import Any
 
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cdb.core.errors import BadRequestError, NotFoundError
 from cdb.models.company import Company
 from cdb.models.opportunity import Opportunity, OpportunityCompany, OpportunityPerson
+from cdb.models.opportunity_history import OpportunityHistory
 from cdb.models.person import Person
 from cdb.schemas.common import PaginationMetadata
 from cdb.schemas.opportunity import (
@@ -22,6 +24,34 @@ from cdb.schemas.opportunity import (
 from cdb.services.opportunity_history import record_opportunity_history
 
 OPP_STAGE_FLOW = ["prospect", "qualified", "proposal", "negotiation"]
+
+
+def compute_opportunity_staleness(
+    opp: Opportunity, last_history_date: datetime.datetime | None = None
+) -> tuple[str, bool, bool, int, datetime.datetime | None]:
+    """
+    Computes staleness and expiration based on inactivity:
+    - 30+ days without activities/updates -> Stale
+    - 90+ days without activities/updates -> Expired
+    (Closed Won / Closed Lost opportunities do not expire or become stale)
+    """
+    now = datetime.datetime.now(datetime.UTC)
+
+    last_act = last_history_date or opp.updated_at or opp.created_at
+    if last_act and last_act.tzinfo is None:
+        last_act = last_act.replace(tzinfo=datetime.UTC)
+
+    days_inactive = max(0, (now - last_act).days) if last_act else 0
+
+    if opp.stage in ("closed_won", "closed_lost"):
+        return opp.stage, False, False, days_inactive, last_act
+
+    if days_inactive >= 90:
+        return "expired", False, True, days_inactive, last_act
+    elif days_inactive >= 30:
+        return "stale", True, False, days_inactive, last_act
+    else:
+        return "active", False, False, days_inactive, last_act
 
 
 async def list_opportunities(
@@ -124,6 +154,19 @@ async def _build_opportunity_response(db: AsyncSession, opp: Opportunity) -> Opp
             )
         )
 
+    # Fetch latest history timestamp if exists
+    latest_hist_stmt = (
+        select(OpportunityHistory.created_at)
+        .where(OpportunityHistory.opportunity_id == opp.id)
+        .order_by(OpportunityHistory.created_at.desc())
+        .limit(1)
+    )
+    latest_hist_at = (await db.execute(latest_hist_stmt)).scalar_one_or_none()
+
+    staleness_status, is_stale, is_expired, days_inactive, last_activity_at = (
+        compute_opportunity_staleness(opp, latest_hist_at)
+    )
+
     return OpportunityResponse(
         id=opp.id,
         title=opp.title,
@@ -141,6 +184,11 @@ async def _build_opportunity_response(db: AsyncSession, opp: Opportunity) -> Opp
         companies=companies,
         created_at=opp.created_at,
         updated_at=opp.updated_at,
+        is_stale=is_stale,
+        is_expired=is_expired,
+        days_inactive=days_inactive,
+        staleness_status=staleness_status,
+        last_activity_at=last_activity_at,
     )
 
 

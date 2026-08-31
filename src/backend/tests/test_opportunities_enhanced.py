@@ -158,3 +158,69 @@ async def test_opportunity_full_lifecycle_and_history(
     assert close_resp.status_code == 200
     assert close_resp.json()["stage"] == "closed_won"
     assert close_resp.json()["probability"] == 100
+    assert close_resp.json()["is_stale"] is False
+    assert close_resp.json()["is_expired"] is False
+    assert close_resp.json()["staleness_status"] == "closed_won"
+
+
+@pytest.mark.asyncio
+async def test_opportunity_staleness_and_expiration(
+    client: AsyncClient, auth_headers: dict[str, str]
+):
+    import datetime
+
+    from cdb.models.opportunity import Opportunity
+    from cdb.services.opportunities import compute_opportunity_staleness
+
+    now = datetime.datetime.now(datetime.UTC)
+
+    # 1. Fresh active opportunity (0 days inactive)
+    opp_fresh = Opportunity(
+        title="Fresh Deal",
+        stage="prospect",
+        created_at=now,
+        updated_at=now,
+    )
+    status, is_stale, is_expired, days, last_act = compute_opportunity_staleness(opp_fresh)
+    assert status == "active"
+    assert is_stale is False
+    assert is_expired is False
+    assert days == 0
+
+    # 2. Stale opportunity (35 days inactive)
+    opp_stale = Opportunity(
+        title="Stale Deal",
+        stage="proposal",
+        created_at=now - datetime.timedelta(days=40),
+        updated_at=now - datetime.timedelta(days=35),
+    )
+    status, is_stale, is_expired, days, last_act = compute_opportunity_staleness(opp_stale)
+    assert status == "stale"
+    assert is_stale is True
+    assert is_expired is False
+    assert days >= 35
+
+    # 3. Expired opportunity (95 days inactive)
+    opp_expired = Opportunity(
+        title="Expired Deal",
+        stage="negotiation",
+        created_at=now - datetime.timedelta(days=100),
+        updated_at=now - datetime.timedelta(days=95),
+    )
+    status, is_stale, is_expired, days, last_act = compute_opportunity_staleness(opp_expired)
+    assert status == "expired"
+    assert is_stale is False
+    assert is_expired is True
+    assert days >= 95
+
+    # 4. Closed Won deal should never be stale or expired
+    opp_closed = Opportunity(
+        title="Won Deal",
+        stage="closed_won",
+        created_at=now - datetime.timedelta(days=120),
+        updated_at=now - datetime.timedelta(days=110),
+    )
+    status, is_stale, is_expired, days, last_act = compute_opportunity_staleness(opp_closed)
+    assert status == "closed_won"
+    assert is_stale is False
+    assert is_expired is False
