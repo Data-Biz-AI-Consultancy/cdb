@@ -134,4 +134,152 @@ describe('LeadsPage Component', () => {
       );
     });
   });
+
+  it('selects leads and performs bulk edit successfully', async () => {
+    render(<LeadsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Abdul Reyyan')).toBeInTheDocument();
+    });
+
+    // Check individual checkboxes
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[1]); // lead 1 checkbox
+
+    expect(screen.getByText('1 Selected')).toBeInTheDocument();
+
+    const bulkEditBtn = screen.getByRole('button', { name: /Edit Attributes/i });
+    fireEvent.click(bulkEditBtn);
+
+    expect(screen.getByText(/Bulk Edit Lead Attributes \(1 selected\)/i)).toBeInTheDocument();
+
+    (api.apiFetch as any).mockResolvedValueOnce({
+      success: true,
+      updated_count: 1,
+      affected_ids: ['lead-1'],
+      message: 'Successfully bulk updated 1 leads.',
+    });
+
+    const submitBulkBtn = screen.getByRole('button', { name: /Update 1 Leads/i });
+    fireEvent.click(submitBulkBtn);
+
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(
+        '/api/v1/leads/bulk-update',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"lead_ids":["lead-1"]'),
+        })
+      );
+    });
+  });
+
+  it('selects leads and performs bulk convert to opportunity', async () => {
+    render(<LeadsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Abdul Reyyan')).toBeInTheDocument();
+    });
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[1]); // lead 1 checkbox
+
+    expect(screen.getByText('1 Selected')).toBeInTheDocument();
+
+    const bulkConvertBtn = screen.getByRole('button', { name: /Bulk Convert to Opp/i });
+    fireEvent.click(bulkConvertBtn);
+
+    expect(screen.getByText(/Bulk Convert to Opportunity \(1 leads\)/i)).toBeInTheDocument();
+
+    (api.apiFetch as any).mockResolvedValueOnce({
+      success: true,
+      updated_count: 1,
+      affected_ids: ['lead-1'],
+      message: 'Successfully converted 1 leads to opportunities.',
+    });
+
+    const submitBulkConvertBtn = screen.getByRole('button', { name: /Convert 1 Leads to Opps/i });
+    fireEvent.click(submitBulkConvertBtn);
+
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(
+        '/api/v1/leads/bulk-convert',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"lead_ids":["lead-1"]'),
+        })
+      );
+    });
+  });
+
+  it('selects leads and performs bulk reject/disqualify', async () => {
+    render(<LeadsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Abdul Reyyan')).toBeInTheDocument();
+    });
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[1]); // lead 1 checkbox
+
+    const bulkRejectBtn = screen.getByRole('button', { name: /Bulk Reject \/ Disqualify/i });
+    fireEvent.click(bulkRejectBtn);
+
+    expect(screen.getByText(/Bulk Reject \/ Disqualify \(1 leads\)/i)).toBeInTheDocument();
+
+    (api.apiFetch as any).mockResolvedValueOnce({
+      success: true,
+      updated_count: 1,
+      affected_ids: ['lead-1'],
+      message: 'Successfully rejected 1 leads.',
+    });
+
+    const submitBulkRejectBtn = screen.getByRole('button', { name: /Reject & Disqualify 1 Leads/i });
+    fireEvent.click(submitBulkRejectBtn);
+
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(
+        '/api/v1/leads/bulk-disqualify',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"lead_ids":["lead-1"]'),
+        })
+      );
+    });
+  });
+
+  it('selects all leads and triggers bulk delete', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<LeadsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Abdul Reyyan')).toBeInTheDocument();
+    });
+
+    const selectAllCheckbox = screen.getAllByRole('checkbox')[0];
+    fireEvent.click(selectAllCheckbox);
+
+    expect(screen.getByText('2 Selected')).toBeInTheDocument();
+
+    (api.apiFetch as any).mockResolvedValueOnce({
+      success: true,
+      updated_count: 2,
+      affected_ids: ['lead-1', 'lead-2'],
+      message: 'Successfully deleted 2 leads.',
+    });
+
+    const bulkDeleteBtn = screen.getByTitle(/Permanently remove selected leads/i);
+    fireEvent.click(bulkDeleteBtn);
+
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(
+        '/api/v1/leads/bulk-delete',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"lead_ids":["lead-1","lead-2"]'),
+        })
+      );
+    });
+  });
 });

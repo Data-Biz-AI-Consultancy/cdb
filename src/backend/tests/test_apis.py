@@ -327,6 +327,71 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     assert lead_check.json()["converted_opportunity_id"] == opp_data["id"]
     assert lead_check.json()["person_name"] == "Dave Miller"
 
+    # 4. Test Bulk Operations
+    # Create two temporary leads
+    l2 = (
+        await client.post(
+            "/api/v1/leads",
+            json={"person_id": person_id, "source": "inbound", "intent": "recruitment"},
+            headers=auth_headers,
+        )
+    ).json()
+    l3 = (
+        await client.post(
+            "/api/v1/leads",
+            json={"person_id": person_id, "source": "referral", "intent": "partnership"},
+            headers=auth_headers,
+        )
+    ).json()
+
+    bulk_up = await client.post(
+        "/api/v1/leads/bulk-update",
+        json={
+            "lead_ids": [l2["id"], l3["id"]],
+            "stage": "contacted",
+            "signal_strength": "strong",
+            "append_notes": "Bulk outreach completed.",
+        },
+        headers=auth_headers,
+    )
+    assert bulk_up.status_code == 200
+    assert bulk_up.json()["updated_count"] == 2
+
+    # Test Bulk Disqualify
+    bulk_disq = await client.post(
+        "/api/v1/leads/bulk-disqualify",
+        json={
+            "lead_ids": [l2["id"]],
+            "reason": "wrong_fit",
+            "notes": "Not interested in enterprise plan.",
+        },
+        headers=auth_headers,
+    )
+    assert bulk_disq.status_code == 200
+    assert bulk_disq.json()["updated_count"] == 1
+
+    # Test Bulk Convert
+    bulk_conv = await client.post(
+        "/api/v1/leads/bulk-convert",
+        json={
+            "lead_ids": [l3["id"]],
+            "default_value": 8500,
+            "title_suffix": "— Enterprise Engagement",
+        },
+        headers=auth_headers,
+    )
+    assert bulk_conv.status_code == 200
+    assert bulk_conv.json()["updated_count"] == 1
+
+    # Bulk delete
+    bulk_del = await client.post(
+        "/api/v1/leads/bulk-delete",
+        json={"lead_ids": [l2["id"], l3["id"]]},
+        headers=auth_headers,
+    )
+    assert bulk_del.status_code == 200
+    assert bulk_del.json()["updated_count"] == 2
+
 
 @pytest.mark.asyncio
 async def test_ingestion_and_er_queue(client: AsyncClient, auth_headers: dict[str, str]):

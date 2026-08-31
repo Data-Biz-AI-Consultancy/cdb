@@ -9,6 +9,10 @@ from cdb.models.user import User
 from cdb.schemas.common import PaginatedResponse
 from cdb.schemas.lead import (
     LeadAdvance,
+    LeadBulkConvert,
+    LeadBulkDelete,
+    LeadBulkDisqualify,
+    LeadBulkUpdate,
     LeadConvert,
     LeadCreate,
     LeadDisqualify,
@@ -16,9 +20,46 @@ from cdb.schemas.lead import (
     LeadUpdate,
 )
 from cdb.schemas.opportunity import OpportunityResponse
+from cdb.schemas.person import BulkOperationResult
 from cdb.services import leads as lead_service
 
 router = APIRouter(prefix="/leads", tags=["Leads"])
+
+
+@router.post("/bulk-update", response_model=BulkOperationResult)
+async def bulk_update_leads(
+    payload: LeadBulkUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await lead_service.bulk_update_leads(db, payload)
+
+
+@router.post("/bulk-convert", response_model=BulkOperationResult)
+async def bulk_convert_leads(
+    payload: LeadBulkConvert,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await lead_service.bulk_convert_leads(db, payload)
+
+
+@router.post("/bulk-disqualify", response_model=BulkOperationResult)
+async def bulk_disqualify_leads(
+    payload: LeadBulkDisqualify,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await lead_service.bulk_disqualify_leads(db, payload)
+
+
+@router.post("/bulk-delete", response_model=BulkOperationResult)
+async def bulk_delete_leads(
+    payload: LeadBulkDelete,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await lead_service.bulk_delete_leads(db, payload)
 
 
 @router.get("", response_model=PaginatedResponse[LeadResponse])

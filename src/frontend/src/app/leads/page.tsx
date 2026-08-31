@@ -41,8 +41,37 @@ export default function LeadsPage() {
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Modals state
+  // Bulk selection & resolve modals state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [showBulkConvertModal, setShowBulkConvertModal] = useState(false);
+  const [showBulkDisqualifyModal, setShowBulkDisqualifyModal] = useState(false);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  const [bulkForm, setBulkForm] = useState({
+    stage: '',
+    signal_strength: '',
+    source: '',
+    intent: '',
+    disqualification_reason: '',
+    append_notes: '',
+  });
+
+  const [bulkConvertForm, setBulkConvertForm] = useState({
+    default_value: '10000',
+    currency: 'EUR',
+    expected_close_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    title_suffix: '— Opportunity Deal',
+  });
+
+  const [bulkDisqualifyForm, setBulkDisqualifyForm] = useState({
+    reason: 'wrong_fit',
+    notes: '',
+  });
+
+  // Single-item Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedLeadForView, setSelectedLeadForView] = useState<Lead | null>(null);
   const [convertModalLead, setConvertModalLead] = useState<Lead | null>(null);
@@ -139,6 +168,144 @@ export default function LeadsPage() {
     setPage(1);
   };
 
+  // Bulk Selection Handlers
+  const isAllCurrentPageSelected =
+    leads.length > 0 && leads.every((l) => selectedIds.includes(l.id));
+
+  const handleSelectAll = () => {
+    if (isAllCurrentPageSelected) {
+      const pageIds = new Set(leads.map((l) => l.id));
+      setSelectedIds(selectedIds.filter((id) => !pageIds.has(id)));
+    } else {
+      const newIds = new Set([...selectedIds, ...leads.map((l) => l.id)]);
+      setSelectedIds(Array.from(newIds));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((item) => item !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  // 1. Bulk Update Handler
+  const handleBulkUpdateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIds.length === 0) return;
+    setBulkProcessing(true);
+    try {
+      const payload: any = {
+        lead_ids: selectedIds,
+      };
+      if (bulkForm.stage) payload.stage = bulkForm.stage;
+      if (bulkForm.signal_strength) payload.signal_strength = bulkForm.signal_strength;
+      if (bulkForm.source) payload.source = bulkForm.source;
+      if (bulkForm.intent.trim()) payload.intent = bulkForm.intent.trim();
+      if (bulkForm.disqualification_reason.trim()) {
+        payload.disqualification_reason = bulkForm.disqualification_reason.trim();
+      }
+      if (bulkForm.append_notes.trim()) payload.append_notes = bulkForm.append_notes.trim();
+
+      const res = await apiFetch<any>('/api/v1/leads/bulk-update', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      setSuccessMessage(res.message || `Successfully updated ${selectedIds.length} leads.`);
+      setShowBulkEditModal(false);
+      setSelectedIds([]);
+      loadLeads();
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err: any) {
+      alert('Error during bulk update: ' + err.message);
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  // 2. Bulk Convert to Opportunity Handler
+  const handleBulkConvertSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIds.length === 0) return;
+    setBulkProcessing(true);
+    try {
+      const payload = {
+        lead_ids: selectedIds,
+        default_value: bulkConvertForm.default_value ? parseFloat(bulkConvertForm.default_value) : undefined,
+        currency: bulkConvertForm.currency,
+        expected_close_date: bulkConvertForm.expected_close_date || undefined,
+        title_suffix: bulkConvertForm.title_suffix || '— Opportunity Deal',
+      };
+
+      const res = await apiFetch<any>('/api/v1/leads/bulk-convert', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      setSuccessMessage(res.message || `Successfully converted ${selectedIds.length} leads to opportunities.`);
+      setShowBulkConvertModal(false);
+      setSelectedIds([]);
+      loadLeads();
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err: any) {
+      alert('Error during bulk conversion: ' + err.message);
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  // 3. Bulk Disqualify / Reject Handler
+  const handleBulkDisqualifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIds.length === 0) return;
+    setBulkProcessing(true);
+    try {
+      const payload = {
+        lead_ids: selectedIds,
+        reason: bulkDisqualifyForm.reason,
+        notes: bulkDisqualifyForm.notes.trim() || undefined,
+      };
+
+      const res = await apiFetch<any>('/api/v1/leads/bulk-disqualify', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      setSuccessMessage(res.message || `Successfully rejected ${selectedIds.length} leads.`);
+      setShowBulkDisqualifyModal(false);
+      setSelectedIds([]);
+      loadLeads();
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err: any) {
+      alert('Error during bulk disqualification: ' + err.message);
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  // 4. Bulk Delete / Remove Handler
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to permanently delete and remove ${selectedIds.length} selected leads?`)) {
+      return;
+    }
+    try {
+      const res = await apiFetch<any>('/api/v1/leads/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ lead_ids: selectedIds }),
+      });
+      setSuccessMessage(res.message || `Successfully removed ${selectedIds.length} leads.`);
+      setSelectedIds([]);
+      loadLeads();
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err: any) {
+      alert('Error during bulk delete: ' + err.message);
+    }
+  };
+
+  // Single Lead Actions
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createForm.person_id.trim()) {
@@ -334,6 +501,22 @@ export default function LeadsPage() {
         </div>
       </div>
 
+      {/* Success Notification Banner */}
+      {successMessage && (
+        <div className="p-4 bg-emerald-50 text-emerald-800 text-sm rounded-xl border border-emerald-200 shadow-sm flex items-center justify-between animate-fade-in">
+          <div className="flex items-center gap-2 font-medium">
+            <span>✓</span>
+            <span>{successMessage}</span>
+          </div>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="text-emerald-600 hover:text-emerald-900 font-bold px-2"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* KPI Stats Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -372,6 +555,68 @@ export default function LeadsPage() {
           <div className="text-xs text-slate-400 mt-1">Converted to opportunities</div>
         </div>
       </div>
+
+      {/* Sticky / Floating Bulk Resolve Actions Bar */}
+      {selectedIds.length > 0 && (
+        <div className="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex flex-wrap items-center justify-between gap-3 animate-fade-in border border-slate-800">
+          <div className="flex items-center gap-3">
+            <span className="bg-amber-400 text-slate-950 text-xs font-bold px-2.5 py-1 rounded-full shadow-xs">
+              {selectedIds.length} Selected
+            </span>
+            <span className="text-sm font-semibold text-slate-200">
+              Bulk Resolve & Action Pipeline:
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Bulk Convert */}
+            <button
+              onClick={() => setShowBulkConvertModal(true)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm"
+              title="Convert selected leads to active deals"
+            >
+              <span>💼</span>
+              <span>Bulk Convert to Opp</span>
+            </button>
+
+            {/* 2. Bulk Reject / Disqualify */}
+            <button
+              onClick={() => setShowBulkDisqualifyModal(true)}
+              className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm"
+              title="Reject or disqualify selected leads"
+            >
+              <span>🚫</span>
+              <span>Bulk Reject / Disqualify</span>
+            </button>
+
+            {/* 3. Bulk Edit Attributes */}
+            <button
+              onClick={() => setShowBulkEditModal(true)}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 border border-slate-700"
+            >
+              <span>✏️</span>
+              <span>Edit Attributes</span>
+            </button>
+
+            {/* 4. Bulk Delete / Remove */}
+            <button
+              onClick={handleBulkDelete}
+              className="bg-red-700 hover:bg-red-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm"
+              title="Permanently remove selected leads"
+            >
+              <span>🗑</span>
+              <span>Remove</span>
+            </button>
+
+            {/* Clear Selection */}
+            <button
+              onClick={() => setSelectedIds([])}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filters & Sorting Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
@@ -483,11 +728,20 @@ export default function LeadsPage() {
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 select-none">
               <tr>
-                <th className="p-3.5 pl-4">Contact & Company</th>
+                <th className="p-3.5 pl-4 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={isAllCurrentPageSelected}
+                    onChange={handleSelectAll}
+                    className="rounded border-slate-300 text-slate-900 focus:ring-slate-900 h-4 w-4"
+                    title="Select all on this page"
+                  />
+                </th>
+                <th className="p-3.5">Contact & Company</th>
                 <th className="p-3.5">Intent / Signals</th>
-                <th className="p-3.5 min-w-[280px]">Lead Description / Conversation Notes</th>
+                <th className="p-3.5 min-w-[260px]">Lead Description / Conversation Notes</th>
                 <th className="p-3.5">Stage</th>
                 <th className="p-3.5 whitespace-nowrap">Created (Most Recent)</th>
                 <th className="p-3.5 pr-4 text-right">Actions</th>
@@ -496,14 +750,14 @@ export default function LeadsPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-slate-500">
+                  <td colSpan={7} className="p-12 text-center text-slate-500">
                     <div className="inline-block animate-spin mr-2">⏳</div>
                     Loading leads...
                   </td>
                 </tr>
               ) : leads.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-slate-500">
+                  <td colSpan={7} className="p-12 text-center text-slate-500">
                     <div className="text-3xl mb-2">🎯</div>
                     <div className="font-semibold text-slate-800">No leads found</div>
                     <div className="text-xs text-slate-400 mt-1">Try adjusting your search terms or filters</div>
@@ -513,11 +767,27 @@ export default function LeadsPage() {
                 leads.map((l) => {
                   const leadDesc = l.description || l.notes || '';
                   const hasLongDesc = leadDesc.length > 90;
+                  const isSelected = selectedIds.includes(l.id);
 
                   return (
-                    <tr key={l.id} className="hover:bg-slate-50/80 transition">
+                    <tr
+                      key={l.id}
+                      className={`hover:bg-slate-50/80 transition ${
+                        isSelected ? 'bg-amber-50/40' : ''
+                      }`}
+                    >
+                      {/* Selection Checkbox */}
+                      <td className="p-3.5 pl-4 align-top text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelect(l.id)}
+                          className="rounded border-slate-300 text-slate-900 focus:ring-slate-900 h-4 w-4 mt-1"
+                        />
+                      </td>
+
                       {/* Contact & Company */}
-                      <td className="p-3.5 pl-4 align-top">
+                      <td className="p-3.5 align-top">
                         <div className="flex items-start gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-linear-to-tr from-slate-700 to-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
                             {getInitials(l.person_name)}
@@ -715,6 +985,285 @@ export default function LeadsPage() {
           </div>
         </div>
       </div>
+
+      {/* MODAL 0A: Bulk Convert to Opportunity */}
+      {showBulkConvertModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Bulk Convert to Opportunity ({selectedIds.length} leads)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Convert all selected leads into active opportunity deals simultaneously
+                </p>
+              </div>
+              <button
+                onClick={() => setShowBulkConvertModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-xl font-bold px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkConvertSubmit} className="space-y-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Default Deal Value (€)</label>
+                  <input
+                    type="number"
+                    value={bulkConvertForm.default_value}
+                    onChange={(e) => setBulkConvertForm({ ...bulkConvertForm, default_value: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-xs"
+                    placeholder="10000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Currency</label>
+                  <select
+                    value={bulkConvertForm.currency}
+                    onChange={(e) => setBulkConvertForm({ ...bulkConvertForm, currency: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-xs bg-white"
+                  >
+                    <option value="EUR">EUR (€)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="GBP">GBP (£)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Expected Close Date</label>
+                  <input
+                    type="date"
+                    value={bulkConvertForm.expected_close_date}
+                    onChange={(e) => setBulkConvertForm({ ...bulkConvertForm, expected_close_date: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Opportunity Title Suffix</label>
+                  <input
+                    value={bulkConvertForm.title_suffix}
+                    onChange={(e) => setBulkConvertForm({ ...bulkConvertForm, title_suffix: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-xs"
+                    placeholder="— Opportunity Deal"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-xl border border-emerald-200">
+                ⚡ Each selected lead will generate an active Opportunity linked to its decision-maker person & company record, with stage marked as <strong>converted</strong>.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkConvertModal(false)}
+                  className="px-4 py-2 border rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={bulkProcessing}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow-xs disabled:opacity-50"
+                >
+                  {bulkProcessing ? 'Converting Deals...' : `Convert ${selectedIds.length} Leads to Opps`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 0B: Bulk Disqualify / Reject */}
+      {showBulkDisqualifyModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Bulk Reject / Disqualify ({selectedIds.length} leads)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Disqualify all selected leads and record the rejection reason
+                </p>
+              </div>
+              <button
+                onClick={() => setShowBulkDisqualifyModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-xl font-bold px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkDisqualifySubmit} className="space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Disqualification Reason *</label>
+                <select
+                  value={bulkDisqualifyForm.reason}
+                  onChange={(e) => setBulkDisqualifyForm({ ...bulkDisqualifyForm, reason: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-xs bg-white font-medium"
+                >
+                  <option value="wrong_fit">Wrong Fit / Scope</option>
+                  <option value="no_budget">No Budget / Price Constraint</option>
+                  <option value="no_response">No Response / Stalled Outreach</option>
+                  <option value="wrong_timing">Wrong Timing / Deferred</option>
+                  <option value="competitor_chosen">Competitor Chosen</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Rejection Notes (Optional)</label>
+                <textarea
+                  rows={3}
+                  value={bulkDisqualifyForm.notes}
+                  onChange={(e) => setBulkDisqualifyForm({ ...bulkDisqualifyForm, notes: e.target.value })}
+                  placeholder="e.g. Lead does not meet qualified pipeline criteria during batch review."
+                  className="w-full px-3 py-2 border rounded-lg text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDisqualifyModal(false)}
+                  className="px-4 py-2 border rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={bulkProcessing}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs shadow-xs disabled:opacity-50"
+                >
+                  {bulkProcessing ? 'Disqualifying...' : `Reject & Disqualify ${selectedIds.length} Leads`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 0C: Bulk Edit Attributes */}
+      {showBulkEditModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Bulk Edit Lead Attributes ({selectedIds.length} selected)
+                </h3>
+                <p className="text-xs text-slate-500">Apply batch attribute changes to all selected leads</p>
+              </div>
+              <button
+                onClick={() => setShowBulkEditModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-xl font-bold px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkUpdateSubmit} className="space-y-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Update Stage</label>
+                  <select
+                    value={bulkForm.stage}
+                    onChange={(e) => setBulkForm({ ...bulkForm, stage: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-xs bg-white"
+                  >
+                    <option value="">(Keep Existing Stage)</option>
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="disqualified">Disqualified</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Update Signal Strength</label>
+                  <select
+                    value={bulkForm.signal_strength}
+                    onChange={(e) => setBulkForm({ ...bulkForm, signal_strength: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-xs bg-white"
+                  >
+                    <option value="">(Keep Existing Signal)</option>
+                    <option value="strong">🔥 Strong</option>
+                    <option value="medium">⚡ Medium</option>
+                    <option value="weak">🌱 Weak</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Update Source</label>
+                  <select
+                    value={bulkForm.source}
+                    onChange={(e) => setBulkForm({ ...bulkForm, source: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-xs bg-white"
+                  >
+                    <option value="">(Keep Existing Source)</option>
+                    <option value="linkedin_message">LinkedIn Message</option>
+                    <option value="inbound">Inbound</option>
+                    <option value="referral">Referral</option>
+                    <option value="event">Event</option>
+                    <option value="manual">Manual</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Update Intent</label>
+                  <input
+                    placeholder="e.g. consulting_opportunity"
+                    value={bulkForm.intent}
+                    onChange={(e) => setBulkForm({ ...bulkForm, intent: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Append Note / Description
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Batch outreach completed during marketing sprint..."
+                  value={bulkForm.append_notes}
+                  onChange={(e) => setBulkForm({ ...bulkForm, append_notes: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-xs"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  This note will be appended to the notes history of each selected lead without overwriting past history.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkEditModal(false)}
+                  className="px-4 py-2 border rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={bulkProcessing}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs shadow-xs disabled:opacity-50"
+                >
+                  {bulkProcessing ? 'Applying Batch Changes...' : `Update ${selectedIds.length} Leads`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: View Full Description & Transcript */}
       {selectedLeadForView && (

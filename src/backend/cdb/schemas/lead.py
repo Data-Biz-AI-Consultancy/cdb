@@ -52,6 +52,38 @@ class LeadConvert(BaseModel):
     expected_close_date: datetime.date | None = None
 
 
+class LeadBulkUpdate(BaseModel):
+    lead_ids: list[uuid.UUID]
+    stage: str | None = None
+    signal_strength: str | None = None
+    source: str | None = None
+    intent: str | None = None
+    disqualification_reason: str | None = None
+    append_notes: str | None = None
+    notes: str | None = None
+    description: str | None = None
+
+
+class LeadBulkConvert(BaseModel):
+    lead_ids: list[uuid.UUID]
+    default_value: float | None = None
+    currency: str | None = "EUR"
+    expected_close_date: datetime.date | None = None
+    title_suffix: str | None = "— Opportunity Deal"
+
+
+class LeadBulkDisqualify(BaseModel):
+    lead_ids: list[uuid.UUID]
+    reason: (
+        str  # e.g., 'wrong_fit', 'no_budget', 'no_response', 'wrong_timing', 'competitor_chosen'
+    )
+    notes: str | None = None
+
+
+class LeadBulkDelete(BaseModel):
+    lead_ids: list[uuid.UUID]
+
+
 class LeadResponse(LeadBase):
     model_config = ConfigDict(from_attributes=True)
 

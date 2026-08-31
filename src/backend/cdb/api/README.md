@@ -606,14 +606,106 @@ Move lead to next stage.
 
 ### `POST /leads/{id}/convert`
 
-Convert a qualified lead into an Opportunity.
+Convert a qualified lead into an active opportunity deal.
 
 ```json
-// Request
-{ "title": "Consulting engagement — Acme Corp Q3 2026" }
+{
+  "title": "Data Biz Strategy Project",
+  "value": 15000,
+  "currency": "EUR",
+  "expected_close_date": "2026-09-30"
+}
+```
 
-// Response 201 — new opportunity object
-// Also sets lead.stage = 'converted' and lead.converted_opportunity_id
+### `POST /leads/bulk-update`
+
+Bulk update multiple leads simultaneously (stage, signal strength, source, intent, or appending progress notes).
+
+```json
+{
+  "lead_ids": ["<uuid1>", "<uuid2>"],
+  "stage": "contacted",
+  "signal_strength": "strong",
+  "source": "linkedin_message",
+  "intent": "consulting_opportunity",
+  "append_notes": "Bulk outreach completed during campaign."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "updated_count": 2,
+  "affected_ids": ["<uuid1>", "<uuid2>"],
+  "message": "Successfully bulk updated 2 leads."
+}
+```
+
+### `POST /leads/bulk-convert`
+
+Bulk convert selected leads into active opportunity deals simultaneously.
+
+```json
+{
+  "lead_ids": ["<uuid1>", "<uuid2>"],
+  "default_value": 10000,
+  "currency": "EUR",
+  "expected_close_date": "2026-10-31",
+  "title_suffix": "— Opportunity Deal"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "updated_count": 2,
+  "affected_ids": ["<uuid1>", "<uuid2>"],
+  "message": "Successfully converted 2 leads to opportunities."
+}
+```
+
+### `POST /leads/bulk-disqualify`
+
+Bulk disqualify/reject selected leads and record the rejection reason and notes.
+
+```json
+{
+  "lead_ids": ["<uuid1>", "<uuid2>"],
+  "reason": "wrong_fit",
+  "notes": "Rejected during quarterly pipeline triage."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "updated_count": 2,
+  "affected_ids": ["<uuid1>", "<uuid2>"],
+  "message": "Successfully disqualified 2 leads."
+}
+```
+
+### `POST /leads/bulk-delete`
+
+Permanently remove multiple leads simultaneously.
+
+```json
+{
+  "lead_ids": ["<uuid1>", "<uuid2>"]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "updated_count": 2,
+  "affected_ids": ["<uuid1>", "<uuid2>"],
+  "message": "Successfully deleted 2 leads."
+}
 ```
 
 ---

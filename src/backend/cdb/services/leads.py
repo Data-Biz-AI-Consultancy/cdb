@@ -13,6 +13,10 @@ from cdb.models.person import Person
 from cdb.schemas.common import PaginationMetadata
 from cdb.schemas.lead import (
     LeadAdvance,
+    LeadBulkConvert,
+    LeadBulkDelete,
+    LeadBulkDisqualify,
+    LeadBulkUpdate,
     LeadConvert,
     LeadCreate,
     LeadDisqualify,
@@ -20,6 +24,7 @@ from cdb.schemas.lead import (
     LeadUpdate,
 )
 from cdb.schemas.opportunity import OpportunityResponse
+from cdb.schemas.person import BulkOperationResult
 
 STAGE_FLOW = ["new", "contacted", "qualified"]
 
@@ -293,3 +298,173 @@ async def convert_lead_to_opportunity(
     from cdb.services.opportunities import get_opportunity
 
     return await get_opportunity(db, opp.id)
+
+
+async def bulk_update_leads(db: AsyncSession, data: LeadBulkUpdate) -> BulkOperationResult:
+    if not data.lead_ids:
+        return BulkOperationResult(
+            success=True,
+            updated_count=0,
+            affected_ids=[],
+            message="No leads specified for bulk update.",
+        )
+
+    stmt = select(Lead).where(Lead.id.in_(data.lead_ids))
+    leads = (await db.execute(stmt)).scalars().all()
+
+    updated_ids: list[uuid.UUID] = []
+    for lead in leads:
+        if data.stage is not None and data.stage.strip():
+            lead.stage = data.stage.strip()
+        if data.signal_strength is not None and data.signal_strength.strip():
+            lead.signal_strength = data.signal_strength.strip()
+        if data.source is not None and data.source.strip():
+            lead.source = data.source.strip()
+        if data.intent is not None and data.intent.strip():
+            lead.intent = data.intent.strip()
+        if data.disqualification_reason is not None and data.disqualification_reason.strip():
+            lead.disqualification_reason = data.disqualification_reason.strip()
+
+        # Note updates / appending
+        if data.notes is not None:
+            lead.notes = data.notes
+        elif data.description is not None:
+            lead.notes = data.description
+
+        if data.append_notes and data.append_notes.strip():
+            curr_notes = lead.notes or ""
+            lead.notes = f"{curr_notes}\n[Bulk Update]: {data.append_notes.strip()}".strip()
+
+        updated_ids.append(lead.id)
+
+    await db.commit()
+    return BulkOperationResult(
+        success=True,
+        updated_count=len(updated_ids),
+        affected_ids=updated_ids,
+        message=f"Successfully bulk updated {len(updated_ids)} leads.",
+    )
+
+
+async def bulk_delete_leads(db: AsyncSession, data: LeadBulkDelete) -> BulkOperationResult:
+    if not data.lead_ids:
+        return BulkOperationResult(
+            success=True,
+            updated_count=0,
+            affected_ids=[],
+            message="No leads specified for bulk delete.",
+        )
+
+    stmt = select(Lead).where(Lead.id.in_(data.lead_ids))
+    leads = (await db.execute(stmt)).scalars().all()
+
+    deleted_ids: list[uuid.UUID] = []
+    for lead in leads:
+        deleted_ids.append(lead.id)
+        await db.delete(lead)
+
+    await db.commit()
+    return BulkOperationResult(
+        success=True,
+        updated_count=len(deleted_ids),
+        affected_ids=deleted_ids,
+        message=f"Successfully deleted {len(deleted_ids)} leads.",
+    )
+
+
+async def bulk_convert_leads(db: AsyncSession, data: LeadBulkConvert) -> BulkOperationResult:
+    if not data.lead_ids:
+        return BulkOperationResult(
+            success=True,
+            updated_count=0,
+            affected_ids=[],
+            message="No leads specified for bulk conversion.",
+        )
+
+    stmt = (
+        select(Lead, Person, Company)
+        .outerjoin(Person, Lead.person_id == Person.id)
+        .outerjoin(Company, Lead.company_id == Company.id)
+        .where(Lead.id.in_(data.lead_ids))
+    )
+    rows = (await db.execute(stmt)).all()
+
+    converted_ids: list[uuid.UUID] = []
+    for lead, person, company in rows:
+        if lead.stage == "converted":
+            continue
+
+        person_name = (
+            f"{person.first_name or ''} {person.last_name or ''}".strip() if person else ""
+        )
+        comp_name = company.name if company else ""
+        entity_name = person_name or comp_name or lead.title or "New Lead"
+        title_suffix = data.title_suffix or "— Opportunity Deal"
+        opp_title = f"{entity_name} {title_suffix}".strip()
+
+        opp = Opportunity(
+            title=opp_title,
+            owner_id=lead.owner_id,
+            stage="prospect",
+            value=Decimal(str(data.default_value)) if data.default_value is not None else None,
+            currency=data.currency or "EUR",
+            probability=50,
+            expected_close_date=data.expected_close_date,
+            source_lead_id=lead.id,
+            notes=lead.notes,
+        )
+        db.add(opp)
+        await db.flush()
+
+        db.add(
+            OpportunityPerson(
+                opportunity_id=opp.id, person_id=lead.person_id, role="decision_maker"
+            )
+        )
+        if lead.company_id:
+            db.add(
+                OpportunityCompany(opportunity_id=opp.id, company_id=lead.company_id, role="client")
+            )
+
+        lead.stage = "converted"
+        lead.converted_at = datetime.datetime.now(datetime.UTC)
+        lead.converted_opportunity_id = opp.id
+        converted_ids.append(lead.id)
+
+    await db.commit()
+    return BulkOperationResult(
+        success=True,
+        updated_count=len(converted_ids),
+        affected_ids=converted_ids,
+        message=f"Successfully converted {len(converted_ids)} leads to opportunities.",
+    )
+
+
+async def bulk_disqualify_leads(db: AsyncSession, data: LeadBulkDisqualify) -> BulkOperationResult:
+    if not data.lead_ids:
+        return BulkOperationResult(
+            success=True,
+            updated_count=0,
+            affected_ids=[],
+            message="No leads specified for bulk disqualification.",
+        )
+
+    stmt = select(Lead).where(Lead.id.in_(data.lead_ids))
+    leads = (await db.execute(stmt)).scalars().all()
+
+    disqualified_ids: list[uuid.UUID] = []
+    for lead in leads:
+        lead.stage = "disqualified"
+        lead.disqualification_reason = data.reason
+        if data.notes and data.notes.strip():
+            existing_notes = lead.notes or ""
+            lead.notes = f"{existing_notes}\n[Bulk Disqualified: {data.reason}]: {data.notes.strip()}".strip()
+        disqualified_ids.append(lead.id)
+
+    await db.commit()
+    return BulkOperationResult(
+        success=True,
+        updated_count=len(disqualified_ids),
+        affected_ids=disqualified_ids,
+        message=f"Successfully disqualified {len(disqualified_ids)} leads.",
+    )
