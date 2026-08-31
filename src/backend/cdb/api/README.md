@@ -570,6 +570,13 @@ Standard CRUD. `source_id`-tagged activities (auto-imported) can be patched but 
 }
 ```
 
+#### Simplified Lead Stages & Staleness
+- **Active Pipeline Stages**: `new`, `contacted`, `qualified`
+- **Staleness Tracking**:
+  - **Stale (`> 30 days` without activity)**: Flagged with `is_stale=true` and `staleness_status="stale"`.
+  - **Expired (`> 90 days` without activity)**: Resolved with `is_expired=true` and `staleness_status="expired"`.
+- **Resolved / Terminal Stages**: `converted` (converted to opportunity deal), `disqualified` (rejected/wrong fit), `expired` (inactivity > 90 days).
+
 ### `POST /leads`
 
 ```json

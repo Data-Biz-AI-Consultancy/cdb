@@ -280,6 +280,10 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     assert lead_data["stage"] == "new"
     assert lead_data["description"] == "Discussion regarding cloud migration strategy"
     assert lead_data["person_name"] == "Dave Miller"
+    assert "is_stale" in lead_data and lead_data["is_stale"] is False
+    assert "is_expired" in lead_data and lead_data["is_expired"] is False
+    assert "days_inactive" in lead_data and lead_data["days_inactive"] == 0
+    assert lead_data["staleness_status"] == "active"
 
     # Test list leads sorted by most recent first with pagination
     list_resp = await client.get(

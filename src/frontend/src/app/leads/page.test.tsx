@@ -117,6 +117,20 @@ describe('LeadsPage Component', () => {
     await waitFor(() => {
       expect(api.apiFetch).toHaveBeenCalledWith(expect.stringContaining('stage=new'));
     });
+
+    const staleStagePill = screen.getByRole('button', { name: /⏳ Stale \(30d\+\)/i });
+    fireEvent.click(staleStagePill);
+
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(expect.stringContaining('stage=stale'));
+    });
+
+    const expiredStagePill = screen.getByRole('button', { name: /🛑 Expired \(90d\+\)/i });
+    fireEvent.click(expiredStagePill);
+
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(expect.stringContaining('stage=expired'));
+    });
   });
 
   it('opens convert to opportunity modal and submits successfully', async () => {

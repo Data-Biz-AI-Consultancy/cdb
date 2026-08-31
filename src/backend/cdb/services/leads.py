@@ -2,7 +2,7 @@ import datetime
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.core.errors import BadRequestError, NotFoundError
@@ -27,6 +27,39 @@ from cdb.schemas.opportunity import OpportunityResponse
 from cdb.schemas.person import BulkOperationResult
 
 STAGE_FLOW = ["new", "contacted", "qualified"]
+
+
+def compute_lead_staleness(
+    lead: Lead,
+) -> tuple[str, bool, bool, int, datetime.datetime]:
+    """Calculate lead staleness based on inactivity:
+    - Inactive > 30 days -> Stale
+    - Inactive > 90 days -> Expired (auto-resolved)
+    """
+    now = datetime.datetime.now(datetime.UTC)
+
+    # For leads in 'new' stage without progress actions, measure from created_at.
+    # For leads that have been advanced/updated, measure from updated_at.
+    if lead.stage == "new":
+        last_act = lead.created_at or lead.updated_at
+    else:
+        last_act = lead.updated_at or lead.created_at
+
+    if last_act.tzinfo is None:
+        last_act = last_act.replace(tzinfo=datetime.UTC)
+
+    diff = now - last_act
+    days_inactive = max(0, diff.days)
+
+    if lead.stage in ("converted", "disqualified"):
+        return lead.stage, False, False, days_inactive, last_act
+
+    if days_inactive >= 90 or lead.stage == "expired":
+        return "expired", True, True, days_inactive, last_act
+    elif days_inactive >= 30 or lead.stage == "stale":
+        return "stale", True, False, days_inactive, last_act
+    else:
+        return "active", False, False, days_inactive, last_act
 
 
 def generate_lead_title(
@@ -95,13 +128,25 @@ def _format_lead_response(
         else generate_lead_title(lead.notes, lead.intent, full_name)
     )
 
+    staleness_status, is_stale, is_expired, days_inactive, last_activity_at = (
+        compute_lead_staleness(lead)
+    )
+
+    # Effective stage for display if lead has become stale or expired
+    effective_stage = lead.stage
+    if lead.stage not in ("converted", "disqualified"):
+        if is_expired or lead.stage == "expired":
+            effective_stage = "expired"
+        elif is_stale or lead.stage == "stale":
+            effective_stage = "stale"
+
     return LeadResponse(
         id=lead.id,
         person_id=lead.person_id,
         company_id=lead.company_id,
         owner_id=lead.owner_id,
         title=title,
-        stage=lead.stage,
+        stage=effective_stage,
         source=lead.source,
         source_ref_id=lead.source_ref_id,
         intent=lead.intent,
@@ -118,6 +163,11 @@ def _format_lead_response(
         person_avatar_url=avatar,
         company_name=comp_name,
         company_domain=comp_domain,
+        is_stale=is_stale,
+        is_expired=is_expired,
+        days_inactive=days_inactive,
+        staleness_status=staleness_status,
+        last_activity_at=last_activity_at,
     )
 
 
@@ -156,7 +206,36 @@ async def list_leads(
             )
         )
     if stage:
-        stmt = stmt.where(Lead.stage == stage)
+        now_dt = datetime.datetime.now(datetime.UTC)
+        thirty_days_ago = now_dt - datetime.timedelta(days=30)
+        ninety_days_ago = now_dt - datetime.timedelta(days=90)
+
+        # For leads in 'new' stage, use created_at; for others use updated_at
+        act_col = func.coalesce(Lead.created_at, Lead.updated_at)
+
+        if stage == "stale":
+            stmt = stmt.where(
+                or_(
+                    Lead.stage == "stale",
+                    and_(
+                        Lead.stage.not_in(["converted", "disqualified", "expired"]),
+                        act_col <= thirty_days_ago,
+                        act_col > ninety_days_ago,
+                    ),
+                )
+            )
+        elif stage == "expired":
+            stmt = stmt.where(
+                or_(
+                    Lead.stage == "expired",
+                    and_(
+                        Lead.stage.not_in(["converted", "disqualified"]),
+                        act_col <= ninety_days_ago,
+                    ),
+                )
+            )
+        else:
+            stmt = stmt.where(Lead.stage == stage)
     if source:
         stmt = stmt.where(Lead.source == source)
     if signal_strength:

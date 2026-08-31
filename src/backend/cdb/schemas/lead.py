@@ -100,3 +100,10 @@ class LeadResponse(LeadBase):
     converted_opportunity_id: uuid.UUID | None = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    is_stale: bool = False
+    is_expired: bool = False
+    days_inactive: int = 0
+    staleness_status: str = (
+        "active"  # 'active' | 'stale' | 'expired' | 'converted' | 'disqualified'
+    )
+    last_activity_at: datetime.datetime | None = None
