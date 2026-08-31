@@ -110,6 +110,7 @@ export default function OpportunitiesPage() {
   const [createForm, setCreateForm] = useState({
     title: '',
     description: '',
+    notes: '',
     stage: 'prospect',
     value: '',
     currency: 'USD',
@@ -294,6 +295,7 @@ export default function OpportunitiesPage() {
       const payload: any = {
         title: createForm.title.trim(),
         description: createForm.description.trim() || undefined,
+        notes: createForm.notes.trim() || undefined,
         stage: createForm.stage,
         currency: createForm.currency,
         probability: Number(createForm.probability),
@@ -317,6 +319,7 @@ export default function OpportunitiesPage() {
       setCreateForm({
         title: '',
         description: '',
+        notes: '',
         stage: 'prospect',
         value: '',
         currency: 'USD',
@@ -828,11 +831,25 @@ export default function OpportunitiesPage() {
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
                 <textarea
-                  rows={3}
-                  placeholder="Describe scope, objectives, requirements, and next steps..."
+                  rows={4}
+                  placeholder="Describe scope, objectives, requirements, and strategic goals..."
                   value={createForm.description}
                   onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                  className="w-full px-3.5 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs"
+                  className="w-full min-h-[90px] px-3.5 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs leading-relaxed"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Internal Notes</label>
+                  <span className="text-[11px] text-slate-400">Meeting minutes, context, or discussion transcript</span>
+                </div>
+                <textarea
+                  rows={6}
+                  placeholder="Initial discovery notes, context, internal team observations, or call minutes..."
+                  value={createForm.notes}
+                  onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                  className="w-full min-h-[130px] px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs leading-relaxed bg-slate-50/50"
                 />
               </div>
 
@@ -1114,11 +1131,11 @@ export default function OpportunitiesPage() {
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
                     <textarea
-                      rows={4}
+                      rows={5}
                       placeholder="Opportunity details, strategic objectives, or scope..."
                       value={editForm.description || ''}
                       onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs"
+                      className="w-full min-h-[120px] px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs leading-relaxed"
                     />
                   </div>
 
@@ -1191,12 +1208,16 @@ export default function OpportunitiesPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Internal Notes</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">Internal Notes</label>
+                      <span className="text-[11px] text-slate-400">Expanded workspace for meeting notes & transcripts</span>
+                    </div>
                     <textarea
-                      rows={3}
+                      rows={10}
+                      placeholder="Detailed deal notes, meeting minutes, negotiation history, key discussion points, or customer quotes..."
                       value={editForm.notes || ''}
                       onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs"
+                      className="w-full min-h-[220px] px-3.5 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs leading-relaxed bg-slate-50/50 font-mono sm:font-sans"
                     />
                   </div>
 
