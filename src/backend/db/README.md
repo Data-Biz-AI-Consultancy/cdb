@@ -448,6 +448,7 @@ CREATE TABLE opportunities (
     -- Origin
     source_lead_id        UUID REFERENCES leads(id) ON DELETE SET NULL,  -- if converted from a lead
 
+    description           TEXT,                       -- comprehensive deal description / scope
     notes                 TEXT,
     attributes            JSONB NOT NULL DEFAULT '{}',
 
@@ -479,6 +480,50 @@ CREATE TABLE opportunity_companies (
     role           VARCHAR(255),                      -- e.g. 'client', 'partner', 'vendor'
     PRIMARY KEY (opportunity_id, company_id)
 );
+```
+
+### `opportunity_actions`
+
+Dimension lookup for opportunity event actions, icons, and visual categories.
+
+```sql
+CREATE TABLE opportunity_actions (
+    id          VARCHAR(50) PRIMARY KEY,              -- 'opp_created', 'stage_changed', 'value_updated', etc.
+    name        VARCHAR(100) NOT NULL,
+    category    VARCHAR(50) NOT NULL,                 -- 'pipeline', 'deal', 'contacts', 'activity'
+    description TEXT,
+    icon        VARCHAR(50),                          -- e.g. '✨', '🔄', '💰', '👤', '🏆'
+    color       VARCHAR(50),                          -- e.g. 'emerald', 'blue', 'amber', 'rose'
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_opportunity_actions_category ON opportunity_actions (category);
+```
+
+### `opportunity_history`
+
+Changelog audit trail recording stage shifts, deal adjustments, attached contacts/orgs, and activity notes.
+
+```sql
+CREATE TABLE opportunity_history (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    opportunity_id UUID NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+    action_id      VARCHAR(50) NOT NULL REFERENCES opportunity_actions(id) ON DELETE RESTRICT,
+    changed_by_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+    field_name     VARCHAR(100),
+    old_value      JSONB,
+    new_value      JSONB,
+    changes        JSONB NOT NULL DEFAULT '{}',
+    summary        TEXT,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_opportunity_history_opp_id        ON opportunity_history (opportunity_id);
+CREATE INDEX idx_opportunity_history_action_id    ON opportunity_history (action_id);
+CREATE INDEX idx_opportunity_history_changed_by_id ON opportunity_history (changed_by_id);
+CREATE INDEX idx_opportunity_history_created_at    ON opportunity_history (created_at);
 ```
 
 ---

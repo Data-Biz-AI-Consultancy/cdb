@@ -16,6 +16,16 @@ class OpportunityCompanyLink(BaseModel):
     role: str | None = None  # 'client', 'partner', 'vendor', etc.
 
 
+class OpportunityPersonAttach(BaseModel):
+    person_id: uuid.UUID
+    role: str | None = "decision_maker"
+
+
+class OpportunityCompanyAttach(BaseModel):
+    company_id: uuid.UUID
+    role: str | None = "client"
+
+
 class OpportunityBase(BaseModel):
     title: str
     owner_id: uuid.UUID | None = None
@@ -26,6 +36,7 @@ class OpportunityBase(BaseModel):
     expected_close_date: datetime.date | None = None
     source_lead_id: uuid.UUID | None = None
     notes: str | None = None
+    description: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -43,6 +54,7 @@ class OpportunityUpdate(BaseModel):
     probability: int | None = Field(default=None, ge=0, le=100)
     expected_close_date: datetime.date | None = None
     notes: str | None = None
+    description: str | None = None
     attributes: dict[str, Any] | None = None
 
 
@@ -56,6 +68,9 @@ class OpportunityPersonResponse(BaseModel):
 
     person_id: uuid.UUID
     role: str | None = None
+    person_name: str | None = None
+    person_email: str | None = None
+    person_avatar_url: str | None = None
 
 
 class OpportunityCompanyResponse(BaseModel):
@@ -63,6 +78,8 @@ class OpportunityCompanyResponse(BaseModel):
 
     company_id: uuid.UUID
     role: str | None = None
+    company_name: str | None = None
+    company_domain: str | None = None
 
 
 class OpportunityResponse(OpportunityBase):
@@ -73,3 +90,12 @@ class OpportunityResponse(OpportunityBase):
     companies: list[OpportunityCompanyResponse] = Field(default_factory=list)
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    is_stale: bool = False
+    is_expired: bool = False
+    days_inactive: int = 0
+    staleness_status: str = (
+        "active"  # 'active' | 'stale' | 'expired' | 'closed_won' | 'closed_lost'
+    )
+    last_activity_at: datetime.datetime | None = None
+    is_overdue: bool = False
+    days_overdue: int = 0

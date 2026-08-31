@@ -46,6 +46,7 @@ class Opportunity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
 

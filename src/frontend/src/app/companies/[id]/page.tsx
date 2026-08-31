@@ -1239,7 +1239,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
                     {opp.probability !== null && (
                       <div className="mt-3 space-y-1">
                         <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-                          <span>Win Probability</span>
+                          <span>Confidence Level</span>
                           <span>{opp.probability}%</span>
                         </div>
                         <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">

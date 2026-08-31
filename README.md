@@ -82,10 +82,13 @@ Pipeline & Engagements (CRM Lifecycle)       │
 * **First-Class Peer Entities**: View company profiles with linked contacts, active employees, alumni, domain metadata, and linked pipeline deals.
 * **Many-to-Many Graph**: Map complex affiliations where individuals consult for, advise, or lead multiple organizations simultaneously.
 
-### 3. Lead Qualification to Opportunity Funnel
+### 3. Lead Qualification to Opportunity Funnel & Interactive Kanban
 * **Lead Lifecycle**: Track interest signals (`New` → `Contacted` → `Qualified` → `Converted` / `Disqualified`).
 * **1-Click Conversion**: Promote qualified leads into active Opportunities while carrying over all person and company linkages.
-* **Deal Pipeline**: Kanban board and structured list views for opportunity stages (`Prospect` → `Qualified` → `Proposal` → `Negotiation` → `Closed Won/Lost`).
+* **Interactive Drag-and-Drop Kanban Board**: Advance deals across pipeline stages (`Prospect` → `Qualified` → `Proposal` → `Negotiation` → `Closed Won/Lost`) with HTML5 drag-and-drop, forecasting metrics (Active Pipeline, Confidence-Adjusted Weighted Value, Win Rate %), and automated Confidence Level adjustments.
+* **Automated Staleness, Expiration & Overdue Warnings**: Inactive deals automatically get tagged as **Stale (30+ days inactive)** or **Expired (90+ days inactive)**. Active deals past their target close date are highlighted with prominent **🚨 Overdue ({days}d late)** badges and border accents. Quick filter buttons in the toolbar allow instant triage.
+* **Title, Rich Description & Entity Linking**: First-class Title and multiline Description fields with easy management of attached Decision Makers, Champions, Influencers, and Organizations.
+* **Full Audit History & Activity Timeline (`opportunity_history` & `opportunity_actions`)**: Track all stage shifts, deal adjustments, person/company affiliations, and custom meeting/call notes in an interactive chronological timeline.
 
 ### 4. Entity Resolution & Review Queue
 * **Deterministic Auto-Merge**: High-confidence exact matches (e.g. matching LinkedIn URL or verified primary email) auto-merge instantly.
