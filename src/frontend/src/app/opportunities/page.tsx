@@ -540,7 +540,7 @@ export default function OpportunitiesPage() {
           <div className="text-xl sm:text-2xl font-bold text-indigo-700 mt-1">
             ${weightedPipelineValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">probability-adjusted</div>
+          <div className="text-xs text-slate-400 mt-0.5">confidence-adjusted</div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -702,11 +702,11 @@ export default function OpportunitiesPage() {
                           </p>
                         )}
 
-                        {/* Probability meter */}
+                        {/* Confidence Level meter */}
                         {opp.probability !== null && opp.probability !== undefined && (
                           <div className="mt-3">
                             <div className="flex justify-between text-[10px] text-slate-400 font-medium mb-1">
-                              <span>Win Probability</span>
+                              <span>Confidence Level</span>
                               <span className="font-bold text-slate-700">{opp.probability}%</span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
@@ -899,7 +899,7 @@ export default function OpportunitiesPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Win Probability ({createForm.probability}%)
+                    Confidence Level ({createForm.probability}%)
                   </label>
                   <input
                     type="range"
@@ -994,8 +994,8 @@ export default function OpportunitiesPage() {
                 </h3>
                 <p className="text-xs text-slate-500">
                   {closeConfirmData.outcome === 'closed_won'
-                    ? 'Congratulations! Win probability will be set to 100%.'
-                    : 'The opportunity will be archived with 0% probability.'}
+                    ? 'Congratulations! Confidence level will be set to 100%.'
+                    : 'The opportunity will be archived with 0% confidence level.'}
                 </p>
               </div>
             </div>
@@ -1184,7 +1184,7 @@ export default function OpportunitiesPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Win Probability ({editForm.probability || 0}%)
+                        Confidence Level ({editForm.probability || 0}%)
                       </label>
                       <input
                         type="range"
