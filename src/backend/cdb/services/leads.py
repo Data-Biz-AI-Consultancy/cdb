@@ -33,8 +33,8 @@ def compute_lead_staleness(
     lead: Lead,
 ) -> tuple[str, bool, bool, int, datetime.datetime]:
     """Calculate lead staleness based on inactivity:
-    - Inactive > 30 days -> Stale
-    - Inactive > 90 days -> Expired (auto-resolved)
+    - Inactive 30-90 days -> Stale
+    - Inactive > 90 days -> Expired & automatically disqualified (resolved)
     """
     now = datetime.datetime.now(datetime.UTC)
 
@@ -55,7 +55,7 @@ def compute_lead_staleness(
         return lead.stage, False, False, days_inactive, last_act
 
     if days_inactive >= 90 or lead.stage == "expired":
-        return "expired", True, True, days_inactive, last_act
+        return "expired", False, True, days_inactive, last_act
     elif days_inactive >= 30 or lead.stage == "stale":
         return "stale", True, False, days_inactive, last_act
     else:
@@ -134,9 +134,14 @@ def _format_lead_response(
 
     # Effective stage for display if lead has become stale or expired
     effective_stage = lead.stage
+    effective_disqualification_reason = lead.disqualification_reason
     if lead.stage not in ("converted", "disqualified"):
         if is_expired or lead.stage == "expired":
             effective_stage = "expired"
+            if not effective_disqualification_reason:
+                effective_disqualification_reason = (
+                    f"Auto-disqualified: Expired after {days_inactive}d inactivity"
+                )
         elif is_stale or lead.stage == "stale":
             effective_stage = "stale"
 
@@ -153,7 +158,7 @@ def _format_lead_response(
         signal_strength=lead.signal_strength,
         notes=lead.notes,
         description=lead.notes,
-        disqualification_reason=lead.disqualification_reason,
+        disqualification_reason=effective_disqualification_reason,
         converted_at=lead.converted_at,
         converted_opportunity_id=lead.converted_opportunity_id,
         created_at=lead.created_at,
@@ -213,7 +218,14 @@ async def list_leads(
         # For leads in 'new' stage, use created_at; for others use updated_at
         act_col = func.coalesce(Lead.created_at, Lead.updated_at)
 
-        if stage == "stale":
+        if stage == "active":
+            stmt = stmt.where(
+                and_(
+                    Lead.stage.not_in(["converted", "disqualified", "expired"]),
+                    act_col > ninety_days_ago,
+                )
+            )
+        elif stage == "stale":
             stmt = stmt.where(
                 or_(
                     Lead.stage == "stale",
@@ -224,16 +236,29 @@ async def list_leads(
                     ),
                 )
             )
-        elif stage == "expired":
-            stmt = stmt.where(
-                or_(
-                    Lead.stage == "expired",
-                    and_(
-                        Lead.stage.not_in(["converted", "disqualified"]),
-                        act_col <= ninety_days_ago,
-                    ),
+        elif stage in ("expired", "disqualified"):
+            if stage == "expired":
+                stmt = stmt.where(
+                    or_(
+                        Lead.stage == "expired",
+                        and_(
+                            Lead.stage.not_in(["converted", "disqualified"]),
+                            act_col <= ninety_days_ago,
+                        ),
+                    )
                 )
-            )
+            else:
+                stmt = stmt.where(
+                    or_(
+                        Lead.stage == "disqualified",
+                        and_(
+                            Lead.stage.not_in(["converted"]),
+                            act_col <= ninety_days_ago,
+                        ),
+                    )
+                )
+        elif stage == "all":
+            pass  # All leads including resolved
         else:
             stmt = stmt.where(Lead.stage == stage)
     if source:

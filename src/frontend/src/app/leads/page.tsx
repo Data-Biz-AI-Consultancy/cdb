@@ -37,7 +37,7 @@ interface Lead {
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stageFilter, setStageFilter] = useState('');
+  const [stageFilter, setStageFilter] = useState('active');
   const [sourceFilter, setSourceFilter] = useState('');
   const [signalFilter, setSignalFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -530,22 +530,22 @@ export default function LeadsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <button
           type="button"
-          onClick={() => handleStageFilterChange('')}
+          onClick={() => handleStageFilterChange('active')}
           className={`p-4 rounded-xl border text-left transition shadow-xs cursor-pointer ${
-            stageFilter === ''
+            stageFilter === 'active'
               ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-slate-900/20'
               : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300'
           }`}
         >
-          <div className={`text-[11px] font-semibold uppercase tracking-wider ${stageFilter === '' ? 'text-slate-300' : 'text-slate-500'}`}>
-            Total Pipeline
+          <div className={`text-[11px] font-semibold uppercase tracking-wider ${stageFilter === 'active' ? 'text-slate-300' : 'text-slate-500'}`}>
+            Total Active Leads
           </div>
           <div className="text-2xl font-bold mt-1 flex items-center gap-1.5">
             <span>🎯</span>
-            <span>{totalCount || leads.length}</span>
+            <span>{stageFilter === 'active' ? (totalCount || leads.length) : 'Active'}</span>
           </div>
-          <div className={`text-xs mt-1 ${stageFilter === '' ? 'text-slate-400' : 'text-slate-400'}`}>
-            All inbound signals
+          <div className={`text-xs mt-1 ${stageFilter === 'active' ? 'text-slate-400' : 'text-slate-400'}`}>
+            Excludes converted, disqualified & expired
           </div>
         </button>
 
@@ -559,7 +559,7 @@ export default function LeadsPage() {
           }`}
         >
           <div className={`text-[11px] font-semibold uppercase tracking-wider ${stageFilter === 'new' ? 'text-blue-100' : 'text-blue-600'}`}>
-            New / Active
+            New / Uncontacted
           </div>
           <div className={`text-2xl font-bold mt-1 flex items-center gap-1.5 ${stageFilter === 'new' ? 'text-white' : 'text-blue-700'}`}>
             <span>📬</span>
@@ -580,7 +580,7 @@ export default function LeadsPage() {
           }`}
         >
           <div className={`text-[11px] font-semibold uppercase tracking-wider ${stageFilter === 'stale' ? 'text-amber-100' : 'text-amber-600'}`}>
-            Stale (30d+ Inactive)
+            Stale (30-90d Inactive)
           </div>
           <div className={`text-2xl font-bold mt-1 flex items-center gap-1.5 ${stageFilter === 'stale' ? 'text-white' : 'text-amber-700'}`}>
             <span>⏳</span>
@@ -601,14 +601,14 @@ export default function LeadsPage() {
           }`}
         >
           <div className={`text-[11px] font-semibold uppercase tracking-wider ${stageFilter === 'expired' ? 'text-rose-100' : 'text-rose-600'}`}>
-            Expired (90d+ Inactive)
+            Expired (Auto-Disqualified)
           </div>
           <div className={`text-2xl font-bold mt-1 flex items-center gap-1.5 ${stageFilter === 'expired' ? 'text-white' : 'text-rose-700'}`}>
             <span>🛑</span>
             <span>{resolvedCount} on page</span>
           </div>
           <div className={`text-xs mt-1 ${stageFilter === 'expired' ? 'text-rose-200' : 'text-slate-400'}`}>
-            Click to filter expired leads
+            &gt;90d inactive (auto-disqualified)
           </div>
         </button>
       </div>
@@ -696,11 +696,12 @@ export default function LeadsPage() {
               onChange={(e) => handleStageFilterChange(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900 font-medium"
             >
-              <option value="">All Stages & Statuses</option>
+              <option value="active">🎯 Active Pipeline (Default)</option>
+              <option value="all">🌐 All Records (Incl. Resolved)</option>
               <option value="new">📬 New (Uncontacted)</option>
               <option value="contacted">💬 Contacted</option>
               <option value="qualified">⭐ Qualified</option>
-              <option value="stale">⏳ Stale (&gt;30d Inactive)</option>
+              <option value="stale">⏳ Stale (30-90d Inactive)</option>
               <option value="converted">💼 Converted to Opp</option>
               <option value="disqualified">🚫 Disqualified</option>
               <option value="expired">🛑 Expired (&gt;90d Inactive)</option>
@@ -755,7 +756,7 @@ export default function LeadsPage() {
         <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-xs">
           <span className="text-slate-400 font-medium mr-1">Filter by Stage:</span>
           {[
-            { label: 'All', value: '' },
+            { label: 'Active Pipeline', value: 'active' },
             { label: 'New', value: 'new' },
             { label: 'Contacted', value: 'contacted' },
             { label: 'Qualified', value: 'qualified' },
@@ -763,6 +764,7 @@ export default function LeadsPage() {
             { label: 'Converted', value: 'converted' },
             { label: 'Disqualified', value: 'disqualified' },
             { label: '🛑 Expired (90d+)', value: 'expired' },
+            { label: 'All Records', value: 'all' },
           ].map((pill) => (
             <button
               key={pill.value}

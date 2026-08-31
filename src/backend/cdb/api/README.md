@@ -571,11 +571,13 @@ Standard CRUD. `source_id`-tagged activities (auto-imported) can be patched but 
 ```
 
 #### Simplified Lead Stages & Staleness
-- **Active Pipeline Stages**: `new`, `contacted`, `qualified`
+- **Active Pipeline Stages**: `new`, `contacted`, `qualified`, `stale` (queried with `?stage=active`).
 - **Staleness Tracking**:
-  - **Stale (`> 30 days` without activity)**: Flagged with `is_stale=true` and `staleness_status="stale"`.
-  - **Expired (`> 90 days` without activity)**: Resolved with `is_expired=true` and `staleness_status="expired"`.
-- **Resolved / Terminal Stages**: `converted` (converted to opportunity deal), `disqualified` (rejected/wrong fit), `expired` (inactivity > 90 days).
+  - **Stale (`30-90 days` without activity)**: Flagged with `is_stale=true` and `staleness_status="stale"`.
+  - **Expired (`> 90 days` without activity)**: **Auto-disqualified & resolved** with `is_expired=true`, `staleness_status="expired"`, and default `disqualification_reason="Auto-disqualified: Expired after {days}d inactivity"`.
+- **Exclusion from Total Active Leads**:
+  - `converted`, `disqualified`, and `expired` leads are classified as terminal/resolved states and are excluded from the main Active Pipeline count and default active view.
+  - Resolved leads can be queried via `?stage=converted`, `?stage=disqualified`, `?stage=expired`, or `?stage=all`.
 
 ### `POST /leads`
 
