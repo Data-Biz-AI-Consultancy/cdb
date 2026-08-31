@@ -1,3 +1,17 @@
+# [1.21.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.20.0...v1.21.0) (2026-08-31)
+
+
+### Features
+
+* add AUTO_BACKFILL_ON_STARTUP configuration to gate background backfill execution ([3d52d7b](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/3d52d7b8faa7bb9fa40006b97d76c116cba34989))
+* add stale and expired lead filtering with interactive UI components and backend metadata ([f85bb6a](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/f85bb6aaddab6d9045c4a598e3c29f89c1ed21a7))
+* implement automated lead title generation and update leads table layout to include explicit title, intent, and timestamp columns. ([3f41772](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/3f41772643ce6365335678fd1d71919d35feccb1))
+* implement bulk actions for leads including update, convert, disqualification, and deletion with associated UI and API endpoints. ([78122d6](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/78122d6604540556b82b21107e354ff234709f7f))
+* implement enhanced lead search, sorting, and join-enriched response schema ([ec2d342](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ec2d342af1522fcf5305864f3045440fc117cda4))
+* implement server-side pagination and frontend navigation for leads list ([0937ea6](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/0937ea6c3d066c70173302940f956a4f30c62131))
+* optimize lead pipeline management by introducing auto-disqualification for expired leads and updating active stage filters. ([1fcb356](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/1fcb3560e50bb14e1a79155e4a35cc8a8b38b82b))
+* split contact and company into separate table columns with updated layout and formatting ([c7a050b](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/c7a050bc17d3fe0e8f535ee2470c12f1e3e2c6dd))
+
 # [1.20.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.19.0...v1.20.0) (2026-08-28)
 
 
