@@ -1,3 +1,14 @@
+# [1.22.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.21.0...v1.22.0) (2026-08-31)
+
+
+### Features
+
+* add internal notes field to opportunity forms and update UI styling for textarea components ([ddb3837](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ddb38378d7aac7c09becd9fe804abf640809b2c7))
+* add overdue opportunity tracking with UI filtering and dashboard visualization ([ab1672d](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ab1672d87bf48c2ba351522ee86dc22eb0651146))
+* implement automated staleness and expiration tracking for opportunities based on inactivity ([4000705](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/4000705f212c064597518b008058507eecd58200))
+* implement comprehensive opportunity audit history system and enhance Kanban UI with contact/organization linking functionality. ([5a5c5ae](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/5a5c5ae33cb66b7ba91c375b4d1054898e90aa50))
+* update opportunity UI with persistent state filters, expanded activity status badges, and a new deal health information panel in the detail view ([9e88637](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/9e886370fae19af2da19ba6853e3d707af17076a))
+
 # [1.21.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.20.0...v1.21.0) (2026-08-31)
 
 
