@@ -626,35 +626,35 @@ export default function OpportunitiesPage() {
           })}
 
           {/* Quick Staleness Filters */}
-          {staleOpps.length > 0 && (
-            <button
-              onClick={() => setStageFilter(stageFilter === 'stale' ? 'all' : 'stale')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
-                stageFilter === 'stale'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100'
-              }`}
-            >
-              <span>⚠️</span>
-              <span>Stale 30d+</span>
-              <span className="text-[10px] font-bold">({staleOpps.length})</span>
-            </button>
-          )}
+          <button
+            onClick={() => setStageFilter(stageFilter === 'stale' ? 'all' : 'stale')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+              stageFilter === 'stale'
+                ? 'bg-amber-600 text-white'
+                : staleOpps.length > 0
+                ? 'bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100'
+                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            }`}
+          >
+            <span>⚠️</span>
+            <span>Stale 30d+</span>
+            <span className="text-[10px] font-bold">({staleOpps.length})</span>
+          </button>
 
-          {expiredOpps.length > 0 && (
-            <button
-              onClick={() => setStageFilter(stageFilter === 'expired' ? 'all' : 'expired')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
-                stageFilter === 'expired'
-                  ? 'bg-rose-600 text-white'
-                  : 'bg-rose-50 text-rose-800 border border-rose-300 hover:bg-rose-100'
-              }`}
-            >
-              <span>⛔</span>
-              <span>Expired 90d+</span>
-              <span className="text-[10px] font-bold">({expiredOpps.length})</span>
-            </button>
-          )}
+          <button
+            onClick={() => setStageFilter(stageFilter === 'expired' ? 'all' : 'expired')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+              stageFilter === 'expired'
+                ? 'bg-rose-600 text-white'
+                : expiredOpps.length > 0
+                ? 'bg-rose-50 text-rose-800 border border-rose-300 hover:bg-rose-100'
+                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            }`}
+          >
+            <span>⛔</span>
+            <span>Expired 90d+</span>
+            <span className="text-[10px] font-bold">({expiredOpps.length})</span>
+          </button>
         </div>
       </div>
 
@@ -734,22 +734,36 @@ export default function OpportunitiesPage() {
                           isDragging ? 'opacity-40 scale-95 border-dashed border-indigo-400' : ''
                         }`}
                       >
-                        {/* Staleness Pill Warning */}
-                        {opp.is_expired ? (
-                          <div className="mb-2 flex items-center justify-between">
+                        {/* Staleness / Health Pill Warning */}
+                        <div className="mb-2 flex items-center justify-between">
+                          {opp.is_expired ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
                               <span>⛔ Expired</span>
                               <span>({opp.days_inactive}d inactive)</span>
                             </span>
-                          </div>
-                        ) : opp.is_stale ? (
-                          <div className="mb-2 flex items-center justify-between">
+                          ) : opp.is_stale ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
                               <span>⚠️ Stale</span>
                               <span>({opp.days_inactive}d inactive)</span>
                             </span>
-                          </div>
-                        ) : null}
+                          ) : opp.stage === 'closed_won' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span>🏆 Won Deal</span>
+                            </span>
+                          ) : opp.stage === 'closed_lost' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                              <span>Closed Lost</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span>🟢 Active</span>
+                              <span>· {opp.days_inactive === 0 || !opp.days_inactive ? 'Updated today' : `${opp.days_inactive}d ago`}</span>
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {opp.days_inactive !== undefined && opp.days_inactive !== null ? `${opp.days_inactive}d` : ''}
+                          </span>
+                        </div>
 
                         {/* Title & Value */}
                         <div className="flex items-start justify-between gap-2">
@@ -1221,6 +1235,46 @@ export default function OpportunitiesPage() {
               {/* Tab 1: Overview & Edit */}
               {detailTab === 'overview' && (
                 <form onSubmit={handleSaveEdit} className="space-y-4">
+                  {/* Deal Health & Inactivity Status Box */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Deal Health & Activity Tracking</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        {selectedOppForDetail.is_expired ? (
+                          <span className="font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded border border-rose-300">
+                            ⛔ Expired ({selectedOppForDetail.days_inactive}d inactive)
+                          </span>
+                        ) : selectedOppForDetail.is_stale ? (
+                          <span className="font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                            ⚠️ Stale ({selectedOppForDetail.days_inactive}d inactive)
+                          </span>
+                        ) : selectedOppForDetail.stage === 'closed_won' ? (
+                          <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                            🏆 Closed Won
+                          </span>
+                        ) : selectedOppForDetail.stage === 'closed_lost' ? (
+                          <span className="font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded border border-slate-300">
+                            Closed Lost
+                          </span>
+                        ) : (
+                          <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                            🟢 Active ({selectedOppForDetail.days_inactive || 0}d inactive)
+                          </span>
+                        )}
+                        <span className="text-slate-500">
+                          {selectedOppForDetail.days_inactive === 0 || !selectedOppForDetail.days_inactive
+                            ? 'Active today'
+                            : `Last active ${selectedOppForDetail.days_inactive} days ago`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-400 sm:text-right">
+                      <div>Stale: <span className="font-semibold text-slate-600">&gt;30 days</span></div>
+                      <div>Expired: <span className="font-semibold text-slate-600">&gt;90 days</span></div>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Title</label>
                     <input
