@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # Service-to-service API key
     CDB_API_KEY: str = "development-api-key"
 
+    # Ingestion & Backfill
+    AUTO_BACKFILL_ON_STARTUP: bool = False
+
     # CORS
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
