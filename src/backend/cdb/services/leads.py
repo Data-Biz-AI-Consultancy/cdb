@@ -29,6 +29,49 @@ from cdb.schemas.person import BulkOperationResult
 STAGE_FLOW = ["new", "contacted", "qualified"]
 
 
+def generate_lead_title(
+    notes: str | None, intent: str | None = None, person_name: str | None = None
+) -> str:
+    """Generate a concise title summarizing the lead's notes/conversation."""
+    if not notes or not notes.strip():
+        if intent:
+            return intent.replace("_", " ").title()
+        return f"Inbound Lead{f' — {person_name}' if person_name else ''}"
+
+    cleaned = notes.strip()
+    lines = [line.strip() for line in cleaned.split("\n") if line.strip()]
+
+    # Filter out metadata headers like "LinkedIn Conversation Summary (...):"
+    filtered_lines = [
+        line
+        for line in lines
+        if not line.startswith("LinkedIn Conversation Summary")
+        and not line.startswith("Conversation Transcript:")
+        and not line.startswith("[Bulk Update]")
+        and not line.startswith("[Bulk Disqualified")
+        and not line.startswith("[Disqualified")
+    ]
+
+    candidate = filtered_lines[0] if filtered_lines else lines[0]
+
+    # Clean speaker prefixes like "Abdul: Congrats on the new role!"
+    if ":" in candidate:
+        prefix, remainder = candidate.split(":", 1)
+        if len(prefix.strip()) < 25 and remainder.strip():
+            candidate = remainder.strip()
+
+    # Truncate if too long
+    if len(candidate) > 65:
+        candidate = candidate[:62].rstrip() + "..."
+
+    if candidate:
+        return candidate[0].upper() + candidate[1:]
+
+    if intent:
+        return intent.replace("_", " ").title()
+    return "Inbound Inquiry"
+
+
 def _format_lead_response(
     lead: Lead, person: Person | None = None, company: Company | None = None
 ) -> LeadResponse:
@@ -44,11 +87,12 @@ def _format_lead_response(
     comp_name = company.name if company else None
     comp_domain = company.domain if company else None
 
-    # Derive human-friendly title if none exists
+    # Derive human-friendly title / summary from notes or intent
+    lead_title = getattr(lead, "title", None)
     title = (
-        lead.intent.replace("_", " ").title()
-        if lead.intent
-        else f"Lead from {(lead.source or 'inbound').replace('_', ' ').title()}"
+        lead_title
+        if (lead_title and lead_title.strip())
+        else generate_lead_title(lead.notes, lead.intent, full_name)
     )
 
     return LeadResponse(
@@ -398,7 +442,7 @@ async def bulk_convert_leads(db: AsyncSession, data: LeadBulkConvert) -> BulkOpe
             f"{person.first_name or ''} {person.last_name or ''}".strip() if person else ""
         )
         comp_name = company.name if company else ""
-        entity_name = person_name or comp_name or lead.title or "New Lead"
+        entity_name = person_name or comp_name or getattr(lead, "title", None) or "New Lead"
         title_suffix = data.title_suffix or "— Opportunity Deal"
         opp_title = f"{entity_name} {title_suffix}".strip()
 

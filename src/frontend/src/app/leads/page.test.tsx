@@ -63,10 +63,19 @@ describe('LeadsPage Component', () => {
       expect(screen.getByText('Data Biz Consulting')).toBeInTheDocument();
     });
 
+    // Check independent Intent column
+    expect(screen.getByText(/Networking Inquiry/i)).toBeInTheDocument();
+    expect(screen.getByText(/Business Collaboration/i)).toBeInTheDocument();
+
+    // Check Description & Summary
     expect(screen.getByText(/LinkedIn Conversation Summary/)).toBeInTheDocument();
     expect(screen.getByText(/Interested in AI Strategy consulting/)).toBeInTheDocument();
     expect(screen.getAllByText(/Most Recent/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Showing/i)).toHaveTextContent('Showing 1 to 2 of 2 leads');
+
+    // Check Created and Updated timestamps
+    expect(screen.getAllByText(/Created:/i).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText(/Updated:/i).length).toBeGreaterThanOrEqual(2);
   });
 
   it('handles page navigation and page size updates', async () => {

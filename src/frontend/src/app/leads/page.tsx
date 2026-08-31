@@ -625,7 +625,7 @@ export default function LeadsPage() {
           <div className="lg:col-span-2">
             <input
               type="text"
-              placeholder="Search contact, company, intent, description..."
+              placeholder="Search title, contact, company, intent, notes..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
@@ -740,24 +740,26 @@ export default function LeadsPage() {
                   />
                 </th>
                 <th className="p-3.5">Contact & Company</th>
-                <th className="p-3.5">Intent / Signals</th>
-                <th className="p-3.5 min-w-[260px]">Lead Description / Conversation Notes</th>
+                <th className="p-3.5 min-w-[130px]">Intent</th>
+                <th className="p-3.5 min-w-[110px]">Signal & Source</th>
+                <th className="p-3.5 min-w-[200px]">Title (Summary)</th>
+                <th className="p-3.5 min-w-[240px]">Description / Conversation Notes</th>
                 <th className="p-3.5">Stage</th>
-                <th className="p-3.5 whitespace-nowrap">Created (Most Recent)</th>
+                <th className="p-3.5 min-w-[160px] whitespace-nowrap">Created & Updated</th>
                 <th className="p-3.5 pr-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-slate-500">
+                  <td colSpan={9} className="p-12 text-center text-slate-500">
                     <div className="inline-block animate-spin mr-2">⏳</div>
                     Loading leads...
                   </td>
                 </tr>
               ) : leads.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-slate-500">
+                  <td colSpan={9} className="p-12 text-center text-slate-500">
                     <div className="text-3xl mb-2">🎯</div>
                     <div className="font-semibold text-slate-800">No leads found</div>
                     <div className="text-xs text-slate-400 mt-1">Try adjusting your search terms or filters</div>
@@ -769,6 +771,11 @@ export default function LeadsPage() {
                   const hasLongDesc = leadDesc.length > 90;
                   const isSelected = selectedIds.includes(l.id);
 
+                  // Human-readable formatted intent
+                  const formattedIntent = (l.intent || 'General Inquiry')
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, (char) => char.toUpperCase());
+
                   return (
                     <tr
                       key={l.id}
@@ -776,7 +783,7 @@ export default function LeadsPage() {
                         isSelected ? 'bg-amber-50/40' : ''
                       }`}
                     >
-                      {/* Selection Checkbox */}
+                      {/* 1. Selection Checkbox */}
                       <td className="p-3.5 pl-4 align-top text-center">
                         <input
                           type="checkbox"
@@ -786,7 +793,7 @@ export default function LeadsPage() {
                         />
                       </td>
 
-                      {/* Contact & Company */}
+                      {/* 2. Contact & Company */}
                       <td className="p-3.5 align-top">
                         <div className="flex items-start gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-linear-to-tr from-slate-700 to-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
@@ -829,20 +836,38 @@ export default function LeadsPage() {
                         </div>
                       </td>
 
-                      {/* Intent & Signal */}
+                      {/* 3. Intent (Independent Column) */}
+                      <td className="p-3.5 align-top">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                          <span>🎯</span>
+                          <span>{formattedIntent}</span>
+                        </span>
+                      </td>
+
+                      {/* 4. Signal & Source */}
                       <td className="p-3.5 align-top">
                         <div className="space-y-1">
-                          <div className="font-medium text-slate-800 text-xs">
-                            {(l.intent || 'Networking / Consulting').replace(/_/g, ' ').toUpperCase()}
-                          </div>
                           <div>{getSignalBadge(l.signal_strength)}</div>
-                          <div className="text-[11px] text-slate-400 capitalize">
-                            Source: {(l.source || 'inbound').replace(/_/g, ' ')}
+                          <div className="text-[11px] text-slate-500 capitalize">
+                            {(l.source || 'inbound').replace(/_/g, ' ')}
                           </div>
                         </div>
                       </td>
 
-                      {/* Description / Notes */}
+                      {/* 5. Title / Summary (Before Description) */}
+                      <td className="p-3.5 align-top">
+                        <div className="font-medium text-xs text-slate-900 leading-snug">
+                          {l.title || 'Inbound Lead'}
+                        </div>
+                        {l.title && l.title !== l.intent && (
+                          <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                            <span>✨</span>
+                            <span>LLM Summary</span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 6. Description / Notes */}
                       <td className="p-3.5 align-top">
                         {leadDesc ? (
                           <div className="space-y-1">
@@ -864,7 +889,7 @@ export default function LeadsPage() {
                         )}
                       </td>
 
-                      {/* Stage */}
+                      {/* 7. Stage */}
                       <td className="p-3.5 align-top whitespace-nowrap">
                         <span
                           className={`text-xs px-2.5 py-1 rounded-full border font-bold uppercase tracking-wider ${getStageBadge(
@@ -880,15 +905,19 @@ export default function LeadsPage() {
                         )}
                       </td>
 
-                      {/* Created At (Recency) */}
-                      <td className="p-3.5 align-top text-xs text-slate-500 whitespace-nowrap">
-                        <div className="font-medium text-slate-700">{formatDate(l.created_at)}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          Updated: {formatDate(l.updated_at)}
+                      {/* 8. Created & Updated Timestamps */}
+                      <td className="p-3.5 align-top text-xs whitespace-nowrap space-y-1">
+                        <div>
+                          <span className="text-slate-400 font-medium text-[11px]">Created: </span>
+                          <span className="text-slate-700 font-medium">{formatDate(l.created_at)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-medium text-[11px]">Updated: </span>
+                          <span className="text-slate-600 font-medium">{formatDate(l.updated_at)}</span>
                         </div>
                       </td>
 
-                      {/* Actions */}
+                      {/* 9. Actions */}
                       <td className="p-3.5 pr-4 align-top text-right whitespace-nowrap space-y-1">
                         <div className="flex items-center justify-end gap-1.5">
                           {l.stage !== 'converted' && l.stage !== 'disqualified' && (
@@ -1575,7 +1604,7 @@ export default function LeadsPage() {
                 >
                   <option value="wrong_fit">Wrong Fit / Scope</option>
                   <option value="no_budget">No Budget</option>
-                  <option value="no_response">No Response / Stalled</option>
+                  <option value="no_response">No Response</option>
                   <option value="wrong_timing">Wrong Timing</option>
                   <option value="competitor_chosen">Competitor Chosen</option>
                   <option value="other">Other</option>
