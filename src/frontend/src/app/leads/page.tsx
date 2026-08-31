@@ -739,7 +739,8 @@ export default function LeadsPage() {
                     title="Select all on this page"
                   />
                 </th>
-                <th className="p-3.5">Contact & Company</th>
+                <th className="p-3.5 min-w-[150px]">Contact</th>
+                <th className="p-3.5 min-w-[140px]">Company</th>
                 <th className="p-3.5 min-w-[130px]">Intent</th>
                 <th className="p-3.5 min-w-[110px]">Signal & Source</th>
                 <th className="p-3.5 min-w-[200px]">Title (Summary)</th>
@@ -752,14 +753,14 @@ export default function LeadsPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="p-12 text-center text-slate-500">
+                  <td colSpan={10} className="p-12 text-center text-slate-500">
                     <div className="inline-block animate-spin mr-2">⏳</div>
                     Loading leads...
                   </td>
                 </tr>
               ) : leads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-12 text-center text-slate-500">
+                  <td colSpan={10} className="p-12 text-center text-slate-500">
                     <div className="text-3xl mb-2">🎯</div>
                     <div className="font-semibold text-slate-800">No leads found</div>
                     <div className="text-xs text-slate-400 mt-1">Try adjusting your search terms or filters</div>
@@ -793,9 +794,9 @@ export default function LeadsPage() {
                         />
                       </td>
 
-                      {/* 2. Contact & Company */}
+                      {/* 2. Contact Person */}
                       <td className="p-3.5 align-top">
-                        <div className="flex items-start gap-2.5">
+                        <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-linear-to-tr from-slate-700 to-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
                             {getInitials(l.person_name)}
                           </div>
@@ -803,37 +804,50 @@ export default function LeadsPage() {
                             {l.person_id ? (
                               <Link
                                 href={`/persons/${l.person_id}`}
-                                className="font-semibold text-slate-900 hover:text-blue-600 hover:underline transition block"
+                                className="font-semibold text-slate-900 hover:text-blue-600 hover:underline transition block leading-snug"
                               >
                                 {l.person_name || 'Contact Person'}
                               </Link>
                             ) : (
-                              <span className="font-semibold text-slate-900">
+                              <span className="font-semibold text-slate-900 leading-snug">
                                 {l.person_name || 'Unknown Person'}
                               </span>
                             )}
-                            {l.company_name && (
-                              <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-1">
-                                <span>🏢</span>
-                                {l.company_id ? (
-                                  <Link
-                                    href={`/companies/${l.company_id}`}
-                                    className="hover:underline hover:text-slate-900"
-                                  >
-                                    {l.company_name}
-                                  </Link>
-                                ) : (
-                                  <span>{l.company_name}</span>
-                                )}
-                              </div>
-                            )}
-                            {l.person_email && !l.company_name && (
-                              <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[160px]">
+                            {l.person_email && (
+                              <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[150px]">
                                 {l.person_email}
                               </div>
                             )}
                           </div>
                         </div>
+                      </td>
+
+                      {/* 3. Company */}
+                      <td className="p-3.5 align-top">
+                        {l.company_name ? (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 font-medium text-xs text-slate-900">
+                              <span>🏢</span>
+                              {l.company_id ? (
+                                <Link
+                                  href={`/companies/${l.company_id}`}
+                                  className="hover:underline hover:text-blue-600 text-slate-900 font-semibold"
+                                >
+                                  {l.company_name}
+                                </Link>
+                              ) : (
+                                <span>{l.company_name}</span>
+                              )}
+                            </div>
+                            {l.company_domain && (
+                              <div className="text-[11px] text-slate-400 pl-4 truncate max-w-[140px]">
+                                {l.company_domain}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">—</span>
+                        )}
                       </td>
 
                       {/* 3. Intent (Independent Column) */}
