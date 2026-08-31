@@ -281,11 +281,17 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
     assert lead_data["description"] == "Discussion regarding cloud migration strategy"
     assert lead_data["person_name"] == "Dave Miller"
 
-    # Test list leads sorted by most recent first
-    list_resp = await client.get("/api/v1/leads?sort=created_at&order=desc", headers=auth_headers)
+    # Test list leads sorted by most recent first with pagination
+    list_resp = await client.get(
+        "/api/v1/leads?page=1&page_size=10&sort=created_at&order=desc", headers=auth_headers
+    )
     assert list_resp.status_code == 200
-    list_items = list_resp.json()["data"]
+    list_json = list_resp.json()
+    list_items = list_json["data"]
     assert len(list_items) >= 1
+    assert list_json["pagination"]["page"] == 1
+    assert list_json["pagination"]["page_size"] == 10
+    assert list_json["pagination"]["total"] >= 1
     assert any(
         i["id"] == lead_id and i["description"] == "Discussion regarding cloud migration strategy"
         for i in list_items

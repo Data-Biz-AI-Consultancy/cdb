@@ -529,7 +529,8 @@ Standard CRUD. `source_id`-tagged activities (auto-imported) can be patched but 
 - `company_id` (UUID, optional).
 - `sort` (`created_at` | `updated_at` | `stage` | `signal_strength`, default: `created_at`).
 - `order` (`desc` | `asc`, default: `desc` — **most recent lead first**).
-- `limit` / `page_size` (int, default 50).
+- `page` (int, 1-indexed page number, default 1).
+- `page_size` / `limit` (int, default 50, range 1-200).
 - `cursor` (string, pagination offset).
 
 **Response (Paginated):**

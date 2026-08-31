@@ -65,7 +65,34 @@ describe('LeadsPage Component', () => {
 
     expect(screen.getByText(/LinkedIn Conversation Summary/)).toBeInTheDocument();
     expect(screen.getByText(/Interested in AI Strategy consulting/)).toBeInTheDocument();
-    expect(screen.getByText(/Most Recent Lead First/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Most Recent/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Showing/i)).toHaveTextContent('Showing 1 to 2 of 2 leads');
+  });
+
+  it('handles page navigation and page size updates', async () => {
+    (api.apiFetch as any).mockResolvedValue({
+      data: mockLeadsResponse.data,
+      pagination: {
+        total: 100,
+        page: 1,
+        page_size: 25,
+        has_more: true,
+      },
+    });
+
+    render(<LeadsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Showing/i)).toHaveTextContent('Showing 1 to 25 of 100 leads');
+      expect(screen.getByText('Page 1 of 4')).toBeInTheDocument();
+    });
+
+    const nextBtn = screen.getByRole('button', { name: /^Next$/i });
+    fireEvent.click(nextBtn);
+
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(expect.stringContaining('page=2'));
+    });
   });
 
   it('filters by stage when selecting quick filter pills', async () => {

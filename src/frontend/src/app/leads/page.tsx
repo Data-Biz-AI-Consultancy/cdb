@@ -37,6 +37,8 @@ export default function LeadsPage() {
   const [signalFilter, setSignalFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('created_at:desc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +83,8 @@ export default function LeadsPage() {
     try {
       const [sortField, sortOrder] = sortOption.split(':');
       const params = new URLSearchParams();
-      params.append('limit', '100');
+      params.append('page', String(page));
+      params.append('page_size', String(pageSize));
       params.append('sort', sortField || 'created_at');
       params.append('order', sortOrder || 'desc');
       if (stageFilter) params.append('stage', stageFilter);
@@ -104,7 +107,37 @@ export default function LeadsPage() {
       loadLeads();
     }, 150);
     return () => clearTimeout(timer);
-  }, [stageFilter, sourceFilter, signalFilter, sortOption, searchQuery]);
+  }, [page, pageSize, stageFilter, sourceFilter, signalFilter, sortOption, searchQuery]);
+
+  const handleStageFilterChange = (val: string) => {
+    setStageFilter(val);
+    setPage(1);
+  };
+
+  const handleSourceFilterChange = (val: string) => {
+    setSourceFilter(val);
+    setPage(1);
+  };
+
+  const handleSignalFilterChange = (val: string) => {
+    setSignalFilter(val);
+    setPage(1);
+  };
+
+  const handleSortChange = (val: string) => {
+    setSortOption(val);
+    setPage(1);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (val: number) => {
+    setPageSize(val);
+    setPage(1);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,6 +172,7 @@ export default function LeadsPage() {
         stage: 'new',
         description: '',
       });
+      setPage(1);
       loadLeads();
     } catch (err: any) {
       alert('Error creating lead: ' + err.message);
@@ -270,7 +304,11 @@ export default function LeadsPage() {
     return <span className="bg-slate-50 text-slate-600 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-medium">🌱 Low</span>;
   };
 
-  // Stats calculation
+  // Stats and pagination calculations
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const startRecord = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endRecord = Math.min(totalCount, page * pageSize);
+
   const newCount = leads.filter((l) => l.stage === 'new').length;
   const inPipelineCount = leads.filter((l) => l.stage === 'contacted' || l.stage === 'qualified').length;
   const convertedCount = leads.filter((l) => l.stage === 'converted').length;
@@ -308,7 +346,7 @@ export default function LeadsPage() {
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">New / Uncontacted</div>
+          <div className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">New (This Page)</div>
           <div className="text-2xl font-bold text-blue-700 mt-1 flex items-center gap-1.5">
             <span>📬</span>
             <span>{newCount}</span>
@@ -317,7 +355,7 @@ export default function LeadsPage() {
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Active In Pipeline</div>
+          <div className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">In Pipeline (This Page)</div>
           <div className="text-2xl font-bold text-amber-700 mt-1 flex items-center gap-1.5">
             <span>⚡</span>
             <span>{inPipelineCount}</span>
@@ -326,25 +364,25 @@ export default function LeadsPage() {
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Converted Deals</div>
+          <div className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Converted (This Page)</div>
           <div className="text-2xl font-bold text-emerald-700 mt-1 flex items-center gap-1.5">
             <span>💼</span>
             <span>{convertedCount}</span>
           </div>
-          <div className="text-xs text-slate-400 mt-1">Converted to active opportunities</div>
+          <div className="text-xs text-slate-400 mt-1">Converted to opportunities</div>
         </div>
       </div>
 
       {/* Filters & Sorting Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           {/* Search Box */}
           <div className="lg:col-span-2">
             <input
               type="text"
               placeholder="Search contact, company, intent, description..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
@@ -353,7 +391,7 @@ export default function LeadsPage() {
           <div>
             <select
               value={stageFilter}
-              onChange={(e) => setStageFilter(e.target.value)}
+              onChange={(e) => handleStageFilterChange(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
             >
               <option value="">All Stages</option>
@@ -369,7 +407,7 @@ export default function LeadsPage() {
           <div>
             <select
               value={signalFilter}
-              onChange={(e) => setSignalFilter(e.target.value)}
+              onChange={(e) => handleSignalFilterChange(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
             >
               <option value="">All Signal Strengths</option>
@@ -383,14 +421,28 @@ export default function LeadsPage() {
           <div>
             <select
               value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
+              onChange={(e) => handleSortChange(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-800"
             >
-              <option value="created_at:desc">🕒 Most Recent Lead First (Default)</option>
-              <option value="created_at:asc">🕒 Oldest Lead First</option>
+              <option value="created_at:desc">🕒 Most Recent (Default)</option>
+              <option value="created_at:asc">🕒 Oldest First</option>
               <option value="updated_at:desc">🔄 Recently Updated</option>
               <option value="signal_strength:desc">🔥 Signal Strength</option>
               <option value="stage:asc">📊 Stage Flow</option>
+            </select>
+          </div>
+
+          {/* Page Size Dropdown */}
+          <div>
+            <select
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+            >
+              <option value={10}>10 per page</option>
+              <option value={25}>25 per page</option>
+              <option value={50}>50 per page</option>
+              <option value={100}>100 per page</option>
             </select>
           </div>
         </div>
@@ -408,7 +460,7 @@ export default function LeadsPage() {
           ].map((pill) => (
             <button
               key={pill.value}
-              onClick={() => setStageFilter(pill.value)}
+              onClick={() => handleStageFilterChange(pill.value)}
               className={`px-2.5 py-1 rounded-md transition font-medium ${
                 stageFilter === pill.value
                   ? 'bg-slate-900 text-white shadow-xs'
@@ -614,6 +666,53 @@ export default function LeadsPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Enhanced Pagination Controls */}
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm text-slate-600">
+          <div>
+            Showing <span className="font-semibold text-slate-800">{startRecord}</span> to{' '}
+            <span className="font-semibold text-slate-800">{endRecord}</span> of{' '}
+            <span className="font-semibold text-slate-800">{totalCount}</span> leads
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              disabled={page <= 1 || loading}
+              onClick={() => setPage(1)}
+              className="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium"
+              title="First Page"
+            >
+              «
+            </button>
+            <button
+              disabled={page <= 1 || loading}
+              onClick={() => setPage(page - 1)}
+              className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium"
+            >
+              Previous
+            </button>
+
+            <span className="px-3 py-1 bg-white border border-slate-300 rounded text-xs font-semibold text-slate-800">
+              Page {page} of {totalPages}
+            </span>
+
+            <button
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage(page + 1)}
+              className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium"
+            >
+              Next
+            </button>
+            <button
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage(totalPages)}
+              className="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium"
+              title="Last Page"
+            >
+              »
+            </button>
+          </div>
         </div>
       </div>
 

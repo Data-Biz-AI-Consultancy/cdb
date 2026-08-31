@@ -82,6 +82,7 @@ async def list_leads(
     person_id: uuid.UUID | None = None,
     company_id: uuid.UUID | None = None,
     limit: int = 50,
+    page: int | None = None,
     cursor: str | None = None,
     sort: str = "created_at",
     order: str = "desc",
@@ -128,7 +129,9 @@ async def list_leads(
         stmt = stmt.order_by(sort_col.desc(), Lead.id.desc())
 
     offset = 0
-    if cursor and cursor.isdigit():
+    if page is not None and page >= 1:
+        offset = (page - 1) * limit
+    elif cursor and cursor.isdigit():
         offset = int(cursor)
 
     stmt = stmt.offset(offset).limit(limit)
@@ -138,7 +141,13 @@ async def list_leads(
     has_more = (offset + limit) < total
     next_cursor = str(offset + limit) if has_more else None
 
-    return items, PaginationMetadata(next_cursor=next_cursor, has_more=has_more, total=total)
+    return items, PaginationMetadata(
+        page=page,
+        page_size=limit,
+        next_cursor=next_cursor,
+        has_more=has_more,
+        total=total,
+    )
 
 
 async def create_lead(db: AsyncSession, data: LeadCreate) -> LeadResponse:

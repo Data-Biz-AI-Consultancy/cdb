@@ -32,8 +32,9 @@ async def list_leads(
     owner_id: uuid.UUID | None = Query(None),
     person_id: uuid.UUID | None = Query(None),
     company_id: uuid.UUID | None = Query(None),
-    limit: int | None = Query(None, ge=1, le=200),
+    page: int | None = Query(None, ge=1, description="Page number (1-indexed)"),
     page_size: int | None = Query(None, ge=1, le=200),
+    limit: int | None = Query(None, ge=1, le=200),
     cursor: str | None = Query(None),
     sort: str = Query(
         "created_at", description="Sort field: created_at, updated_at, stage, signal_strength"
@@ -53,6 +54,7 @@ async def list_leads(
         person_id=person_id,
         company_id=company_id,
         limit=effective_limit,
+        page=page,
         cursor=cursor,
         sort=sort,
         order=order,
