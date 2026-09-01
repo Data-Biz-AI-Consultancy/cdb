@@ -49,7 +49,7 @@ class EngagementBase(BaseModel):
     engagement_type: str = "consultancy"  # 'consultancy' | 'retainer' | 'fixed_fee' | 'time_and_materials' | 'advisory' | 'full_time'
     rate_type: str = "daily"  # 'hourly' | 'daily' | 'monthly' | 'fixed'
     rate_value: Decimal | None = None
-    currency: str = "USD"
+    currency: str = "EUR"
     total_value: Decimal | None = None
     contract_ref: str | None = None
     contract_status: str = (

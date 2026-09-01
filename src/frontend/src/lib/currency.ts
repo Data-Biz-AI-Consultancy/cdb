@@ -35,7 +35,7 @@ const SYMBOL_MAP: Record<string, string> = {
 };
 
 export function getCurrencySymbol(currency?: string | null): string {
-  if (!currency) return '$';
+  if (!currency) return '€';
   const upper = currency.toUpperCase().trim();
   return SYMBOL_MAP[upper] || upper;
 }
@@ -50,7 +50,7 @@ export function formatMoney(
   }
 
   const num = Number(amount);
-  const code = (currency || 'USD').toUpperCase().trim();
+  const code = (currency || 'EUR').toUpperCase().trim();
   const symbol = getCurrencySymbol(code);
 
   const formattedNum = num.toLocaleString('en-US', {

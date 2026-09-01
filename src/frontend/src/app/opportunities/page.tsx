@@ -122,7 +122,7 @@ export default function OpportunitiesPage() {
     notes: '',
     stage: 'prospect',
     value: '',
-    currency: 'USD',
+    currency: 'EUR',
     probability: 50,
     expected_close_date: '',
     person_id: '',

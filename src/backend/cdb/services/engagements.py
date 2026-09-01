@@ -241,7 +241,7 @@ async def create_engagement(
         engagement_type=data.engagement_type,
         rate_type=data.rate_type,
         rate_value=data.rate_value,
-        currency=data.currency or "USD",
+        currency=data.currency or "EUR",
         total_value=data.total_value,
         contract_ref=data.contract_ref,
         contract_status=data.contract_status,

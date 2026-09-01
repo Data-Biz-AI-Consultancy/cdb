@@ -12,6 +12,8 @@ describe('currency utilities', () => {
 
   it('formats money properly with Euro and USD', () => {
     expect(formatMoney(1500, 'EUR')).toBe('€1,500');
+    expect(formatMoney(1500)).toBe('€1,500');
+    expect(getCurrencySymbol()).toBe('€');
     expect(formatMoney(25000, 'USD')).toBe('$25,000');
     expect(formatMoney('82500.50', 'EUR')).toBe('€82,500.50');
     expect(formatMoney(null, 'EUR')).toBe('—');

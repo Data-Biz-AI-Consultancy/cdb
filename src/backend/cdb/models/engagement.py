@@ -63,7 +63,7 @@ class Engagement(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         default="daily",
     )
     rate_value: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
     total_value: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
 
     # Contract details & Terms

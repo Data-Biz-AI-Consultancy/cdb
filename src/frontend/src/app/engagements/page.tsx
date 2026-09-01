@@ -88,7 +88,7 @@ export default function EngagementsPage() {
   const [formStatus, setFormStatus] = useState<'planning' | 'active' | 'in_delivery' | 'on_hold' | 'completed' | 'cancelled'>('active');
   const [formRateType, setFormRateType] = useState<'hourly' | 'daily' | 'monthly' | 'fixed'>('daily');
   const [formRateValue, setFormRateValue] = useState('1500');
-  const [formCurrency, setFormCurrency] = useState('USD');
+  const [formCurrency, setFormCurrency] = useState('EUR');
   const [formTotalValue, setFormTotalValue] = useState('45000');
   const [formContractRef, setFormContractRef] = useState('');
   const [formContractStatus, setFormContractStatus] = useState('signed');

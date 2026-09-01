@@ -54,7 +54,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
   const [editTitle, setEditTitle] = useState('');
   const [editStatus, setEditStatus] = useState<any>('active');
   const [editType, setEditType] = useState('consultancy');
-  const [editCurrency, setEditCurrency] = useState('USD');
+  const [editCurrency, setEditCurrency] = useState('EUR');
   const [editRateType, setEditRateType] = useState('daily');
   const [editRateValue, setEditRateValue] = useState('');
   const [editTotalValue, setEditTotalValue] = useState('');
