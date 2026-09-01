@@ -14,6 +14,8 @@ from cdb.schemas.activity import ActivityResponse
 from cdb.schemas.common import PaginationMetadata
 from cdb.schemas.engagement import (
     EngagementActivityCreate,
+    EngagementAISummaryActionItem,
+    EngagementAISummaryResponse,
     EngagementCompanyResponse,
     EngagementCreate,
     EngagementPersonAttach,
@@ -50,6 +52,188 @@ def compute_engagement_metrics(
                 days_remaining = (eng.expected_end_date - today).days
 
     return is_overdue, days_remaining, days_elapsed, recent_activity_title
+
+
+def synthesize_ai_summary(
+    eng: Engagement,
+    company_name: str,
+    persons: list[EngagementPersonResponse],
+    activities: list[Activity],
+) -> EngagementAISummaryResponse:
+    """
+    Synthesizes executive intelligence briefing from activities, meeting notes, timeline, and rate terms.
+    """
+    rate_str = (
+        f"{eng.currency} {eng.rate_value}/{eng.rate_type}"
+        if eng.rate_value
+        else f"{eng.currency} engagement"
+    )
+    today = datetime.datetime.now(datetime.UTC).date()
+
+    # 1. Activity analysis
+    meeting_notes: list[Activity] = []
+    has_risk_keywords = False
+    has_positive_keywords = False
+
+    risk_words = {
+        "risk",
+        "delay",
+        "behind",
+        "blocker",
+        "issue",
+        "bug",
+        "urgent",
+        "reschedule",
+        "escalate",
+        "churn",
+        "dissatisfied",
+        "disagree",
+        "stuck",
+    }
+    positive_words = {
+        "delighted",
+        "approved",
+        "success",
+        "great",
+        "on track",
+        "milestone",
+        "impressed",
+        "smooth",
+        "promising",
+        "ready",
+        "shipped",
+        "deployed",
+        "signed",
+    }
+
+    for act in activities:
+        full_text = f"{act.title or ''} {act.summary or ''} {act.raw_content or ''}".lower()
+        if (
+            act.type in ("meeting", "notion_meeting_note", "note")
+            or act.source == "notion"
+            or "meeting" in full_text
+        ):
+            meeting_notes.append(act)
+
+        if any(w in full_text for w in risk_words):
+            has_risk_keywords = True
+        if any(w in full_text for w in positive_words):
+            has_positive_keywords = True
+
+    # 2. Sentiment evaluation
+    is_overdue = False
+    if (
+        eng.expected_end_date
+        and eng.status not in ("completed", "cancelled")
+        and eng.expected_end_date < today
+    ):
+        is_overdue = True
+
+    if is_overdue:
+        client_sentiment = "needs_attention"
+        sentiment_reasoning = f"Engagement passed its target delivery completion date ({eng.expected_end_date.isoformat()}). Realigning on delivery timeline or contract extension is recommended."
+    elif has_risk_keywords or eng.status == "on_hold":
+        client_sentiment = "needs_attention"
+        sentiment_reasoning = "Activity logs contain flagged risks, dependencies, or delivery items requiring management alignment."
+    elif has_positive_keywords or eng.status in ("active", "in_delivery"):
+        client_sentiment = "positive"
+        sentiment_reasoning = f"Stable delivery velocity with {company_name}. Consistent progress reported across recent interactions."
+    else:
+        client_sentiment = "neutral"
+        sentiment_reasoning = "Engagement is steady with baseline activity volume."
+
+    # 3. Highlights
+    highlights: list[str] = []
+    if eng.contract_ref:
+        highlights.append(
+            f"Signed agreement in place ({eng.contract_ref}) under {eng.contract_status} status."
+        )
+    if eng.total_value:
+        highlights.append(
+            f"Contract value established at {eng.currency} {eng.total_value:,.2f} ({rate_str})."
+        )
+    if meeting_notes:
+        latest_m = meeting_notes[0]
+        m_title = latest_m.title or latest_m.summary or "Client sync"
+        highlights.append(
+            f"Latest meeting sync: '{m_title}' ({latest_m.occurred_at.strftime('%b %d, %Y')})."
+        )
+    if len(persons) > 0:
+        lead = next((p for p in persons if p.role == "client_lead"), persons[0])
+        highlights.append(
+            f"Primary stakeholder touchpoint: {lead.person_name or 'Lead'} ({lead.role or 'Key Contact'})."
+        )
+    if not highlights:
+        highlights.append(f"Active collaboration underway on {eng.title}.")
+
+    # 4. Blockers & Risks
+    blockers: list[str] = []
+    if is_overdue:
+        blockers.append(
+            f"Timeline overrun: Target completion date ({eng.expected_end_date.isoformat()}) has passed."
+        )
+    if eng.status == "on_hold":
+        blockers.append(
+            "Engagement is marked On Hold; unblocking criteria should be established with client lead."
+        )
+    if not meeting_notes and (today - eng.created_at.date()).days > 14:
+        blockers.append(
+            "No client sync or Notion meeting notes logged in the past 14 days; consider scheduling a status check-in."
+        )
+    if not blockers:
+        blockers.append("No critical delivery blockers identified in current activity stream.")
+
+    # 5. Prioritized Action Items
+    actions: list[EngagementAISummaryActionItem] = []
+    if is_overdue:
+        actions.append(
+            EngagementAISummaryActionItem(
+                task="Align with client sponsor on updated completion schedule or contract amendment",
+                priority="high",
+                suggested_role="Delivery Lead / Principal",
+            )
+        )
+    if meeting_notes:
+        actions.append(
+            EngagementAISummaryActionItem(
+                task=f"Review and execute action items from latest sync: '{meeting_notes[0].title or 'Client Meeting'}'",
+                priority="high",
+                suggested_role="Technical Lead",
+            )
+        )
+    actions.append(
+        EngagementAISummaryActionItem(
+            task="Share weekly sprint delivery progress demo and milestones update with client team",
+            priority="medium",
+            suggested_role="Client Lead",
+        )
+    )
+    if eng.terms_and_conditions:
+        actions.append(
+            EngagementAISummaryActionItem(
+                task="Verify milestone delivery alignment with agreed contract T&Cs",
+                priority="low",
+                suggested_role="Account Manager",
+            )
+        )
+
+    # 6. Executive Summary
+    exec_summary = (
+        f"{eng.title} with {company_name} is currently {eng.status.replace('_', ' ').title()} "
+        f"({rate_str}). {sentiment_reasoning} "
+        f"A total of {len(activities)} activities and meeting notes have been synthesized."
+    )
+
+    return EngagementAISummaryResponse(
+        executive_summary=exec_summary,
+        client_sentiment=client_sentiment,
+        sentiment_reasoning=sentiment_reasoning,
+        key_highlights=highlights,
+        blockers_and_risks=blockers,
+        action_items=actions,
+        activity_count_analyzed=len(activities),
+        generated_at=datetime.datetime.now(datetime.UTC).isoformat(),
+    )
 
 
 async def _build_engagement_response(
@@ -100,9 +284,9 @@ async def _build_engagement_response(
             )
         )
 
-    # 3. Latest Activity
-    latest_act_stmt = (
-        select(Activity.title)
+    # 3. Latest Activity & Activities for AI synthesis
+    act_stmt = (
+        select(Activity)
         .where(
             or_(
                 Activity.engagement_id == eng.id,
@@ -110,13 +294,32 @@ async def _build_engagement_response(
             )
         )
         .order_by(Activity.occurred_at.desc())
-        .limit(1)
+        .limit(20)
     )
-    latest_act_title = (await db.execute(latest_act_stmt)).scalar_one_or_none()
+    recent_activities = (await db.execute(act_stmt)).scalars().all()
+    latest_act_title = recent_activities[0].title if recent_activities else None
 
     is_overdue, days_remaining, days_elapsed, recent_activity = compute_engagement_metrics(
         eng, latest_act_title
     )
+
+    # 4. AI Summary (cached in attributes or generated)
+    ai_summary_obj: EngagementAISummaryResponse | None = None
+    if eng.attributes and "ai_summary" in eng.attributes:
+        try:
+            ai_summary_obj = EngagementAISummaryResponse.model_validate(
+                eng.attributes["ai_summary"]
+            )
+        except Exception:
+            ai_summary_obj = None
+
+    if not ai_summary_obj:
+        ai_summary_obj = synthesize_ai_summary(
+            eng=eng,
+            company_name=company_obj.name if company_obj else "Client Company",
+            persons=persons,
+            activities=recent_activities,
+        )
 
     return EngagementResponse(
         id=eng.id,
@@ -148,6 +351,7 @@ async def _build_engagement_response(
         days_remaining=days_remaining,
         days_elapsed=days_elapsed,
         recent_activity=recent_activity,
+        ai_summary=ai_summary_obj,
     )
 
 
@@ -461,3 +665,48 @@ async def create_engagement_activity(
     await db.commit()
     await db.refresh(act)
     return ActivityResponse.model_validate(act)
+
+
+async def generate_engagement_ai_summary(
+    db: AsyncSession,
+    engagement_id: uuid.UUID,
+) -> EngagementAISummaryResponse:
+    """
+    Explicitly re-runs AI synthesis across all engagement activities and persists the briefing in attributes.
+    """
+    eng = (
+        await db.execute(select(Engagement).where(Engagement.id == engagement_id))
+    ).scalar_one_or_none()
+    if not eng:
+        raise NotFoundError(f"Engagement with id {engagement_id} not found.")
+
+    resp = await _build_engagement_response(db, eng)
+
+    act_stmt = (
+        select(Activity)
+        .where(
+            or_(
+                Activity.engagement_id == engagement_id,
+                Activity.company_id == eng.company_id,
+            )
+        )
+        .order_by(Activity.occurred_at.desc())
+        .limit(50)
+    )
+    activities = (await db.execute(act_stmt)).scalars().all()
+
+    summary = synthesize_ai_summary(
+        eng=eng,
+        company_name=resp.company.name if resp.company else "Client Company",
+        persons=resp.persons,
+        activities=activities,
+    )
+
+    current_attrs = dict(eng.attributes or {})
+    current_attrs["ai_summary"] = summary.model_dump()
+    eng.attributes = current_attrs
+
+    await db.commit()
+    await db.refresh(eng)
+
+    return summary

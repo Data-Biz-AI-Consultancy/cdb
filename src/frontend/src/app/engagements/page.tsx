@@ -20,6 +20,23 @@ export interface EngagementCompanyItem {
   domain?: string | null;
 }
 
+export interface EngagementAISummaryActionItem {
+  task: string;
+  priority: 'high' | 'medium' | 'low';
+  suggested_role?: string | null;
+}
+
+export interface EngagementAISummaryItem {
+  executive_summary: string;
+  client_sentiment: 'very_positive' | 'positive' | 'neutral' | 'needs_attention' | 'at_risk';
+  sentiment_reasoning: string;
+  key_highlights: string[];
+  blockers_and_risks: string[];
+  action_items: EngagementAISummaryActionItem[];
+  activity_count_analyzed: number;
+  generated_at: string;
+}
+
 export interface EngagementItem {
   id: string;
   title: string;
@@ -49,6 +66,7 @@ export interface EngagementItem {
   days_remaining?: number | null;
   days_elapsed?: number | null;
   recent_activity?: string | null;
+  ai_summary?: EngagementAISummaryItem | null;
 }
 
 interface CompanyOption {

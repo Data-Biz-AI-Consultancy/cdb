@@ -147,6 +147,25 @@ async def test_engagement_lifecycle(client: AsyncClient, auth_headers: dict[str,
     assert len(eng_acts_res.json()) >= 1
     assert eng_acts_res.json()[0]["title"] == "Architecture Deep-Dive & SOW Alignment"
 
+    # AI Summary fetch & refresh
+    ai_sum_res = await client.get(
+        f"/api/v1/engagements/{eng_id}/ai-summary",
+        headers=auth_headers,
+    )
+    assert ai_sum_res.status_code == 200
+    ai_data = ai_sum_res.json()
+    assert "executive_summary" in ai_data
+    assert "client_sentiment" in ai_data
+    assert len(ai_data["key_highlights"]) >= 1
+    assert len(ai_data["action_items"]) >= 1
+
+    refresh_ai_res = await client.post(
+        f"/api/v1/engagements/{eng_id}/ai-summary/refresh",
+        headers=auth_headers,
+    )
+    assert refresh_ai_res.status_code == 200
+    assert refresh_ai_res.json()["activity_count_analyzed"] >= 1
+
     # 9. Update engagement fields
     update_res = await client.patch(
         f"/api/v1/engagements/{eng_id}",

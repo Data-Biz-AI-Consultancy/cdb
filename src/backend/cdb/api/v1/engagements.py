@@ -10,6 +10,7 @@ from cdb.schemas.activity import ActivityResponse
 from cdb.schemas.common import PaginatedResponse
 from cdb.schemas.engagement import (
     EngagementActivityCreate,
+    EngagementAISummaryResponse,
     EngagementCreate,
     EngagementPersonAttach,
     EngagementResponse,
@@ -134,3 +135,24 @@ async def create_engagement_activity(
     return await engagement_service.create_engagement_activity(
         db, engagement_id=engagement_id, data=payload
     )
+
+
+@router.get("/{engagement_id}/ai-summary", response_model=EngagementAISummaryResponse)
+async def get_engagement_ai_summary(
+    engagement_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    eng = await engagement_service.get_engagement(db, engagement_id)
+    if eng.ai_summary:
+        return eng.ai_summary
+    return await engagement_service.generate_engagement_ai_summary(db, engagement_id)
+
+
+@router.post("/{engagement_id}/ai-summary/refresh", response_model=EngagementAISummaryResponse)
+async def refresh_engagement_ai_summary(
+    engagement_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await engagement_service.generate_engagement_ai_summary(db, engagement_id)

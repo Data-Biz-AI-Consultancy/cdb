@@ -16,7 +16,7 @@ const mockEngagement = {
   engagement_type: 'consultancy',
   rate_type: 'daily',
   rate_value: 1650,
-  currency: 'USD',
+  currency: 'EUR',
   total_value: 82500,
   contract_ref: 'MSA-SYN-2026-088',
   contract_status: 'signed',
@@ -31,6 +31,16 @@ const mockEngagement = {
   persons: [
     { person_id: 'pers-1', person_name: 'Elena Rostova', person_email: 'elena@synthetix.io', role: 'client_lead' }
   ],
+  ai_summary: {
+    executive_summary: 'Synthetix Corp data platform delivery is on track with steady progress.',
+    client_sentiment: 'positive',
+    sentiment_reasoning: 'Stable delivery velocity reported in recent syncs.',
+    key_highlights: ['Architecture design finalized', 'Signed MSA in place'],
+    blockers_and_risks: ['No critical blockers'],
+    action_items: [{ task: 'Prepare weekly demo', priority: 'high', suggested_role: 'Technical Lead' }],
+    activity_count_analyzed: 3,
+    generated_at: '2026-09-01T12:00:00Z',
+  },
 };
 
 const mockActivities = [
@@ -40,7 +50,16 @@ const mockActivities = [
     type: 'meeting',
     source: 'notion',
     summary: 'Reviewed data ingest performance and finalized SLA terms.',
+    raw_content: 'Detailed discussion on Kafka cluster scaling and schema registry setup.',
     occurred_at: '2026-08-25T10:00:00Z',
+  },
+  {
+    id: 'act-2',
+    title: 'Sprint Planning Call',
+    type: 'call',
+    source: 'zoom',
+    summary: 'Sprint 3 backlog refined.',
+    occurred_at: '2026-08-28T14:00:00Z',
   }
 ];
 
@@ -67,11 +86,15 @@ describe('EngagementDetailPage', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Enterprise Data Platform & ML Ops Delivery/i })).toBeInTheDocument();
-      expect(screen.getByText(/Synthetix Corp/i)).toBeInTheDocument();
-      expect(screen.getByText('MSA-SYN-2026-088')).toBeInTheDocument();
-      expect(screen.getByText(/Net 30 days payment/i)).toBeInTheDocument();
-      expect(screen.getByText(/Elena Rostova/i)).toBeInTheDocument();
-      expect(screen.getByText('Milestone 1 Architecture Review')).toBeInTheDocument();
     });
+
+    expect(screen.getByRole('link', { name: /Synthetix Corp/i })).toBeInTheDocument();
+    expect(screen.getByText('MSA-SYN-2026-088')).toBeInTheDocument();
+    expect(screen.getByText(/Net 30 days payment/i)).toBeInTheDocument();
+    expect(screen.getByText(/Elena Rostova/i)).toBeInTheDocument();
+    expect(screen.getByText('Milestone 1 Architecture Review')).toBeInTheDocument();
+    expect(screen.getByText('AI Engagement Intelligence Briefing')).toBeInTheDocument();
+    expect(screen.getByText(/Synthetix Corp data platform delivery is on track/i)).toBeInTheDocument();
+    expect(screen.getByText('Prepare weekly demo')).toBeInTheDocument();
   });
 });

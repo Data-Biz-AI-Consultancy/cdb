@@ -1003,6 +1003,41 @@ Attach or detach contact persons with designated roles (`client_lead`, `technica
 
 Retrieve live activity timeline or log new touchpoints / Notion meeting notes directly to the engagement.
 
+### `GET /engagements/{id}/ai-summary` & `POST /engagements/{id}/ai-summary/refresh`
+
+Retrieve or dynamically regenerate the AI Engagement Intelligence Briefing synthesized from all historical activities, meeting notes, timeline, contract T&Cs, and delivery momentum.
+
+**Response 200:**
+```json
+{
+  "executive_summary": "Enterprise Data Platform delivery with Synthetix Corp is currently In Delivery (€1,650/daily). Stable delivery velocity reported across recent interactions. A total of 12 activities and meeting notes have been synthesized.",
+  "client_sentiment": "positive",
+  "sentiment_reasoning": "Consistent progress and milestones achieved across recent syncs.",
+  "key_highlights": [
+    "Signed agreement in place (MSA-SYN-2026-088) under signed status.",
+    "Contract value established at EUR 82,500.00 (€1,650/daily).",
+    "Latest meeting sync: 'Milestone 1 Architecture Review' (Aug 25, 2026)."
+  ],
+  "blockers_and_risks": [
+    "No critical delivery blockers identified in current activity stream."
+  ],
+  "action_items": [
+    {
+      "task": "Review and execute action items from latest sync: 'Milestone 1 Architecture Review'",
+      "priority": "high",
+      "suggested_role": "Technical Lead"
+    },
+    {
+      "task": "Share weekly sprint delivery progress demo and milestones update with client team",
+      "priority": "medium",
+      "suggested_role": "Client Lead"
+    }
+  ],
+  "activity_count_analyzed": 12,
+  "generated_at": "2026-09-01T17:40:00Z"
+}
+```
+
 ---
 
 ## 11. Entity Resolution

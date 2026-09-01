@@ -92,6 +92,25 @@ class EngagementUpdate(BaseModel):
     attributes: dict[str, Any] | None = None
 
 
+class EngagementAISummaryActionItem(BaseModel):
+    task: str
+    priority: str = "medium"  # 'high' | 'medium' | 'low'
+    suggested_role: str | None = None
+
+
+class EngagementAISummaryResponse(BaseModel):
+    executive_summary: str
+    client_sentiment: str = (
+        "positive"  # 'very_positive' | 'positive' | 'neutral' | 'needs_attention' | 'at_risk'
+    )
+    sentiment_reasoning: str
+    key_highlights: list[str] = Field(default_factory=list)
+    blockers_and_risks: list[str] = Field(default_factory=list)
+    action_items: list[EngagementAISummaryActionItem] = Field(default_factory=list)
+    activity_count_analyzed: int = 0
+    generated_at: str
+
+
 class EngagementResponse(EngagementBase):
     id: uuid.UUID
     created_at: datetime.datetime
@@ -105,5 +124,6 @@ class EngagementResponse(EngagementBase):
     days_remaining: int | None = None
     days_elapsed: int | None = None
     recent_activity: str | None = None
+    ai_summary: EngagementAISummaryResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
