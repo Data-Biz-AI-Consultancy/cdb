@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
+import SearchableCombobox, { ComboboxOption } from '@/components/SearchableCombobox';
 
 export interface OpportunityPerson {
   person_id: string;
@@ -154,8 +155,8 @@ export default function OpportunitiesPage() {
   const loadPersonsAndCompanies = async () => {
     try {
       const [personsRes, compRes] = await Promise.allSettled([
-        apiFetch<ApiResponse<PersonOption[]>>('/api/v1/persons?page_size=100'),
-        apiFetch<ApiResponse<CompanyOption[]>>('/api/v1/companies?page_size=100'),
+        apiFetch<ApiResponse<PersonOption[]>>('/api/v1/persons?limit=100&sort=first_name&order=asc'),
+        apiFetch<ApiResponse<CompanyOption[]>>('/api/v1/companies?limit=100&sort=name&order=asc'),
       ]);
       if (personsRes.status === 'fulfilled') {
         setAvailablePersons(personsRes.value.data || []);
@@ -167,6 +168,54 @@ export default function OpportunitiesPage() {
       // Non-critical background loading
     }
   };
+
+  const handleSearchCompanies = async (query: string): Promise<ComboboxOption[]> => {
+    try {
+      const res = await apiFetch<ApiResponse<CompanyOption[]>>(
+        `/api/v1/companies?q=${encodeURIComponent(query)}&limit=50&sort=name&order=asc`
+      );
+      return (res.data || []).map((c) => ({
+        id: c.id,
+        label: c.name,
+        subtext: c.domain || undefined,
+      }));
+    } catch {
+      return [];
+    }
+  };
+
+  const handleSearchPersons = async (query: string): Promise<ComboboxOption[]> => {
+    try {
+      const res = await apiFetch<ApiResponse<PersonOption[]>>(
+        `/api/v1/persons?q=${encodeURIComponent(query)}&limit=50&sort=first_name&order=asc`
+      );
+      return (res.data || []).map((p) => {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.primary_email || p.id;
+        return {
+          id: p.id,
+          label: name,
+          subtext: p.primary_email || undefined,
+        };
+      });
+    } catch {
+      return [];
+    }
+  };
+
+  const companyComboboxOptions: ComboboxOption[] = availableCompanies.map((c) => ({
+    id: c.id,
+    label: c.name,
+    subtext: c.domain || undefined,
+  }));
+
+  const personComboboxOptions: ComboboxOption[] = availablePersons.map((p) => {
+    const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.primary_email || p.id;
+    return {
+      id: p.id,
+      label: name,
+      subtext: p.primary_email || undefined,
+    };
+  });
 
   useEffect(() => {
     loadOpps();
@@ -1068,38 +1117,29 @@ export default function OpportunitiesPage() {
               {/* Attach Person & Company */}
               <div className="border-t pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Primary Attached Contact</label>
-                  <select
+                  <SearchableCombobox
+                    label="Primary Attached Contact"
+                    placeholder="-- None / Select Person --"
+                    searchPlaceholder="Type name or email to search..."
                     value={createForm.person_id}
-                    onChange={(e) => setCreateForm({ ...createForm, person_id: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs"
-                  >
-                    <option value="">-- None / Select Person --</option>
-                    {availablePersons.map((p) => {
-                      const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.primary_email || p.id;
-                      return (
-                        <option key={p.id} value={p.id}>
-                          {name}
-                        </option>
-                      );
-                    })}
-                  </select>
+                    onChange={(id) => setCreateForm({ ...createForm, person_id: id })}
+                    options={personComboboxOptions}
+                    onSearch={handleSearchPersons}
+                    data-testid="create-opp-person-select"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Primary Attached Company</label>
-                  <select
+                  <SearchableCombobox
+                    label="Primary Attached Company"
+                    placeholder="-- None / Select Company --"
+                    searchPlaceholder="Type company name (e.g. Taxfix)..."
                     value={createForm.company_id}
-                    onChange={(e) => setCreateForm({ ...createForm, company_id: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs"
-                  >
-                    <option value="">-- None / Select Company --</option>
-                    {availableCompanies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.domain ? `(${c.domain})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(id) => setCreateForm({ ...createForm, company_id: id })}
+                    options={companyComboboxOptions}
+                    onSearch={handleSearchCompanies}
+                    data-testid="create-opp-company-select"
+                  />
                 </div>
               </div>
 
@@ -1544,22 +1584,16 @@ export default function OpportunitiesPage() {
                     <form onSubmit={handleAttachPerson} className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3">
                       <div className="text-xs font-semibold text-slate-800">+ Link Person to Opportunity</div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        <select
-                          required
+                        <SearchableCombobox
+                          placeholder="-- Choose Person --"
+                          searchPlaceholder="Type name or email..."
                           value={attachPersonForm.person_id}
-                          onChange={(e) => setAttachPersonForm({ ...attachPersonForm, person_id: e.target.value })}
-                          className="px-2.5 py-1.5 border rounded-lg focus:outline-none"
-                        >
-                          <option value="">-- Choose Person --</option>
-                          {availablePersons.map((p) => {
-                            const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.primary_email || p.id;
-                            return (
-                              <option key={p.id} value={p.id}>
-                                {name}
-                              </option>
-                            );
-                          })}
-                        </select>
+                          onChange={(id) => setAttachPersonForm({ ...attachPersonForm, person_id: id })}
+                          options={personComboboxOptions}
+                          onSearch={handleSearchPersons}
+                          required
+                          data-testid="drawer-attach-person-select"
+                        />
 
                         <select
                           value={attachPersonForm.role}
@@ -1639,19 +1673,16 @@ export default function OpportunitiesPage() {
                     <form onSubmit={handleAttachCompany} className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3">
                       <div className="text-xs font-semibold text-slate-800">+ Link Company to Opportunity</div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        <select
-                          required
+                        <SearchableCombobox
+                          placeholder="-- Choose Company --"
+                          searchPlaceholder="Type company name (e.g. Taxfix)..."
                           value={attachCompanyForm.company_id}
-                          onChange={(e) => setAttachCompanyForm({ ...attachCompanyForm, company_id: e.target.value })}
-                          className="px-2.5 py-1.5 border rounded-lg focus:outline-none"
-                        >
-                          <option value="">-- Choose Company --</option>
-                          {availableCompanies.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name} {c.domain ? `(${c.domain})` : ''}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(id) => setAttachCompanyForm({ ...attachCompanyForm, company_id: id })}
+                          options={companyComboboxOptions}
+                          onSearch={handleSearchCompanies}
+                          required
+                          data-testid="drawer-attach-company-select"
+                        />
 
                         <select
                           value={attachCompanyForm.role}
