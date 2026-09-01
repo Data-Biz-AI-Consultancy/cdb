@@ -789,21 +789,21 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
               {/* Sentiment Indicator */}
               <div
                 className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border ${
-                  aiSummary.client_sentiment === 'very_positive' || aiSummary.client_sentiment === 'positive'
+                  (aiSummary.client_sentiment === 'very_positive' || aiSummary.client_sentiment === 'positive')
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : aiSummary.client_sentiment === 'needs_attention' || aiSummary.client_sentiment === 'at_risk'
+                    : (aiSummary.client_sentiment === 'needs_attention' || aiSummary.client_sentiment === 'at_risk')
                     ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                     : 'bg-slate-700/50 text-slate-300 border-slate-600'
                 }`}
               >
                 <span>
-                  {aiSummary.client_sentiment === 'very_positive' || aiSummary.client_sentiment === 'positive'
+                  {(aiSummary.client_sentiment === 'very_positive' || aiSummary.client_sentiment === 'positive')
                     ? '🟢'
-                    : aiSummary.client_sentiment === 'needs_attention' || aiSummary.client_sentiment === 'at_risk'
+                    : (aiSummary.client_sentiment === 'needs_attention' || aiSummary.client_sentiment === 'at_risk')
                     ? '🔴'
                     : '⚪'}
                 </span>
-                <span className="capitalize">{aiSummary.client_sentiment.replace('_', ' ')} Health</span>
+                <span className="capitalize">{(aiSummary.client_sentiment || 'positive').replace('_', ' ')} Health</span>
               </div>
 
               {/* Refresh Button */}
@@ -834,7 +834,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                 <span>🎯</span> Key Highlights & Wins
               </span>
               <ul className="space-y-1.5 text-indigo-100/90 list-disc list-inside">
-                {aiSummary.key_highlights.map((h, i) => (
+                {(aiSummary.key_highlights || []).map((h, i) => (
                   <li key={i} className="leading-snug">{h}</li>
                 ))}
               </ul>
@@ -846,7 +846,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                 <span>⚠️</span> Delivery Risks & Dependencies
               </span>
               <ul className="space-y-1.5 text-indigo-100/90 list-disc list-inside">
-                {aiSummary.blockers_and_risks.map((b, i) => (
+                {(aiSummary.blockers_and_risks || []).map((b, i) => (
                   <li key={i} className="leading-snug">{b}</li>
                 ))}
               </ul>
@@ -858,7 +858,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                 <span>📋</span> Prioritized Action Items
               </span>
               <div className="space-y-2">
-                {aiSummary.action_items.map((act, i) => (
+                {(aiSummary.action_items || []).map((act, i) => (
                   <div key={i} className="p-2 rounded-lg bg-white/5 border border-white/5 space-y-1">
                     <div className="flex items-center justify-between text-[10px]">
                       <span
