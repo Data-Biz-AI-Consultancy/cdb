@@ -1,29 +1,75 @@
 import datetime
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from cdb.core.errors import NotFoundError
 from cdb.models.activity import Activity
-from cdb.schemas.activity import ActivityCreate, ActivityResponse, ActivityUpdate
+from cdb.models.company import Company
+from cdb.models.person import Person
+from cdb.schemas.activity import (
+    ActivityCreate,
+    ActivityResponse,
+    ActivityStatsResponse,
+    ActivityUpdate,
+)
 from cdb.schemas.common import PaginationMetadata
+
+
+async def get_activity_stats(db: AsyncSession) -> ActivityStatsResponse:
+    total_stmt = select(func.count(Activity.id))
+    total = (await db.execute(total_stmt)).scalar() or 0
+
+    type_stmt = select(Activity.type, func.count(Activity.id)).group_by(Activity.type)
+    type_rows = (await db.execute(type_stmt)).all()
+    by_type = {row[0]: row[1] for row in type_rows if row[0]}
+
+    source_stmt = select(Activity.source, func.count(Activity.id)).group_by(Activity.source)
+    source_rows = (await db.execute(source_stmt)).all()
+    by_source = {row[0]: row[1] for row in source_rows if row[0]}
+
+    return ActivityStatsResponse(total=total, by_type=by_type, by_source=by_source)
 
 
 async def list_activities(
     db: AsyncSession,
+    q: str | None = None,
     person_id: uuid.UUID | None = None,
     company_id: uuid.UUID | None = None,
     type: str | None = None,
     source: str | None = None,
     from_date: datetime.datetime | None = None,
     to_date: datetime.datetime | None = None,
+    page: int | None = None,
     limit: int = 50,
     cursor: str | None = None,
     sort: str = "occurred_at",
     order: str = "desc",
 ) -> tuple[list[ActivityResponse], PaginationMetadata]:
-    stmt = select(Activity)
+    stmt = select(Activity).options(
+        selectinload(Activity.person),
+        selectinload(Activity.company),
+    )
+
+    if q and q.strip():
+        q_term = f"%{q.strip()}%"
+        stmt = (
+            stmt.outerjoin(Person, Activity.person_id == Person.id)
+            .outerjoin(Company, Activity.company_id == Company.id)
+            .where(
+                or_(
+                    Activity.title.ilike(q_term),
+                    Activity.summary.ilike(q_term),
+                    Activity.raw_content.ilike(q_term),
+                    Person.first_name.ilike(q_term),
+                    Person.last_name.ilike(q_term),
+                    Person.primary_email.ilike(q_term),
+                    Company.name.ilike(q_term),
+                )
+            )
+        )
 
     if person_id:
         stmt = stmt.where(Activity.person_id == person_id)
@@ -41,13 +87,16 @@ async def list_activities(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar() or 0
 
+    sort_col = getattr(Activity, sort, Activity.occurred_at)
     if order.lower() == "asc":
-        stmt = stmt.order_by(getattr(Activity, sort, Activity.occurred_at).asc())
+        stmt = stmt.order_by(sort_col.asc(), Activity.id.asc())
     else:
-        stmt = stmt.order_by(getattr(Activity, sort, Activity.occurred_at).desc())
+        stmt = stmt.order_by(sort_col.desc(), Activity.id.desc())
 
     offset = 0
-    if cursor and cursor.isdigit():
+    if page is not None and page >= 1:
+        offset = (page - 1) * limit
+    elif cursor and cursor.isdigit():
         offset = int(cursor)
 
     stmt = stmt.offset(offset).limit(limit)
@@ -57,7 +106,13 @@ async def list_activities(
     has_more = (offset + limit) < total
     next_cursor = str(offset + limit) if has_more else None
 
-    return items, PaginationMetadata(next_cursor=next_cursor, has_more=has_more, total=total)
+    return items, PaginationMetadata(
+        page=page,
+        page_size=limit,
+        next_cursor=next_cursor,
+        has_more=has_more,
+        total=total,
+    )
 
 
 async def create_activity(db: AsyncSession, data: ActivityCreate) -> ActivityResponse:
@@ -93,13 +148,30 @@ async def create_activity(db: AsyncSession, data: ActivityCreate) -> ActivityRes
         )
 
     await db.commit()
-    await db.refresh(act)
-    return ActivityResponse.model_validate(act)
+    # Refresh with relationships loaded
+    refreshed = (
+        await db.execute(
+            select(Activity)
+            .options(
+                selectinload(Activity.person),
+                selectinload(Activity.company),
+            )
+            .where(Activity.id == act.id)
+        )
+    ).scalar_one()
+    return ActivityResponse.model_validate(refreshed)
 
 
 async def get_activity(db: AsyncSession, activity_id: uuid.UUID) -> ActivityResponse:
     act = (
-        await db.execute(select(Activity).where(Activity.id == activity_id))
+        await db.execute(
+            select(Activity)
+            .options(
+                selectinload(Activity.person),
+                selectinload(Activity.company),
+            )
+            .where(Activity.id == activity_id)
+        )
     ).scalar_one_or_none()
     if not act:
         raise NotFoundError(f"Activity with id {activity_id} not found.")
@@ -110,7 +182,14 @@ async def update_activity(
     db: AsyncSession, activity_id: uuid.UUID, data: ActivityUpdate
 ) -> ActivityResponse:
     act = (
-        await db.execute(select(Activity).where(Activity.id == activity_id))
+        await db.execute(
+            select(Activity)
+            .options(
+                selectinload(Activity.person),
+                selectinload(Activity.company),
+            )
+            .where(Activity.id == activity_id)
+        )
     ).scalar_one_or_none()
     if not act:
         raise NotFoundError(f"Activity with id {activity_id} not found.")
@@ -120,8 +199,17 @@ async def update_activity(
         setattr(act, k, v)
 
     await db.commit()
-    await db.refresh(act)
-    return ActivityResponse.model_validate(act)
+    refreshed = (
+        await db.execute(
+            select(Activity)
+            .options(
+                selectinload(Activity.person),
+                selectinload(Activity.company),
+            )
+            .where(Activity.id == act.id)
+        )
+    ).scalar_one()
+    return ActivityResponse.model_validate(refreshed)
 
 
 async def delete_activity(db: AsyncSession, activity_id: uuid.UUID) -> None:
