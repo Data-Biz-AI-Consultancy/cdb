@@ -239,4 +239,79 @@ describe('OpportunitiesPage Kanban Board', () => {
       );
     });
   });
+
+  it('searches and attaches a company like Taxfix to an opportunity', async () => {
+    (apiModule.apiFetch as any).mockImplementation((url: string, opts?: any) => {
+      if (url.includes('/api/v1/opportunities/opp-1/companies') && opts?.method === 'POST') {
+        return Promise.resolve({
+          ...mockOpportunities[0],
+          companies: [
+            ...mockOpportunities[0].companies,
+            { company_id: 'c-taxfix', company_name: 'Taxfix', company_domain: 'taxfix.com', role: 'client' },
+          ],
+        });
+      }
+      if (url.includes('/api/v1/companies') && url.includes('q=Taxfix')) {
+        return Promise.resolve({
+          data: [{ id: 'c-taxfix', name: 'Taxfix', domain: 'taxfix.com' }],
+        });
+      }
+      if (url.includes('/api/v1/opportunities') && (!opts || opts.method === 'GET')) {
+        return Promise.resolve({ data: mockOpportunities });
+      }
+      if (url.includes('/api/v1/persons')) {
+        return Promise.resolve({ data: [] });
+      }
+      if (url.includes('/api/v1/companies')) {
+        return Promise.resolve({ data: [{ id: 'c-1', name: 'Acme Corp', domain: 'acme.corp' }] });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<OpportunitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Enterprise Cloud Migration')).toBeInTheDocument();
+    });
+
+    // Open detail drawer
+    fireEvent.click(screen.getByText('Enterprise Cloud Migration'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Attached People & Orgs/)).toBeInTheDocument();
+    });
+
+    // Switch to contacts tab
+    fireEvent.click(screen.getByText(/Attached People & Orgs/));
+
+    const companyCombobox = screen.getByTestId('drawer-attach-company-select');
+    expect(companyCombobox).toBeInTheDocument();
+
+    // Open combobox dropdown
+    fireEvent.click(companyCombobox.querySelector('[role="button"]')!);
+
+    const searchInput = screen.getByPlaceholderText('Type company name (e.g. Taxfix)...');
+    fireEvent.change(searchInput, { target: { value: 'Taxfix' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Taxfix')).toBeInTheDocument();
+    });
+
+    // Select Taxfix
+    fireEvent.click(screen.getByText('Taxfix'));
+
+    // Submit attach company form
+    const attachBtn = screen.getByRole('button', { name: 'Attach Company' });
+    fireEvent.click(attachBtn);
+
+    await waitFor(() => {
+      expect(apiModule.apiFetch).toHaveBeenCalledWith(
+        '/api/v1/opportunities/opp-1/companies',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ company_id: 'c-taxfix', role: 'client' }),
+        })
+      );
+    });
+  });
 });
