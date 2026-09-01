@@ -166,6 +166,42 @@ async def test_engagement_lifecycle(client: AsyncClient, auth_headers: dict[str,
     assert refresh_ai_res.status_code == 200
     assert refresh_ai_res.json()["activity_count_analyzed"] >= 1
 
+    # 8b. Create unlinked LinkedIn conversation activity and manually link it
+    linkedin_act_res = await client.post(
+        "/api/v1/activities",
+        json={
+            "person_id": person_id,
+            "company_id": company_id,
+            "type": "linkedin_message",
+            "source": "linkedin",
+            "title": "LinkedIn Chat: SOW Terms & Rate Confirmation",
+            "summary": "Confirmed €1,650/day rate and milestone schedule via LinkedIn message thread.",
+            "occurred_at": "2026-08-26T15:30:00Z",
+        },
+        headers=auth_headers,
+    )
+    assert linkedin_act_res.status_code == 201
+    linkedin_act_id = linkedin_act_res.json()["id"]
+    assert linkedin_act_res.json()["engagement_id"] is None
+
+    # Link the LinkedIn conversation to engagement
+    link_res = await client.post(
+        f"/api/v1/engagements/{eng_id}/activities/link",
+        json={"activity_ids": [linkedin_act_id]},
+        headers=auth_headers,
+    )
+    assert link_res.status_code == 200
+    assert len(link_res.json()) == 1
+    assert link_res.json()[0]["id"] == linkedin_act_id
+    assert link_res.json()[0]["engagement_id"] == eng_id
+
+    # Unlink activity
+    unlink_res = await client.delete(
+        f"/api/v1/engagements/{eng_id}/activities/{linkedin_act_id}/link",
+        headers=auth_headers,
+    )
+    assert unlink_res.status_code == 204
+
     # 9. Update engagement fields
     update_res = await client.patch(
         f"/api/v1/engagements/{eng_id}",

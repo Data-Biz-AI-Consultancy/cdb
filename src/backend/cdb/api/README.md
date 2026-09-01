@@ -1003,6 +1003,22 @@ Attach or detach contact persons with designated roles (`client_lead`, `technica
 
 Retrieve live activity timeline or log new touchpoints / Notion meeting notes directly to the engagement.
 
+### `POST /engagements/{id}/activities/link` & `DELETE /engagements/{id}/activities/{activity_id}/link`
+
+Manually links existing activities (such as open LinkedIn conversations, emails, or calls) to this engagement by setting `activity.engagement_id = engagement_id`.
+
+**Request Body (Link):**
+```json
+{
+  "activity_ids": ["<uuid>", "<uuid>"]
+}
+```
+
+**Response 200 (Link):**
+Returns the array of updated `ActivityResponse` objects. Automatically re-triggers AI summary synthesis with the newly linked interactions.
+
+---
+
 ### `GET /engagements/{id}/ai-summary` & `POST /engagements/{id}/ai-summary/refresh`
 
 Retrieve or dynamically regenerate the AI Engagement Intelligence Briefing synthesized from all historical activities, meeting notes, timeline, contract T&Cs, and delivery momentum.

@@ -710,3 +710,66 @@ async def generate_engagement_ai_summary(
     await db.refresh(eng)
 
     return summary
+
+
+async def link_activities_to_engagement(
+    db: AsyncSession,
+    engagement_id: uuid.UUID,
+    activity_ids: list[uuid.UUID],
+) -> list[ActivityResponse]:
+    """
+    Manually associates existing activities (e.g. LinkedIn conversations, calls) to this engagement.
+    """
+    eng = (
+        await db.execute(select(Engagement).where(Engagement.id == engagement_id))
+    ).scalar_one_or_none()
+    if not eng:
+        raise NotFoundError(f"Engagement with id {engagement_id} not found.")
+
+    if not activity_ids:
+        return []
+
+    stmt = select(Activity).where(Activity.id.in_(activity_ids))
+    acts = (await db.execute(stmt)).scalars().all()
+    for act in acts:
+        act.engagement_id = engagement_id
+
+    await db.commit()
+
+    # Re-run AI summary with newly linked activities
+    try:
+        await generate_engagement_ai_summary(db, engagement_id)
+    except Exception:
+        pass
+
+    return [ActivityResponse.model_validate(act) for act in acts]
+
+
+async def unlink_activity_from_engagement(
+    db: AsyncSession,
+    engagement_id: uuid.UUID,
+    activity_id: uuid.UUID,
+) -> None:
+    """
+    Unlinks an activity from an engagement by setting activity.engagement_id = None.
+    """
+    eng = (
+        await db.execute(select(Engagement).where(Engagement.id == engagement_id))
+    ).scalar_one_or_none()
+    if not eng:
+        raise NotFoundError(f"Engagement with id {engagement_id} not found.")
+
+    act = (
+        await db.execute(
+            select(Activity).where(
+                Activity.id == activity_id, Activity.engagement_id == engagement_id
+            )
+        )
+    ).scalar_one_or_none()
+    if act:
+        act.engagement_id = None
+        await db.commit()
+        try:
+            await generate_engagement_ai_summary(db, engagement_id)
+        except Exception:
+            pass

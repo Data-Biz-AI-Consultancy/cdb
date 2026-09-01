@@ -17,6 +17,18 @@ interface ActivityItem {
   summary?: string | null;
   raw_content?: string | null;
   person_id?: string | null;
+  company_id?: string | null;
+  engagement_id?: string | null;
+  person?: {
+    id: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    primary_email?: string | null;
+  } | null;
+  company?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 interface PersonOption {
@@ -41,9 +53,18 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
   const [refreshingAi, setRefreshingAi] = useState(false);
 
   // Timeline UI State
-  const [timelineFilter, setTimelineFilter] = useState<'all' | 'meetings' | 'comms' | 'notes'>('all');
+  const [timelineFilter, setTimelineFilter] = useState<'all' | 'meetings' | 'comms' | 'linkedin' | 'notes'>('all');
   const [timelineSearch, setTimelineSearch] = useState('');
   const [expandedActivityIds, setExpandedActivityIds] = useState<Set<string>>(new Set());
+
+  // Link Existing Activity Modal State
+  const [showLinkActivityModal, setShowLinkActivityModal] = useState(false);
+  const [unlinkedActivities, setUnlinkedActivities] = useState<ActivityItem[]>([]);
+  const [loadingUnlinked, setLoadingUnlinked] = useState(false);
+  const [selectedUnlinkedIds, setSelectedUnlinkedIds] = useState<Set<string>>(new Set());
+  const [unlinkedSearch, setUnlinkedSearch] = useState('');
+  const [unlinkedTypeFilter, setUnlinkedTypeFilter] = useState<'all' | 'linkedin' | 'calls' | 'emails' | 'meetings'>('all');
+  const [linkingInProgress, setLinkingInProgress] = useState(false);
 
   useEffect(() => {
     if (params && typeof (params as any).then === 'function') {
@@ -192,6 +213,101 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
     });
   }, [allPersons]);
 
+  const handleOpenLinkModal = async () => {
+    setShowLinkActivityModal(true);
+    setSelectedUnlinkedIds(new Set());
+    setUnlinkedSearch('');
+    setLoadingUnlinked(true);
+    try {
+      // Query activities for the client company or general activities to link
+      const res = await apiFetch<ApiResponse<ActivityItem[]>>('/api/v1/activities?limit=100');
+      if (res?.data) {
+        // Filter out activities that are already linked to this engagement
+        const existingIds = new Set(activities.map((a) => a.id));
+        const candidates = res.data.filter((a) => !existingIds.has(a.id) && a.engagement_id !== id);
+        setUnlinkedActivities(candidates);
+      }
+    } catch (err: any) {
+      console.error('Error fetching unlinked activities:', err);
+    } finally {
+      setLoadingUnlinked(false);
+    }
+  };
+
+  const handleToggleSelectUnlinked = (actId: string) => {
+    setSelectedUnlinkedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(actId)) {
+        next.delete(actId);
+      } else {
+        next.add(actId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllUnlinked = () => {
+    if (selectedUnlinkedIds.size === filteredUnlinkedActivities.length) {
+      setSelectedUnlinkedIds(new Set());
+    } else {
+      setSelectedUnlinkedIds(new Set(filteredUnlinkedActivities.map((a) => a.id)));
+    }
+  };
+
+  const handleLinkSelectedActivities = async () => {
+    if (selectedUnlinkedIds.size === 0 || !id) return;
+    setLinkingInProgress(true);
+    try {
+      const linked = await apiFetch<ActivityItem[]>(`/api/v1/engagements/${id}/activities/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activity_ids: Array.from(selectedUnlinkedIds) }),
+      });
+
+      if (linked) {
+        // Add newly linked activities to current activities list
+        setActivities((prev) => {
+          const currentIds = new Set(prev.map((a) => a.id));
+          const toAdd = linked.filter((a) => !currentIds.has(a.id));
+          return [...toAdd, ...prev];
+        });
+
+        setShowLinkActivityModal(false);
+        setSuccessMessage(`Successfully linked ${selectedUnlinkedIds.size} activity/conversation(s) to this engagement.`);
+        setTimeout(() => setSuccessMessage(null), 3500);
+
+        // Auto-refresh AI summary
+        apiFetch<EngagementAISummaryItem>(`/api/v1/engagements/${id}/ai-summary/refresh`, { method: 'POST' })
+          .then((res) => { if (res) setAiSummary(res); })
+          .catch(() => {});
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to link activities.');
+    } finally {
+      setLinkingInProgress(false);
+    }
+  };
+
+  const handleUnlinkActivity = async (actId: string) => {
+    if (!id || !confirm('Are you sure you want to unlink this conversation from this engagement?')) return;
+    try {
+      await apiFetch(`/api/v1/engagements/${id}/activities/${actId}/link`, {
+        method: 'DELETE',
+      });
+
+      setActivities((prev) => prev.filter((a) => a.id !== actId));
+      setSuccessMessage('Activity unlinked from engagement.');
+      setTimeout(() => setSuccessMessage(null), 3000);
+
+      // Auto-refresh AI summary
+      apiFetch<EngagementAISummaryItem>(`/api/v1/engagements/${id}/ai-summary/refresh`, { method: 'POST' })
+        .then((res) => { if (res) setAiSummary(res); })
+        .catch(() => {});
+    } catch (err: any) {
+      alert(err.message || 'Failed to unlink activity.');
+    }
+  };
+
   const handleUpdateEngagement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTitle.trim() || !id) return;
@@ -333,8 +449,11 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
       if (timelineFilter === 'meetings') {
         const isMeeting = act.type === 'meeting' || act.type === 'notion_meeting_note' || act.source === 'notion';
         if (!isMeeting) return false;
+      } else if (timelineFilter === 'linkedin') {
+        const isLinkedIn = act.source === 'linkedin' || act.type === 'linkedin_message' || act.type === 'linkedin';
+        if (!isLinkedIn) return false;
       } else if (timelineFilter === 'comms') {
-        const isComm = ['call', 'email', 'message', 'whatsapp', 'linkedin'].includes(act.type);
+        const isComm = ['call', 'email', 'message', 'whatsapp', 'linkedin', 'linkedin_message'].includes(act.type);
         if (!isComm) return false;
       } else if (timelineFilter === 'notes') {
         const isNote = ['note', 'task', 'status_change', 'milestone'].includes(act.type);
@@ -358,10 +477,38 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
   const activityCounts = useMemo(() => {
     const total = activities.length;
     const meetings = activities.filter((a) => a.type === 'meeting' || a.type === 'notion_meeting_note' || a.source === 'notion').length;
-    const comms = activities.filter((a) => ['call', 'email', 'message', 'whatsapp', 'linkedin'].includes(a.type)).length;
+    const linkedin = activities.filter((a) => a.source === 'linkedin' || a.type === 'linkedin_message' || a.type === 'linkedin').length;
+    const comms = activities.filter((a) => ['call', 'email', 'message', 'whatsapp', 'linkedin', 'linkedin_message'].includes(a.type)).length;
     const notes = activities.filter((a) => ['note', 'task', 'status_change', 'milestone'].includes(a.type)).length;
-    return { total, meetings, comms, notes };
+    return { total, meetings, linkedin, comms, notes };
   }, [activities]);
+
+  // Filtered candidates for link modal
+  const filteredUnlinkedActivities = useMemo(() => {
+    return unlinkedActivities.filter((act) => {
+      if (unlinkedTypeFilter === 'linkedin') {
+        if (act.source !== 'linkedin' && act.type !== 'linkedin_message' && act.type !== 'linkedin') return false;
+      } else if (unlinkedTypeFilter === 'calls') {
+        if (act.type !== 'call') return false;
+      } else if (unlinkedTypeFilter === 'emails') {
+        if (act.type !== 'email') return false;
+      } else if (unlinkedTypeFilter === 'meetings') {
+        if (act.type !== 'meeting' && act.source !== 'notion') return false;
+      }
+
+      if (unlinkedSearch.trim()) {
+        const q = unlinkedSearch.toLowerCase();
+        const matchTitle = act.title?.toLowerCase().includes(q);
+        const matchSummary = act.summary?.toLowerCase().includes(q);
+        const matchContent = act.raw_content?.toLowerCase().includes(q);
+        const matchPerson = act.person ? `${act.person.first_name} ${act.person.last_name} ${act.person.primary_email}`.toLowerCase().includes(q) : false;
+        const matchCompany = act.company?.name.toLowerCase().includes(q);
+        if (!matchTitle && !matchSummary && !matchContent && !matchPerson && !matchCompany) return false;
+      }
+
+      return true;
+    });
+  }, [unlinkedActivities, unlinkedTypeFilter, unlinkedSearch]);
 
   if (loading) {
     return (
@@ -403,6 +550,12 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleOpenLinkModal}
+            className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5"
+          >
+            <span>🔗</span> Link LinkedIn / Conversation
+          </button>
           <button
             onClick={() => setShowLogActivityModal(true)}
             className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5"
@@ -543,7 +696,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                   </span>
                 </div>
                 <p className="text-xs text-indigo-200/70">
-                  Synthesized from {aiSummary.activity_count_analyzed} recorded meetings, Notion notes & client touchpoints.
+                  Synthesized from {aiSummary.activity_count_analyzed} recorded meetings, LinkedIn conversations & touchpoints.
                 </p>
               </div>
             </div>
@@ -765,24 +918,32 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                   <span>🗓️</span> Engagement Activity Timeline
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Chronological history of Notion notes, client syncs, emails & delivery updates.
+                  Chronological history of Notion notes, LinkedIn messages, client syncs & delivery updates.
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowLogActivityModal(true)}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-sm transition flex items-center gap-1 shrink-0"
-              >
-                <span>➕</span> Log Activity / Note
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleOpenLinkModal}
+                  className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs rounded-xl border border-indigo-200 transition flex items-center gap-1"
+                >
+                  <span>🔗</span> Link LinkedIn / Comms
+                </button>
+                <button
+                  onClick={() => setShowLogActivityModal(true)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-sm transition flex items-center gap-1"
+                >
+                  <span>➕</span> Log Activity
+                </button>
+              </div>
             </div>
 
             {/* Filter Tabs & Search */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl flex-wrap">
                 <button
                   onClick={() => setTimelineFilter('all')}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                     timelineFilter === 'all'
                       ? 'bg-white text-slate-900 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
@@ -791,18 +952,28 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                   All ({activityCounts.total})
                 </button>
                 <button
+                  onClick={() => setTimelineFilter('linkedin')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                    timelineFilter === 'linkedin'
+                      ? 'bg-white text-blue-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  💬 LinkedIn ({activityCounts.linkedin})
+                </button>
+                <button
                   onClick={() => setTimelineFilter('meetings')}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                     timelineFilter === 'meetings'
                       ? 'bg-white text-slate-900 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  📝 Meeting Notes ({activityCounts.meetings})
+                  📝 Notion Notes ({activityCounts.meetings})
                 </button>
                 <button
                   onClick={() => setTimelineFilter('comms')}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                     timelineFilter === 'comms'
                       ? 'bg-white text-slate-900 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
@@ -812,7 +983,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                 </button>
                 <button
                   onClick={() => setTimelineFilter('notes')}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                     timelineFilter === 'notes'
                       ? 'bg-white text-slate-900 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
@@ -843,15 +1014,29 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
 
             {/* Timeline Stream */}
             {filteredActivities.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
-                <span className="text-2xl block">📝</span>
+              <div className="text-center py-12 text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-3">
+                <span className="text-2xl block">💬</span>
                 <p className="font-semibold text-slate-600">No activities found matching filter criteria.</p>
-                <p>Record your first meeting note or sync to start building the delivery history.</p>
+                <div className="flex justify-center gap-2">
+                  <button
+                    onClick={handleOpenLinkModal}
+                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs rounded-xl border border-indigo-200 transition"
+                  >
+                    🔗 Link Existing LinkedIn Message / Activity
+                  </button>
+                  <button
+                    onClick={() => setShowLogActivityModal(true)}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
+                  >
+                    ➕ Log New Note
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
                 {filteredActivities.map((act) => {
                   const isExpanded = expandedActivityIds.has(act.id);
+                  const isLinkedIn = act.source === 'linkedin' || act.type === 'linkedin_message' || act.type === 'linkedin';
                   const isNotion = act.source === 'notion' || act.type === 'notion_meeting_note';
                   const isCall = act.type === 'call';
                   const isEmail = act.type === 'email';
@@ -862,7 +1047,9 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                       {/* Node Bullet Icon */}
                       <div
                         className={`absolute -left-6 top-1.5 w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] z-10 shadow-sm ${
-                          isNotion || isMeeting
+                          isLinkedIn
+                            ? 'bg-sky-100 border-sky-500 text-sky-700'
+                            : isNotion || isMeeting
                             ? 'bg-purple-100 border-purple-500 text-purple-700'
                             : isCall
                             ? 'bg-blue-100 border-blue-500 text-blue-700'
@@ -871,7 +1058,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                             : 'bg-emerald-100 border-emerald-500 text-emerald-700'
                         }`}
                       >
-                        {isNotion ? '📝' : isCall ? '📞' : isEmail ? '✉️' : '💬'}
+                        {isLinkedIn ? '💬' : isNotion ? '📝' : isCall ? '📞' : isEmail ? '✉️' : '💬'}
                       </div>
 
                       {/* Card Content */}
@@ -883,7 +1070,9 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                             </span>
                             <span
                               className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase ${
-                                isNotion
+                                isLinkedIn
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : isNotion
                                   ? 'bg-purple-100 text-purple-800'
                                   : isCall
                                   ? 'bg-blue-100 text-blue-800'
@@ -896,15 +1085,24 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                             </span>
                           </div>
 
-                          <span className="text-[11px] text-slate-400 font-medium shrink-0">
-                            {new Date(act.occurred_at).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              {new Date(act.occurred_at).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                            <button
+                              onClick={() => handleUnlinkActivity(act.id)}
+                              title="Unlink from this engagement"
+                              className="text-slate-400 hover:text-rose-600 text-[11px] p-1 transition opacity-0 group-hover:opacity-100"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
 
                         {/* Summary */}
@@ -921,7 +1119,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                               onClick={() => toggleExpandActivity(act.id)}
                               className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
-                              <span>{isExpanded ? '▾ Hide full meeting notes' : '▸ View full meeting notes & transcript'}</span>
+                              <span>{isExpanded ? '▾ Hide details / transcript' : '▸ View details / conversation thread'}</span>
                             </button>
 
                             {isExpanded && (
@@ -940,6 +1138,213 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
       </div>
+
+      {/* Link Existing Conversation / Activity Modal */}
+      {showLinkActivityModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl border border-slate-200 space-y-4 my-8 text-sm">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <span>🔗</span> Link Activity / LinkedIn Conversation
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Select existing LinkedIn messages, calls, or notes to attach to this engagement timeline.
+                </p>
+              </div>
+              <button onClick={() => setShowLinkActivityModal(false)} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+            </div>
+
+            {/* Filter Pills & Search */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setUnlinkedTypeFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                    unlinkedTypeFilter === 'all'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All ({unlinkedActivities.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUnlinkedTypeFilter('linkedin')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                    unlinkedTypeFilter === 'linkedin'
+                      ? 'bg-white text-sky-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  💬 LinkedIn
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUnlinkedTypeFilter('calls')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                    unlinkedTypeFilter === 'calls'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  📞 Calls
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUnlinkedTypeFilter('emails')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                    unlinkedTypeFilter === 'emails'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  ✉️ Emails
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUnlinkedTypeFilter('meetings')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                    unlinkedTypeFilter === 'meetings'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  📝 Notion
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search available activities..."
+                  value={unlinkedSearch}
+                  onChange={(e) => setUnlinkedSearch(e.target.value)}
+                  className="w-full sm:w-56 px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                {unlinkedSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setUnlinkedSearch('')}
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 text-[10px]"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* List Selection Area */}
+            {loadingUnlinked ? (
+              <div className="text-center py-12 text-slate-400 text-xs">Loading unlinked activities...</div>
+            ) : filteredUnlinkedActivities.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1">
+                <p className="font-semibold text-slate-600">No unlinked activities found matching criteria.</p>
+                <p>All recorded conversations may already be attached to an engagement.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+                  <span>
+                    Showing {filteredUnlinkedActivities.length} available activity/conversations
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllUnlinked}
+                    className="text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                  >
+                    {selectedUnlinkedIds.size === filteredUnlinkedActivities.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+
+                {filteredUnlinkedActivities.map((act) => {
+                  const isChecked = selectedUnlinkedIds.has(act.id);
+                  const isLinkedIn = act.source === 'linkedin' || act.type === 'linkedin_message' || act.type === 'linkedin';
+
+                  return (
+                    <label
+                      key={act.id}
+                      onClick={() => handleToggleSelectUnlinked(act.id)}
+                      className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition text-xs ${
+                        isChecked
+                          ? 'bg-blue-50/70 border-blue-400 shadow-xs'
+                          : 'bg-slate-50/60 hover:bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {}}
+                        className="mt-0.5 rounded text-blue-600 focus:ring-blue-500"
+                      />
+
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900 truncate">
+                              {act.title || 'Untitled Activity'}
+                            </span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                                isLinkedIn
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : act.source === 'notion'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-slate-200 text-slate-800'
+                              }`}
+                            >
+                              {act.source}
+                            </span>
+                          </div>
+
+                          <span className="text-[10px] text-slate-400 shrink-0">
+                            {new Date(act.occurred_at).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+
+                        {act.summary && (
+                          <p className="text-slate-600 line-clamp-2 leading-relaxed font-sans">
+                            {act.summary}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+              <span className="font-semibold text-slate-600">
+                {selectedUnlinkedIds.size} selected
+              </span>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLinkActivityModal(false)}
+                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={selectedUnlinkedIds.size === 0 || linkingInProgress}
+                  onClick={handleLinkSelectedActivities}
+                  className="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm disabled:opacity-50 transition"
+                >
+                  {linkingInProgress ? 'Linking...' : `Link ${selectedUnlinkedIds.size > 0 ? `(${selectedUnlinkedIds.size})` : ''} to Engagement`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEditModal && (

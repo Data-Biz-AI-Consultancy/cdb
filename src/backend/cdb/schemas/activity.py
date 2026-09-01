@@ -37,6 +37,9 @@ class ActivityUpdate(BaseModel):
     title: str | None = None
     summary: str | None = None
     raw_content: str | None = None
+    engagement_id: uuid.UUID | None = None
+    person_id: uuid.UUID | None = None
+    company_id: uuid.UUID | None = None
     attributes: dict[str, Any] | None = None
 
 

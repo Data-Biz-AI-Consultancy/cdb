@@ -9,6 +9,7 @@ from cdb.models.user import User
 from cdb.schemas.activity import ActivityResponse
 from cdb.schemas.common import PaginatedResponse
 from cdb.schemas.engagement import (
+    EngagementActivitiesLinkRequest,
     EngagementActivityCreate,
     EngagementAISummaryResponse,
     EngagementCreate,
@@ -156,3 +157,30 @@ async def refresh_engagement_ai_summary(
     current_user: User = Depends(get_current_user),
 ):
     return await engagement_service.generate_engagement_ai_summary(db, engagement_id)
+
+
+@router.post("/{engagement_id}/activities/link", response_model=list[ActivityResponse])
+async def link_activities_to_engagement(
+    engagement_id: uuid.UUID,
+    payload: EngagementActivitiesLinkRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await engagement_service.link_activities_to_engagement(
+        db, engagement_id=engagement_id, activity_ids=payload.activity_ids
+    )
+
+
+@router.delete(
+    "/{engagement_id}/activities/{activity_id}/link",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def unlink_activity_from_engagement(
+    engagement_id: uuid.UUID,
+    activity_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await engagement_service.unlink_activity_from_engagement(
+        db, engagement_id=engagement_id, activity_id=activity_id
+    )

@@ -24,6 +24,10 @@ class EngagementActivityCreate(BaseModel):
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 
+class EngagementActivitiesLinkRequest(BaseModel):
+    activity_ids: list[uuid.UUID] = Field(..., min_length=1)
+
+
 class EngagementPersonResponse(BaseModel):
     person_id: uuid.UUID
     role: str | None = None

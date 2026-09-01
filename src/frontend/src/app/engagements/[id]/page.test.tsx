@@ -96,5 +96,6 @@ describe('EngagementDetailPage', () => {
     expect(screen.getByText('AI Engagement Intelligence Briefing')).toBeInTheDocument();
     expect(screen.getByText(/Synthetix Corp data platform delivery is on track/i)).toBeInTheDocument();
     expect(screen.getByText('Prepare weekly demo')).toBeInTheDocument();
+    expect(screen.getAllByText(/Link LinkedIn/i).length).toBeGreaterThanOrEqual(1);
   });
 });
