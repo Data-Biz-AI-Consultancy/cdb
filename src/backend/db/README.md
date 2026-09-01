@@ -90,6 +90,32 @@ erDiagram
         varchar role
     }
 
+    engagements {
+        uuid id PK
+        varchar title
+        uuid company_id FK
+        uuid opportunity_id FK
+        uuid owner_id FK
+        varchar status
+        varchar engagement_type
+        varchar rate_type
+        numeric rate_value
+        char currency
+        numeric total_value
+        varchar contract_ref
+        varchar contract_status
+        date signed_at
+        text terms_and_conditions
+        date start_date
+        date expected_end_date
+    }
+
+    engagement_persons {
+        uuid engagement_id FK
+        uuid person_id FK
+        varchar role
+    }
+
     intake_linkedin_connections {
         uuid id PK
         varchar connection_id
@@ -524,6 +550,66 @@ CREATE INDEX idx_opportunity_history_opp_id        ON opportunity_history (oppor
 CREATE INDEX idx_opportunity_history_action_id    ON opportunity_history (action_id);
 CREATE INDEX idx_opportunity_history_changed_by_id ON opportunity_history (changed_by_id);
 CREATE INDEX idx_opportunity_history_created_at    ON opportunity_history (created_at);
+```
+
+### `engagements`
+
+Active client engagements representing contracted work, daily/hourly rates, signed contracts, terms & conditions, and milestone delivery.
+
+```sql
+CREATE TABLE engagements (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title                 VARCHAR(512) NOT NULL,
+    company_id            UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    opportunity_id        UUID REFERENCES opportunities(id) ON DELETE SET NULL,
+    owner_id              UUID REFERENCES users(id) ON DELETE SET NULL,
+
+    status                VARCHAR(50) NOT NULL DEFAULT 'active',
+                          -- 'planning' | 'active' | 'in_delivery' | 'on_hold' | 'completed' | 'cancelled'
+    engagement_type       VARCHAR(50) NOT NULL DEFAULT 'consultancy',
+                          -- 'consultancy' | 'retainer' | 'fixed_fee' | 'time_and_materials' | 'advisory' | 'full_time'
+
+    rate_type             VARCHAR(50) NOT NULL DEFAULT 'daily',
+                          -- 'hourly' | 'daily' | 'monthly' | 'fixed'
+    rate_value            NUMERIC(15, 2),
+    currency              CHAR(3) NOT NULL DEFAULT 'USD',
+    total_value           NUMERIC(15, 2),
+
+    contract_ref          VARCHAR(512),                       -- Contract link, ID, or Notion document
+    contract_status       VARCHAR(50) NOT NULL DEFAULT 'signed', -- 'draft' | 'pending_signature' | 'signed' | 'expired' | 'terminated'
+    signed_at             DATE,
+    terms_and_conditions  TEXT,
+
+    start_date            DATE,
+    expected_end_date     DATE,
+    actual_end_date       DATE,
+
+    notes                 TEXT,
+    description           TEXT,
+    attributes            JSONB NOT NULL DEFAULT '{}',
+
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_engagements_company_id        ON engagements (company_id);
+CREATE INDEX idx_engagements_opportunity_id    ON engagements (opportunity_id);
+CREATE INDEX idx_engagements_owner_id          ON engagements (owner_id);
+CREATE INDEX idx_engagements_status            ON engagements (status);
+CREATE INDEX idx_engagements_type              ON engagements (engagement_type);
+CREATE INDEX idx_engagements_expected_end_date ON engagements (expected_end_date);
+```
+
+### `engagement_persons`
+
+```sql
+CREATE TABLE engagement_persons (
+    engagement_id UUID NOT NULL REFERENCES engagements(id) ON DELETE CASCADE,
+    person_id      UUID NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+    role           VARCHAR(255),                      -- e.g. 'client_lead', 'technical_contact', 'stakeholder', 'delivery_lead'
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (engagement_id, person_id)
+);
 ```
 
 ---

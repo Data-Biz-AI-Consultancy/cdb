@@ -58,7 +58,7 @@ The application navigation is organized into 3 clear functional categories:
    - **Activities** (`/activities`): Full chronological activity feed (meetings, calls, notes, messages).
    - **Leads** (`/leads`): Interest qualification funnel (`New` → `Contacted` → `Qualified` → `Converted`) with conversation transcript & description viewer, default recency sorting (most recent lead first), signal strength badges, search, and one-click opportunity conversion modal.
    - **Opportunities** (`/opportunities`): Interactive drag-and-drop Kanban deal pipeline with pipeline forecasting KPIs (Active Pipeline, Confidence-Adjusted Weighted Value, Win Rate %), first-class Title & Description fields, Confidence Level meters, automated Stale (30d+) & Expired (90d+) inactivity alerts, overdue resolution target warnings (`🚨 Overdue`), attached contact persons & companies management, and a complete opportunity history (audit log & activity timeline).
-   - **Client Engagements** (`/engagements`): Active client engagements, deliverables, and relationship metrics.
+   - **Client Engagements** (`/engagements`, `/engagements/[id]`): Workspace for ongoing client projects and contracted delivery work. Connects client organization, attached contact person(s) with roles, signed contracts (ID / URL link / status / signed date), key terms & conditions (T&Cs), billing rates (daily, hourly, monthly, fixed), total contract budgets, timeline countdowns, and linked Notion meeting notes & activity feeds.
 
 3. **Settings**
    - **Data Ingestion** (`/ingestion`): File upload and intake portal for LinkedIn, Notion, and CSV imports.

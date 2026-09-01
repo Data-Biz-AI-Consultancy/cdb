@@ -1,6 +1,7 @@
 from cdb.models.activity import Activity
 from cdb.models.base import Base
 from cdb.models.company import Company
+from cdb.models.engagement import Engagement, EngagementPerson
 from cdb.models.er import ERCandidatePair
 from cdb.models.intake import (
     IntakeLinkedInConnection,
@@ -31,6 +32,8 @@ __all__ = [
     "OpportunityCompany",
     "OpportunityAction",
     "OpportunityHistory",
+    "Engagement",
+    "EngagementPerson",
     "IntakeLinkedInConnection",
     "IntakeLinkedInMessage",
     "IntakeNotionMeetingNote",

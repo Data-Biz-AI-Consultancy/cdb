@@ -92,7 +92,9 @@ def register_error_handlers(app: FastAPI) -> None:
     async def validation_exception_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        details = {"errors": exc.errors()}
+        from fastapi.encoders import jsonable_encoder
+
+        details = {"errors": jsonable_encoder(exc.errors())}
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={

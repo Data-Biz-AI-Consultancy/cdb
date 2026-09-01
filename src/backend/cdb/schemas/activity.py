@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class ActivityBase(BaseModel):
     person_id: uuid.UUID | None = None
     company_id: uuid.UUID | None = None
+    engagement_id: uuid.UUID | None = None
     type: str  # 'meeting' | 'email' | 'linkedin_message' | 'whatsapp' | 'call' | 'note'
     source: str = "manual"  # 'notion' | 'gmail' | 'linkedin' | 'whatsapp' | 'manual'
     source_id: str | None = None
@@ -19,8 +20,10 @@ class ActivityBase(BaseModel):
 
     @model_validator(mode="after")
     def check_person_or_company(self) -> "ActivityBase":
-        if not self.person_id and not self.company_id:
-            raise ValueError("Activity must be linked to at least one person or company.")
+        if not self.person_id and not self.company_id and not self.engagement_id:
+            raise ValueError(
+                "Activity must be linked to at least one person, company, or engagement."
+            )
         return self
 
 
@@ -77,6 +80,7 @@ class ActivityResponse(BaseModel):
     id: uuid.UUID
     person_id: uuid.UUID | None = None
     company_id: uuid.UUID | None = None
+    engagement_id: uuid.UUID | None = None
     person: ActivityPersonSummary | None = None
     company: ActivityCompanySummary | None = None
     type: str

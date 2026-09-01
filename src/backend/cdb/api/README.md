@@ -904,7 +904,108 @@ Log meeting notes, call logs, or progress updates directly into the opportunity 
 
 ---
 
-## 10. Entity Resolution
+## 10. Engagements
+
+Client Engagements represent active and ongoing consulting, advisory, or delivery work with existing client organizations.
+
+### `GET /engagements`
+
+List all client engagements with filtering and pagination.
+
+**Query params:**
+- `status` (`planning` | `active` | `in_delivery` | `on_hold` | `completed` | `cancelled`, optional)
+- `company_id` (UUID, optional — filter by client company)
+- `person_id` (UUID, optional — filter by attached contact person)
+- `engagement_type` (`consultancy` | `retainer` | `fixed_fee` | `time_and_materials` | `advisory` | `full_time`, optional)
+- `search` (string, optional — search title, description, contract_ref, terms)
+- `limit` / `page_size` (int, default 50, max 200)
+- `cursor` (string, optional)
+- `sort` (default `created_at`)
+- `order` (`desc` | `asc`, default `desc`)
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "e4a2c1f8-...",
+      "title": "Enterprise Data Platform & ML Delivery",
+      "company_id": "c1a2b3...",
+      "opportunity_id": "o987...",
+      "owner_id": "u123...",
+      "status": "active",
+      "engagement_type": "consultancy",
+      "rate_type": "daily",
+      "rate_value": "1650.00",
+      "currency": "USD",
+      "total_value": "82500.00",
+      "contract_ref": "MSA-SYN-2026-088",
+      "contract_status": "signed",
+      "signed_at": "2026-08-15",
+      "terms_and_conditions": "Net 30 days payment. 40 hours/week cap. IP assigned on payment.",
+      "start_date": "2026-08-20",
+      "expected_end_date": "2026-11-30",
+      "actual_end_date": null,
+      "notes": "Weekly sprint demos on Thursdays.",
+      "description": null,
+      "attributes": {},
+      "created_at": "2026-08-15T10:00:00Z",
+      "updated_at": "2026-08-15T10:00:00Z",
+      "company": { "id": "c1a2b3...", "name": "Synthetix Corp", "domain": "synthetix.io" },
+      "persons": [
+        { "person_id": "p111...", "person_name": "Elena Rostova", "person_email": "elena@synthetix.io", "role": "client_lead" }
+      ],
+      "is_overdue": false,
+      "days_remaining": 75,
+      "days_elapsed": 12,
+      "recent_activity": "Milestone 1 Architecture Review"
+    }
+  ],
+  "pagination": { "next_cursor": null, "has_more": false, "total": 1 }
+}
+```
+
+### `POST /engagements`
+
+Create a new client engagement.
+
+```json
+{
+  "title": "GenAI Strategy Advisory",
+  "company_id": "<uuid>",
+  "status": "active",
+  "engagement_type": "advisory",
+  "rate_type": "daily",
+  "rate_value": 2000.0,
+  "currency": "USD",
+  "total_value": 40000.0,
+  "contract_ref": "MSA-2026-092",
+  "contract_status": "signed",
+  "signed_at": "2026-09-01",
+  "terms_and_conditions": "Net 30 days payment. IP assignment on receipt of funds.",
+  "start_date": "2026-09-01",
+  "expected_end_date": "2026-10-31",
+  "person_ids": [
+    { "person_id": "<uuid>", "role": "client_lead" }
+  ]
+}
+```
+
+### `GET /engagements/{id}` / `PATCH /engagements/{id}` / `DELETE /engagements/{id}`
+
+Retrieve, update, or delete an engagement.
+
+### `POST /engagements/{id}/persons` & `DELETE /engagements/{id}/persons/{person_id}`
+
+Attach or detach contact persons with designated roles (`client_lead`, `technical_contact`, `stakeholder`, `delivery_lead`, `consultant`).
+
+### `GET /engagements/{id}/activities` & `POST /engagements/{id}/activities`
+
+Retrieve live activity timeline or log new touchpoints / Notion meeting notes directly to the engagement.
+
+---
+
+## 11. Entity Resolution
 
 ### `GET /entity-resolution/queue`
 
