@@ -106,9 +106,6 @@ describe('EngagementDetailPage', () => {
     expect(screen.getByText('Prepare weekly demo')).toBeInTheDocument();
     expect(screen.getAllByText(/Link LinkedIn/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Signed_MSA_Synthetix_2026.pdf')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /View \/ Download/i })).toHaveAttribute(
-      'href',
-      '/api/v1/engagements/eng-123/contract/download'
-    );
+    expect(screen.getByRole('button', { name: /View \/ Download/i })).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { apiFetch, ApiResponse } from '@/lib/api';
+import { apiFetch, ApiResponse, getAuthToken } from '@/lib/api';
 import { COMMON_CURRENCIES, formatMoney, getCurrencySymbol } from '@/lib/currency';
 import SearchableCombobox, { ComboboxOption } from '@/components/SearchableCombobox';
 import { EngagementItem, EngagementAISummaryItem } from '../page';
@@ -224,6 +224,25 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
       }
     } catch (err: any) {
       alert(err.message || 'Failed to delete contract file.');
+    }
+  };
+
+  const handleViewContractDocument = async () => {
+    const token = getAuthToken();
+    if (!id) return;
+    try {
+      const url = `/api/v1/engagements/${id}/contract/download${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        throw new Error('Failed to load contract document.');
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch (err: any) {
+      alert(err.message || 'Error opening contract.');
     }
   };
 
@@ -911,14 +930,13 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <a
-                      href={`/api/v1/engagements/${id}/contract/download`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={handleViewContractDocument}
                       className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-xs rounded-lg transition flex items-center gap-1"
                     >
                       <span>👁️</span> View / Download
-                    </a>
+                    </button>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
