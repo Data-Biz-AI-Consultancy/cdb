@@ -1,3 +1,10 @@
+## [1.22.1](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.22.0...v1.22.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* introduce SearchableCombobox component and replace static selects in opportunity forms for improved search and selection ([586daad](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/586daad02b5e2b9f8734fd263a46ef2229a59a21))
+
 # [1.22.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.21.0...v1.22.0) (2026-08-31)
 
 
