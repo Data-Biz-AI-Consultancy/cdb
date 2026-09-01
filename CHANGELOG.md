@@ -1,6 +1,26 @@
 # [1.24.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.23.0...v1.24.0) (2026-09-01)
 
 
+### Bug Fixes
+
+* add nullish coalescing to AI summary data and implement engagement activity linking with download functionality in tests ([ccab9de](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ccab9de1dd3ae7f34e53b832b6c6aeaefe18811b))
+
+
+### Features
+
+* add support for uploading contract PDF documents ([dd7872c](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/dd7872cbe67232321f8b75641230fac912df8b9f))
+* change default currency from USD to EUR across frontend and backend services ([11791a8](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/11791a82b8b904b1024a65579bed69b2d9c38f41))
+* enable token-based authentication for contract downloads via query parameter and replace link with authenticated button handler ([70fd3dc](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/70fd3dc84b024b9973a2bfdfdce0e40b2202fe12))
+* implement AI summary refresh, enhanced activity logging, and dynamic timeline filtering for engagements ([ed918a9](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ed918a9856bd8ac5e006777aad02692827d4aad1))
+* implement contract document upload, download, and deletion functionality for engagements ([69062dc](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/69062dcf96c5bbe96fca5c45691891efdf1b9115))
+* implement engagement management system with database schema, API endpoints, and frontend integration ([74328a4](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/74328a4fe460a5e894d6b97a2ff8f86cbb71cfe9))
+* implement functionality to manually link and unlink activities from engagements with automated AI summary updates ([3ea384e](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/3ea384e5b4910fb87e62a47ffab8befb786b9056))
+* implement SearchableCombobox for entity selection and update Engagement model to use DateTime with timezone ([b5e1f11](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/b5e1f11a81bab4bd8e6f1a47359fe6b045be2b1d))
+* standardize currency formatting and add utility library for international currency support ([ffc0f77](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ffc0f77f05006b462c4506215f5da4960b7004fb))
+
+# [1.24.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.23.0...v1.24.0) (2026-09-01)
+
+
 ### Features
 
 * implement client engagement domain system with direct company linkage, attached contact persons (`engagement_persons`), signed contracts, terms & conditions, rate structures (daily/hourly/monthly/fixed), total contract budgets, timeline countdowns, and linked Notion meeting notes & activities
