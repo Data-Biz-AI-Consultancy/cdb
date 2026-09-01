@@ -811,7 +811,7 @@ export default function ActivitiesPage() {
                       <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                         {act.person && (
                           <Link
-                            href={`/persons?q=${encodeURIComponent(act.person.primary_email || act.person.id)}`}
+                            href={`/persons/${act.person.id}`}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-slate-700 font-medium transition"
                           >
                             <span>👤</span>
@@ -824,7 +824,7 @@ export default function ActivitiesPage() {
 
                         {act.company && (
                           <Link
-                            href={`/companies?q=${encodeURIComponent(act.company.name)}`}
+                            href={`/companies/${act.company.id}`}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-slate-700 font-medium transition"
                           >
                             <span>🏢</span>
@@ -1214,7 +1214,7 @@ export default function ActivitiesPage() {
                       </div>
                     </div>
                     <Link
-                      href={`/persons?q=${encodeURIComponent(selectedActivity.person.primary_email || selectedActivity.person.id)}`}
+                      href={`/persons/${selectedActivity.person.id}`}
                       className="text-xs text-indigo-600 hover:underline font-semibold"
                     >
                       View Profile →
@@ -1234,7 +1234,7 @@ export default function ActivitiesPage() {
                       </div>
                     </div>
                     <Link
-                      href={`/companies?q=${encodeURIComponent(selectedActivity.company.name)}`}
+                      href={`/companies/${selectedActivity.company.id}`}
                       className="text-xs text-indigo-600 hover:underline font-semibold"
                     >
                       View Company →
