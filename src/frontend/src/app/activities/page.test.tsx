@@ -181,4 +181,30 @@ describe('ActivitiesPage Feed and Controls', () => {
       );
     });
   });
+
+  it('renders collapsible time evolution chart and supports switching between stacked bar and area modes', async () => {
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Activity Velocity & Time Evolution')).toBeInTheDocument();
+    });
+
+    // Default collapsed: chart mode buttons not shown
+    expect(screen.queryByTestId('chart-type-bar')).not.toBeInTheDocument();
+
+    // Click to expand
+    fireEvent.click(screen.getByTestId('timeline-chart-toggle'));
+
+    // Mode buttons should now be visible
+    expect(screen.getByTestId('chart-type-bar')).toBeInTheDocument();
+    expect(screen.getByTestId('chart-type-area')).toBeInTheDocument();
+
+    // Switch to Area chart mode
+    fireEvent.click(screen.getByTestId('chart-type-area'));
+    expect(screen.getByTestId('chart-type-area')).toHaveClass('text-indigo-700');
+
+    // Switch back to Stacked Bar chart mode
+    fireEvent.click(screen.getByTestId('chart-type-bar'));
+    expect(screen.getByTestId('chart-type-bar')).toHaveClass('text-indigo-700');
+  });
 });

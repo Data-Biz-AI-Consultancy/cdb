@@ -13,6 +13,7 @@ from cdb.schemas.activity import (
     ActivityCreate,
     ActivityResponse,
     ActivityStatsResponse,
+    ActivityTimelineBucket,
     ActivityUpdate,
 )
 from cdb.schemas.common import PaginationMetadata
@@ -30,7 +31,37 @@ async def get_activity_stats(db: AsyncSession) -> ActivityStatsResponse:
     source_rows = (await db.execute(source_stmt)).all()
     by_source = {row[0]: row[1] for row in source_rows if row[0]}
 
-    return ActivityStatsResponse(total=total, by_type=by_type, by_source=by_source)
+    # Timeline daily aggregation (dialect-agnostic)
+    timeline_stmt = select(Activity.occurred_at, Activity.type).where(
+        Activity.occurred_at.is_not(None)
+    )
+    timeline_rows = (await db.execute(timeline_stmt)).all()
+
+    timeline_dict: dict[str, dict[str, int]] = {}
+    for dt, act_type in timeline_rows:
+        if not dt or not act_type:
+            continue
+        day_str = (
+            dt.strftime("%Y-%m-%d")
+            if isinstance(dt, (datetime.datetime, datetime.date))
+            else str(dt)[:10]
+        )
+        if day_str not in timeline_dict:
+            timeline_dict[day_str] = {}
+        timeline_dict[day_str][act_type] = timeline_dict[day_str].get(act_type, 0) + 1
+
+    timeline = [
+        ActivityTimelineBucket(
+            date=day_str,
+            total=sum(types_map.values()),
+            by_type=types_map,
+        )
+        for day_str, types_map in sorted(timeline_dict.items())
+    ]
+
+    return ActivityStatsResponse(
+        total=total, by_type=by_type, by_source=by_source, timeline=timeline
+    )
 
 
 async def list_activities(

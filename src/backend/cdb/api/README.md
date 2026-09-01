@@ -506,7 +506,19 @@ Returns aggregated activity metrics grouped by type and source across the entire
     "linkedin": 20,
     "notion": 15,
     "manual": 7
-  }
+  },
+  "timeline": [
+    {
+      "date": "2026-08-30",
+      "total": 8,
+      "by_type": { "meeting": 2, "linkedin_message": 4, "call": 2 }
+    },
+    {
+      "date": "2026-09-01",
+      "total": 12,
+      "by_type": { "meeting": 5, "linkedin_message": 5, "note": 2 }
+    }
+  ]
 }
 ```
 

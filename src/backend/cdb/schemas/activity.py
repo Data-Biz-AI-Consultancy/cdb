@@ -58,10 +58,17 @@ class ActivityCompanySummary(BaseModel):
     industry: str | None = None
 
 
+class ActivityTimelineBucket(BaseModel):
+    date: str  # YYYY-MM-DD
+    total: int
+    by_type: dict[str, int] = Field(default_factory=dict)
+
+
 class ActivityStatsResponse(BaseModel):
     total: int
     by_type: dict[str, int]
     by_source: dict[str, int]
+    timeline: list[ActivityTimelineBucket] = Field(default_factory=list)
 
 
 class ActivityResponse(BaseModel):

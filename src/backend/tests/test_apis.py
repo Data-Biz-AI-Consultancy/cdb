@@ -271,6 +271,7 @@ async def test_activity_crud(client: AsyncClient, auth_headers: dict[str, str]):
     assert "call" in stats["by_type"]
     assert stats["by_type"]["call"] >= 1
     assert "manual" in stats["by_source"]
+    assert "timeline" in stats and len(stats["timeline"]) >= 1
 
     # 3. List with search q
     search_resp = await client.get("/api/v1/activities?q=roadmap", headers=auth_headers)

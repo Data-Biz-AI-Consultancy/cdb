@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
 import SearchableCombobox, { ComboboxOption } from '@/components/SearchableCombobox';
+import ActivityTimelineChart, { ActivityTimelineBucket } from '@/components/ActivityTimelineChart';
 
 export interface ActivityPersonSummary {
   id: string;
@@ -44,6 +45,7 @@ export interface ActivityStats {
   total: number;
   by_type: Record<string, number>;
   by_source: Record<string, number>;
+  timeline?: ActivityTimelineBucket[];
 }
 
 interface PersonOption {
@@ -557,6 +559,13 @@ export default function ActivitiesPage() {
           <div className="text-xs text-slate-400 mt-1">Calls & voicemails</div>
         </div>
       </div>
+
+      {/* Time Evolution Chart (Collapsible by default) */}
+      <ActivityTimelineChart
+        timeline={stats?.timeline || []}
+        totalActivities={stats?.total ?? totalCount}
+        defaultExpanded={false}
+      />
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
