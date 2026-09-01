@@ -1,3 +1,11 @@
+# [1.23.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.22.1...v1.23.0) (2026-09-01)
+
+
+### Features
+
+* add activity timeline aggregation to API and implement interactive frontend visualization component ([510c337](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/510c337094cf7d232ab7010a81f4e0ae123b32be))
+* implement activity search, pagination, statistics, and eager-loaded relationship support for CRUD operations ([f06d769](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/f06d7697d0dbc3619da6ce93483fbfed41bb7d19))
+
 ## [1.22.1](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.22.0...v1.22.1) (2026-09-01)
 
 
