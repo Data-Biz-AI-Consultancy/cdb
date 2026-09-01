@@ -90,7 +90,15 @@ Pipeline & Engagements (CRM Lifecycle)       │
 * **Title, Rich Description & Entity Linking**: First-class Title and multiline Description fields with easy management of attached Decision Makers, Champions, Influencers, and Organizations.
 * **Full Audit History & Activity Timeline (`opportunity_history` & `opportunity_actions`)**: Track all stage shifts, deal adjustments, person/company affiliations, and custom meeting/call notes in an interactive chronological timeline.
 
-### 4. Entity Resolution & Review Queue
+### 4. Client Engagements, Contracts & Delivery Workspaces
+* **Active Client Work**: Comprehensive tracking of ongoing consulting, retainer, and fractional engagements with existing client organizations.
+* **Signed Contracts & Terms & Conditions**: First-class tracking of contract references (IDs, links, Notion docs), signed dates, contract status (`signed`, `draft`, `pending_signature`), and structured terms & conditions (T&Cs).
+* **Flexible Billing & Rate Structures**: Support for daily, hourly, monthly retainer, or fixed-price billing models, currency, and total contract budget caps.
+* **Connected Person Affiliations**: Link client leads, technical sponsors, stakeholders, and delivery leads to individual engagements with designated roles.
+* **Integrated Meeting Notes & Activities**: Live feed of Notion meeting notes, calls, and email touchpoints tagged directly to the engagement.
+* **Delivery Timeline & Countdown**: Real-time tracking of start dates, expected completion deadlines, days remaining, and overdue status alerts.
+
+### 5. Entity Resolution & Review Queue
 * **Deterministic Auto-Merge**: High-confidence exact matches (e.g. matching LinkedIn URL or verified primary email) auto-merge instantly.
 * **Interactive Review Queue**: Ambiguous pairs surface in the UI for side-by-side comparison, allowing one-click **Accept Merge** or **Keep Separate**.
 

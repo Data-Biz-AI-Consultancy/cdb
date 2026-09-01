@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,11 +17,16 @@ security_scheme = HTTPBearer(auto_error=False)
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
     db: AsyncSession = Depends(get_db),
+    token_query: str | None = Query(None, alias="token"),
 ) -> User:
-    if not credentials or credentials.scheme.lower() != "bearer":
-        raise UnauthorizedError("Missing or invalid authorization header")
+    token: str | None = None
+    if credentials and credentials.scheme.lower() == "bearer":
+        token = credentials.credentials
+    elif token_query:
+        token = token_query
 
-    token = credentials.credentials
+    if not token:
+        raise UnauthorizedError("Missing or invalid authorization header")
     try:
         payload = decode_token(token)
     except Exception as exc:
@@ -77,5 +82,5 @@ async def get_current_user_or_api_key(
     if x_api_key and x_api_key in valid_keys:
         return None
     if credentials and credentials.scheme.lower() == "bearer":
-        return await get_current_user(credentials, db)
+        return await get_current_user(credentials=credentials, db=db)
     raise UnauthorizedError("Missing or invalid authorization credentials")

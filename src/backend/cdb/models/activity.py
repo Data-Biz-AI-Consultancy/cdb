@@ -10,6 +10,7 @@ from cdb.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utc_now
 
 if TYPE_CHECKING:
     from cdb.models.company import Company
+    from cdb.models.engagement import Engagement
     from cdb.models.person import Person
 
 
@@ -17,7 +18,7 @@ class Activity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "activities"
     __table_args__ = (
         CheckConstraint(
-            "person_id IS NOT NULL OR company_id IS NOT NULL",
+            "person_id IS NOT NULL OR company_id IS NOT NULL OR engagement_id IS NOT NULL",
             name="ck_activities_person_or_company_required",
         ),
     )
@@ -34,9 +35,18 @@ class Activity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
         index=True,
     )
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("engagements.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     person: Mapped["Person | None"] = relationship("Person", lazy="selectin")
     company: Mapped["Company | None"] = relationship("Company", lazy="selectin")
+    engagement: Mapped["Engagement | None"] = relationship(
+        "Engagement", back_populates="activities", lazy="selectin"
+    )
 
     type: Mapped[str] = mapped_column(
         String(50), nullable=False, index=True

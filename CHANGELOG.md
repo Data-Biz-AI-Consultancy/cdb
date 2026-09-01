@@ -1,3 +1,13 @@
+# [1.24.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.23.0...v1.24.0) (2026-09-01)
+
+
+### Features
+
+* implement client engagement domain system with direct company linkage, attached contact persons (`engagement_persons`), signed contracts, terms & conditions, rate structures (daily/hourly/monthly/fixed), total contract budgets, timeline countdowns, and linked Notion meeting notes & activities
+* add REST API endpoints (`/api/v1/engagements`) with search, filters, person attach/detach, and direct activity creation
+* add comprehensive Frontend Engagements workspace (`/engagements`, `/engagements/[id]`) and cross-link engagements tab on Company detail pages
+* create Alembic database migration `0004_add_engagements.py` adding `engagements`, `engagement_persons`, and `activities.engagement_id`
+
 # [1.23.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.22.1...v1.23.0) (2026-09-01)
 
 
