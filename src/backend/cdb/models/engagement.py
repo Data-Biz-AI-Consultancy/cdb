@@ -3,7 +3,7 @@ import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Date, ForeignKey, Numeric, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -111,6 +111,7 @@ class EngagementPerson(Base):
         String(255), nullable=True
     )  # 'client_lead', 'technical_contact', 'stakeholder', 'sponsor', 'delivery_lead', etc.
     created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
         default=utc_now,
         nullable=False,
     )

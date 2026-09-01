@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
 import { COMMON_CURRENCIES, formatMoney, getCurrencySymbol } from '@/lib/currency';
+import SearchableCombobox, { ComboboxOption } from '@/components/SearchableCombobox';
 import { EngagementItem } from '../page';
 
 interface ActivityItem {
@@ -128,6 +129,35 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
       loadData(id);
     }
   }, [id]);
+
+  const handleSearchPersons = async (query: string): Promise<ComboboxOption[]> => {
+    try {
+      const res = await apiFetch<ApiResponse<PersonOption[]>>(
+        `/api/v1/persons?q=${encodeURIComponent(query)}&limit=50&sort=first_name&order=asc`
+      );
+      return (res.data || []).map((p) => {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.primary_email || p.id;
+        return {
+          id: p.id,
+          label: name,
+          subtext: p.primary_email || undefined,
+        };
+      });
+    } catch {
+      return [];
+    }
+  };
+
+  const personComboboxOptions: ComboboxOption[] = useMemo(() => {
+    return allPersons.map((p) => {
+      const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.primary_email || p.id;
+      return {
+        id: p.id,
+        label: name,
+        subtext: p.primary_email || undefined,
+      };
+    });
+  }, [allPersons]);
 
   const handleUpdateEngagement = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -759,20 +789,16 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
 
             <form onSubmit={handleAttachContact} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Contact Person *</label>
-                <select
+                <SearchableCombobox
+                  label="Contact Person"
                   required
+                  placeholder="Search and select contact..."
+                  searchPlaceholder="Type name or email..."
                   value={attachPersonId}
-                  onChange={(e) => setAttachPersonId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-xs"
-                >
-                  <option value="">Select person...</option>
-                  {allPersons.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.first_name || ''} {p.last_name || ''} ({p.primary_email || 'No email'})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(id) => setAttachPersonId(id)}
+                  onSearch={handleSearchPersons}
+                  options={personComboboxOptions}
+                />
               </div>
 
               <div>

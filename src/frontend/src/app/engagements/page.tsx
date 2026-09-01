@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
 import { COMMON_CURRENCIES, formatMoney, getCurrencySymbol } from '@/lib/currency';
+import SearchableCombobox, { ComboboxOption } from '@/components/SearchableCombobox';
 
 export interface EngagementPersonItem {
   person_id: string;
@@ -130,6 +131,56 @@ export default function EngagementsPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleSearchCompanies = async (query: string): Promise<ComboboxOption[]> => {
+    try {
+      const res = await apiFetch<ApiResponse<CompanyOption[]>>(
+        `/api/v1/companies?q=${encodeURIComponent(query)}&limit=50&sort=name&order=asc`
+      );
+      return (res.data || []).map((c) => ({
+        id: c.id,
+        label: c.name,
+      }));
+    } catch {
+      return [];
+    }
+  };
+
+  const handleSearchPersons = async (query: string): Promise<ComboboxOption[]> => {
+    try {
+      const res = await apiFetch<ApiResponse<PersonOption[]>>(
+        `/api/v1/persons?q=${encodeURIComponent(query)}&limit=50&sort=first_name&order=asc`
+      );
+      return (res.data || []).map((p) => {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.primary_email || p.id;
+        return {
+          id: p.id,
+          label: name,
+          subtext: p.primary_email || undefined,
+        };
+      });
+    } catch {
+      return [];
+    }
+  };
+
+  const companyComboboxOptions: ComboboxOption[] = useMemo(() => {
+    return companies.map((c) => ({
+      id: c.id,
+      label: c.name,
+    }));
+  }, [companies]);
+
+  const personComboboxOptions: ComboboxOption[] = useMemo(() => {
+    return persons.map((p) => {
+      const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.primary_email || p.id;
+      return {
+        id: p.id,
+        label: name,
+        subtext: p.primary_email || undefined,
+      };
+    });
+  }, [persons]);
 
   const handleCreateEngagement = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -528,22 +579,16 @@ export default function EngagementsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Client Organization *
-                  </label>
-                  <select
+                  <SearchableCombobox
+                    label="Client Organization"
                     required
+                    placeholder="Search and select client company..."
+                    searchPlaceholder="Type company name (e.g. Synthetix)..."
                     value={formCompanyId}
-                    onChange={(e) => setFormCompanyId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="" disabled>Select client company...</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(id) => setFormCompanyId(id)}
+                    onSearch={handleSearchCompanies}
+                    options={companyComboboxOptions}
+                  />
                 </div>
 
                 <div>
@@ -553,7 +598,7 @@ export default function EngagementsPage() {
                   <select
                     value={formType}
                     onChange={(e) => setFormType(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs"
                   >
                     <option value="consultancy">Consultancy</option>
                     <option value="retainer">Retainer</option>
@@ -636,7 +681,7 @@ export default function EngagementsPage() {
                     <label className="block text-xs font-medium text-slate-600 mb-1">Contract ID / Link / Doc Ref</label>
                     <input
                       type="text"
-                      placeholder="e.g. MSA-2026-ACME or Notion Page URL"
+                      placeholder="e.g. MSA-2026-088 or https://notion.so/..."
                       value={formContractRef}
                       onChange={(e) => setFormContractRef(e.target.value)}
                       className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -644,18 +689,31 @@ export default function EngagementsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Signed Date</label>
-                    <input
-                      type="date"
-                      value={formSignedAt}
-                      onChange={(e) => setFormSignedAt(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Contract Status</label>
+                    <select
+                      value={formContractStatus}
+                      onChange={(e) => setFormContractStatus(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="signed">Signed</option>
+                      <option value="pending_signature">Pending Signature</option>
+                      <option value="draft">Draft</option>
+                    </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Key Terms & Conditions (T&C)</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Signed Date</label>
+                  <input
+                    type="date"
+                    value={formSignedAt}
+                    onChange={(e) => setFormSignedAt(e.target.value)}
+                    className="w-full sm:w-1/2 px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Terms & Conditions (T&C)</label>
                   <textarea
                     rows={2}
                     placeholder="e.g. Net 30 days payment. 40 hours/week delivery cap. IP assigned on receipt of payment."
@@ -669,21 +727,15 @@ export default function EngagementsPage() {
               {/* Contact Person & Timeline */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Primary Contact Person
-                  </label>
-                  <select
+                  <SearchableCombobox
+                    label="Primary Contact Person"
+                    placeholder="Search client contact..."
+                    searchPlaceholder="Type contact name or email..."
                     value={formPersonId}
-                    onChange={(e) => setFormPersonId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs"
-                  >
-                    <option value="">-- No initial contact --</option>
-                    {persons.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.first_name || ''} {p.last_name || ''} ({p.primary_email || 'No email'})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(id) => setFormPersonId(id)}
+                    onSearch={handleSearchPersons}
+                    options={personComboboxOptions}
+                  />
                 </div>
 
                 <div>
