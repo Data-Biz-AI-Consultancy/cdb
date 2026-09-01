@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
 import { COMMON_CURRENCIES, formatMoney, getCurrencySymbol } from '@/lib/currency';
@@ -38,6 +38,14 @@ interface PersonOption {
   primary_email?: string | null;
 }
 
+function formatFileSize(bytes: number): string {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
 export default function EngagementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [id, setId] = useState<string>('');
 
@@ -47,6 +55,10 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Contract File Upload State
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // AI Summary State
   const [aiSummary, setAiSummary] = useState<EngagementAISummaryItem | null>(null);
@@ -165,6 +177,56 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
     }
   }, [id]);
 
+  const handleUploadContractFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+
+    if (file.size > 25 * 1024 * 1024) {
+      alert('File exceeds the 25MB maximum size limit.');
+      return;
+    }
+
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const updated = await apiFetch<EngagementItem>(`/api/v1/engagements/${id}/contract/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (updated) {
+        setEngagement(updated);
+        setSuccessMessage(`Contract file '${file.name}' uploaded successfully.`);
+        setTimeout(() => setSuccessMessage(null), 3500);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload contract document.');
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteContractFile = async () => {
+    if (!id || !confirm('Are you sure you want to delete this uploaded contract file?')) return;
+    try {
+      const updated = await apiFetch<EngagementItem>(`/api/v1/engagements/${id}/contract/file`, {
+        method: 'DELETE',
+      });
+      if (updated) {
+        setEngagement(updated);
+        setSuccessMessage('Contract file removed.');
+        setTimeout(() => setSuccessMessage(null), 3000);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete contract file.');
+    }
+  };
+
   const handleRefreshAiSummary = async () => {
     if (!id || refreshingAi) return;
     setRefreshingAi(true);
@@ -219,10 +281,8 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
     setUnlinkedSearch('');
     setLoadingUnlinked(true);
     try {
-      // Query activities for the client company or general activities to link
       const res = await apiFetch<ApiResponse<ActivityItem[]>>('/api/v1/activities?limit=100');
       if (res?.data) {
-        // Filter out activities that are already linked to this engagement
         const existingIds = new Set(activities.map((a) => a.id));
         const candidates = res.data.filter((a) => !existingIds.has(a.id) && a.engagement_id !== id);
         setUnlinkedActivities(candidates);
@@ -265,7 +325,6 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
       });
 
       if (linked) {
-        // Add newly linked activities to current activities list
         setActivities((prev) => {
           const currentIds = new Set(prev.map((a) => a.id));
           const toAdd = linked.filter((a) => !currentIds.has(a.id));
@@ -445,7 +504,6 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
   // Filtered timeline activities
   const filteredActivities = useMemo(() => {
     return activities.filter((act) => {
-      // Type Filter
       if (timelineFilter === 'meetings') {
         const isMeeting = act.type === 'meeting' || act.type === 'notion_meeting_note' || act.source === 'notion';
         if (!isMeeting) return false;
@@ -460,7 +518,6 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
         if (!isNote) return false;
       }
 
-      // Search Query
       if (timelineSearch.trim()) {
         const q = timelineSearch.toLowerCase();
         const matchTitle = act.title?.toLowerCase().includes(q);
@@ -483,7 +540,6 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
     return { total, meetings, linkedin, comms, notes };
   }, [activities]);
 
-  // Filtered candidates for link modal
   const filteredUnlinkedActivities = useMemo(() => {
     return unlinkedActivities.filter((act) => {
       if (unlinkedTypeFilter === 'linkedin') {
@@ -538,6 +594,15 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
           <button onClick={() => setSuccessMessage(null)} className="text-emerald-600 hover:text-emerald-800">✕</button>
         </div>
       )}
+
+      {/* Hidden File Input for Contract Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleUploadContractFile}
+        accept=".pdf,.docx,.doc,image/png,image/jpeg"
+        className="hidden"
+      />
 
       {/* Breadcrumb & Top Bar */}
       <div className="flex items-center justify-between text-xs">
@@ -809,11 +874,83 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span>📜</span> Contract & Legal Terms
+                <span>📜</span> Signed Contract & Legal Terms
               </h2>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold capitalize">
                 ✓ {engagement.contract_status}
               </span>
+            </div>
+
+            {/* Contract File Attachment / Upload Card */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>📄</span> Contract Document (PDF/DOCX)
+                </span>
+                {engagement.contract_file && (
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">
+                    Attached
+                  </span>
+                )}
+              </div>
+
+              {engagement.contract_file ? (
+                <div className="p-3 bg-white rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="p-2 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 text-base shrink-0">
+                      📕
+                    </span>
+                    <div className="min-w-0">
+                      <span className="font-bold text-slate-900 block truncate" title={engagement.contract_file.filename}>
+                        {engagement.contract_file.filename}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block">
+                        {formatFileSize(engagement.contract_file.size_bytes)} • Uploaded {new Date(engagement.contract_file.uploaded_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <a
+                      href={`/api/v1/engagements/${id}/contract/download`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-xs rounded-lg transition flex items-center gap-1"
+                    >
+                      <span>👁️</span> View / Download
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingFile}
+                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition"
+                    >
+                      🔄 Replace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteContractFile}
+                      className="text-slate-400 hover:text-rose-600 p-1 text-sm transition"
+                      title="Remove file"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-5 border-2 border-dashed border-slate-200 hover:border-blue-400 bg-white hover:bg-blue-50/30 rounded-xl text-center cursor-pointer transition space-y-1.5"
+                >
+                  <span className="text-2xl block">📤</span>
+                  <p className="text-xs font-bold text-slate-800">
+                    {uploadingFile ? 'Uploading contract file...' : 'Upload Signed Contract (PDF, DOCX)'}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Click to select file or drag & drop (Max 25MB)
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">

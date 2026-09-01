@@ -115,6 +115,15 @@ class EngagementAISummaryResponse(BaseModel):
     generated_at: str
 
 
+class EngagementContractFileMetadata(BaseModel):
+    filename: str
+    storage_key: str
+    content_type: str
+    size_bytes: int
+    uploaded_at: str
+    download_url: str
+
+
 class EngagementResponse(EngagementBase):
     id: uuid.UUID
     created_at: datetime.datetime
@@ -129,5 +138,6 @@ class EngagementResponse(EngagementBase):
     days_elapsed: int | None = None
     recent_activity: str | None = None
     ai_summary: EngagementAISummaryResponse | None = None
+    contract_file: EngagementContractFileMetadata | None = None
 
     model_config = ConfigDict(from_attributes=True)

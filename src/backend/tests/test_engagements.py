@@ -202,6 +202,36 @@ async def test_engagement_lifecycle(client: AsyncClient, auth_headers: dict[str,
     )
     assert unlink_res.status_code == 204
 
+    # 8c. Upload signed Contract PDF
+    pdf_content = b"%PDF-1.4 Mock Contract Content For Testing"
+    upload_res = await client.post(
+        f"/api/v1/engagements/{eng_id}/contract/upload",
+        files={"file": ("Signed_MSA_Synthetix_2026.pdf", pdf_content, "application/pdf")},
+        headers=auth_headers,
+    )
+    assert upload_res.status_code == 200
+    eng_with_file = upload_res.json()
+    assert eng_with_file["contract_file"] is not None
+    assert eng_with_file["contract_file"]["filename"] == "Signed_MSA_Synthetix_2026.pdf"
+    assert eng_with_file["contract_file"]["size_bytes"] == len(pdf_content)
+
+    # Download contract file
+    download_res = await client.get(
+        f"/api/v1/engagements/{eng_id}/contract/download",
+        headers=auth_headers,
+    )
+    assert download_res.status_code == 200
+    assert download_res.content == pdf_content
+    assert download_res.headers["content-type"] == "application/pdf"
+
+    # Delete contract file
+    del_file_res = await client.delete(
+        f"/api/v1/engagements/{eng_id}/contract/file",
+        headers=auth_headers,
+    )
+    assert del_file_res.status_code == 200
+    assert del_file_res.json()["contract_file"] is None
+
     # 9. Update engagement fields
     update_res = await client.patch(
         f"/api/v1/engagements/{eng_id}",

@@ -58,6 +58,16 @@ class Settings(BaseSettings):
     # Service-to-service API key
     CDB_API_KEY: str = "development-api-key"
 
+    # Storage Configuration (Local default / Cloudflare R2 ready)
+    STORAGE_BACKEND: str = "local"  # "local" | "r2" | "s3"
+    STORAGE_LOCAL_DIR: str = "./data/uploads"
+    MAX_UPLOAD_SIZE_MB: int = 25
+    R2_ACCOUNT_ID: str | None = None
+    R2_ACCESS_KEY_ID: str | None = None
+    R2_SECRET_ACCESS_KEY: str | None = None
+    R2_BUCKET_NAME: str = "cdb-contracts"
+    R2_ENDPOINT_URL: str | None = None
+
     # Ingestion & Backfill
     AUTO_BACKFILL_ON_STARTUP: bool = False
 

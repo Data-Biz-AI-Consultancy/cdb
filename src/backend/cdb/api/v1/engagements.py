@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.api.deps import get_current_user
@@ -184,3 +184,48 @@ async def unlink_activity_from_engagement(
     await engagement_service.unlink_activity_from_engagement(
         db, engagement_id=engagement_id, activity_id=activity_id
     )
+
+
+@router.post("/{engagement_id}/contract/upload", response_model=EngagementResponse)
+async def upload_engagement_contract(
+    engagement_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    file_bytes = await file.read()
+    return await engagement_service.upload_engagement_contract(
+        db,
+        engagement_id=engagement_id,
+        file_bytes=file_bytes,
+        filename=file.filename or "contract.pdf",
+        content_type=file.content_type or "application/pdf",
+    )
+
+
+@router.get("/{engagement_id}/contract/download")
+async def download_engagement_contract(
+    engagement_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    file_bytes, filename, content_type = await engagement_service.get_engagement_contract_stream(
+        db, engagement_id=engagement_id
+    )
+    return Response(
+        content=file_bytes,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
+@router.delete("/{engagement_id}/contract/file", response_model=EngagementResponse)
+async def delete_engagement_contract_file(
+    engagement_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await engagement_service.delete_engagement_contract_file(db, engagement_id=engagement_id)

@@ -1017,6 +1017,24 @@ Manually links existing activities (such as open LinkedIn conversations, emails,
 **Response 200 (Link):**
 Returns the array of updated `ActivityResponse` objects. Automatically re-triggers AI summary synthesis with the newly linked interactions.
 
+### `POST /engagements/{id}/contract/upload`
+
+Upload a signed contract document (PDF, DOCX) up to 25MB. Files are saved through the configured pluggable storage provider (Local Docker storage or Cloudflare R2 / S3).
+
+**Multipart Form Data:**
+- `file`: Binary file upload
+
+**Response 200:**
+Returns updated `EngagementResponse` containing `contract_file` metadata (`filename`, `size_bytes`, `storage_key`, `uploaded_at`, `download_url`).
+
+### `GET /engagements/{id}/contract/download`
+
+Streams or views the uploaded contract document directly with inline PDF rendering and appropriate media-type headers.
+
+### `DELETE /engagements/{id}/contract/file`
+
+Deletes the attached contract document from storage and clears contract file metadata.
+
 ---
 
 ### `GET /engagements/{id}/ai-summary` & `POST /engagements/{id}/ai-summary/refresh`

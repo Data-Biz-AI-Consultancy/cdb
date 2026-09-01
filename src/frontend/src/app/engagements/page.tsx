@@ -67,6 +67,14 @@ export interface EngagementItem {
   days_elapsed?: number | null;
   recent_activity?: string | null;
   ai_summary?: EngagementAISummaryItem | null;
+  contract_file?: {
+    filename: string;
+    storage_key: string;
+    content_type: string;
+    size_bytes: number;
+    uploaded_at: string;
+    download_url: string;
+  } | null;
 }
 
 interface CompanyOption {

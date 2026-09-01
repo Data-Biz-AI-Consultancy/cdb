@@ -1,10 +1,12 @@
 import datetime
+import os
 import uuid
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cdb.core.errors import NotFoundError
+from cdb.core.errors import NotFoundError, ValidationError
+from cdb.core.storage import get_storage_provider
 from cdb.models.activity import Activity
 from cdb.models.company import Company
 from cdb.models.engagement import Engagement, EngagementPerson
@@ -17,6 +19,7 @@ from cdb.schemas.engagement import (
     EngagementAISummaryActionItem,
     EngagementAISummaryResponse,
     EngagementCompanyResponse,
+    EngagementContractFileMetadata,
     EngagementCreate,
     EngagementPersonAttach,
     EngagementPersonResponse,
@@ -321,6 +324,16 @@ async def _build_engagement_response(
             activities=recent_activities,
         )
 
+    # 5. Contract File Metadata
+    contract_file_obj: EngagementContractFileMetadata | None = None
+    if eng.attributes and "contract_file" in eng.attributes:
+        try:
+            contract_file_obj = EngagementContractFileMetadata.model_validate(
+                eng.attributes["contract_file"]
+            )
+        except Exception:
+            contract_file_obj = None
+
     return EngagementResponse(
         id=eng.id,
         title=eng.title,
@@ -352,6 +365,7 @@ async def _build_engagement_response(
         days_elapsed=days_elapsed,
         recent_activity=recent_activity,
         ai_summary=ai_summary_obj,
+        contract_file=contract_file_obj,
     )
 
 
@@ -773,3 +787,124 @@ async def unlink_activity_from_engagement(
             await generate_engagement_ai_summary(db, engagement_id)
         except Exception:
             pass
+
+
+async def upload_engagement_contract(
+    db: AsyncSession,
+    engagement_id: uuid.UUID,
+    file_bytes: bytes,
+    filename: str,
+    content_type: str,
+) -> EngagementResponse:
+    """
+    Saves an uploaded contract file (PDF/DOCX) using the storage provider,
+    persisting metadata inside engagement.attributes["contract_file"].
+    """
+    eng = (
+        await db.execute(select(Engagement).where(Engagement.id == engagement_id))
+    ).scalar_one_or_none()
+    if not eng:
+        raise NotFoundError(f"Engagement with id {engagement_id} not found.")
+
+    if not file_bytes:
+        raise ValidationError("Uploaded contract file is empty.")
+
+    # Validate file format
+    ext = os.path.splitext(filename)[1].lower()
+    allowed_exts = {".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg"}
+    if ext not in allowed_exts:
+        raise ValidationError(
+            f"Unsupported file format '{ext}'. Please upload a PDF or DOCX document."
+        )
+
+    # Validate max size (25MB)
+    max_bytes = 25 * 1024 * 1024
+    if len(file_bytes) > max_bytes:
+        raise ValidationError("Contract document exceeds the 25MB maximum size limit.")
+
+    # Save to storage provider
+    storage = get_storage_provider()
+    storage_key, size_bytes = await storage.save_file(
+        file_bytes=file_bytes,
+        filename=filename,
+        content_type=content_type or "application/pdf",
+        folder=f"contracts/{engagement_id}",
+    )
+
+    now_iso = datetime.datetime.now(datetime.UTC).isoformat()
+    download_url = f"/api/v1/engagements/{engagement_id}/contract/download"
+
+    contract_metadata = {
+        "filename": filename,
+        "storage_key": storage_key,
+        "content_type": content_type or "application/pdf",
+        "size_bytes": size_bytes,
+        "uploaded_at": now_iso,
+        "download_url": download_url,
+    }
+
+    current_attrs = dict(eng.attributes or {})
+    current_attrs["contract_file"] = contract_metadata
+    eng.attributes = current_attrs
+
+    # If contract_ref is not set, default to the uploaded filename
+    if not eng.contract_ref or eng.contract_ref == "MSA-SYN-2026-088":
+        eng.contract_ref = filename
+
+    await db.commit()
+    await db.refresh(eng)
+
+    return await _build_engagement_response(db, eng)
+
+
+async def get_engagement_contract_stream(
+    db: AsyncSession,
+    engagement_id: uuid.UUID,
+) -> tuple[bytes, str, str]:
+    """
+    Retrieves the raw bytes, filename, and content_type for the contract file.
+    """
+    eng = (
+        await db.execute(select(Engagement).where(Engagement.id == engagement_id))
+    ).scalar_one_or_none()
+    if not eng:
+        raise NotFoundError(f"Engagement with id {engagement_id} not found.")
+
+    contract_data = (eng.attributes or {}).get("contract_file")
+    if not contract_data or "storage_key" not in contract_data:
+        raise NotFoundError(f"No contract file uploaded for engagement {engagement_id}.")
+
+    storage = get_storage_provider()
+    storage_key = contract_data["storage_key"]
+    filename = contract_data.get("filename", "contract.pdf")
+
+    file_bytes, content_type = await storage.get_file_bytes(storage_key)
+    return file_bytes, filename, content_type
+
+
+async def delete_engagement_contract_file(
+    db: AsyncSession,
+    engagement_id: uuid.UUID,
+) -> EngagementResponse:
+    """
+    Removes the uploaded contract file from storage and engagement attributes.
+    """
+    eng = (
+        await db.execute(select(Engagement).where(Engagement.id == engagement_id))
+    ).scalar_one_or_none()
+    if not eng:
+        raise NotFoundError(f"Engagement with id {engagement_id} not found.")
+
+    contract_data = (eng.attributes or {}).get("contract_file")
+    if contract_data and "storage_key" in contract_data:
+        storage = get_storage_provider()
+        await storage.delete_file(contract_data["storage_key"])
+
+        current_attrs = dict(eng.attributes or {})
+        current_attrs.pop("contract_file", None)
+        eng.attributes = current_attrs
+
+        await db.commit()
+        await db.refresh(eng)
+
+    return await _build_engagement_response(db, eng)

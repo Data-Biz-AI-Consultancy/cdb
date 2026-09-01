@@ -41,6 +41,14 @@ const mockEngagement = {
     activity_count_analyzed: 3,
     generated_at: '2026-09-01T12:00:00Z',
   },
+  contract_file: {
+    filename: 'Signed_MSA_Synthetix_2026.pdf',
+    storage_key: 'contracts/eng-123/Signed_MSA_Synthetix_2026.pdf',
+    content_type: 'application/pdf',
+    size_bytes: 2450000,
+    uploaded_at: '2026-08-16T12:00:00Z',
+    download_url: '/api/v1/engagements/eng-123/contract/download',
+  },
 };
 
 const mockActivities = [
@@ -97,5 +105,10 @@ describe('EngagementDetailPage', () => {
     expect(screen.getByText(/Synthetix Corp data platform delivery is on track/i)).toBeInTheDocument();
     expect(screen.getByText('Prepare weekly demo')).toBeInTheDocument();
     expect(screen.getAllByText(/Link LinkedIn/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Signed_MSA_Synthetix_2026.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /View \/ Download/i })).toHaveAttribute(
+      'href',
+      '/api/v1/engagements/eng-123/contract/download'
+    );
   });
 });
