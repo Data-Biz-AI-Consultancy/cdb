@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
+import { COMMON_CURRENCIES, formatMoney } from '@/lib/currency';
 import SearchableCombobox, { ComboboxOption } from '@/components/SearchableCombobox';
 
 export interface OpportunityPerson {
@@ -875,7 +876,7 @@ export default function OpportunitiesPage() {
                           </h4>
                           {opp.value !== null && opp.value !== undefined && (
                             <span className="text-xs font-black px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                              {opp.currency || '$'} {Number(opp.value).toLocaleString()}
+                              {formatMoney(opp.value, opp.currency)}
                             </span>
                           )}
                         </div>
@@ -1080,10 +1081,11 @@ export default function OpportunitiesPage() {
                     onChange={(e) => setCreateForm({ ...createForm, currency: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   >
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="CHF">CHF (CHF)</option>
+                    {COMMON_CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1231,7 +1233,7 @@ export default function OpportunitiesPage() {
                   </span>
                   {selectedOppForDetail.value !== null && selectedOppForDetail.value !== undefined && (
                     <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      {selectedOppForDetail.currency || '$'} {Number(selectedOppForDetail.value).toLocaleString()}
+                      {formatMoney(selectedOppForDetail.value, selectedOppForDetail.currency)}
                     </span>
                   )}
                 </div>
@@ -1456,10 +1458,11 @@ export default function OpportunitiesPage() {
                         onChange={(e) => setEditForm({ ...editForm, currency: e.target.value })}
                         className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                       >
-                        <option value="USD">USD ($)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="GBP">GBP (£)</option>
-                        <option value="CHF">CHF (CHF)</option>
+                        {COMMON_CURRENCIES.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>

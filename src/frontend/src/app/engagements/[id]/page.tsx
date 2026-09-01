@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
-import { EngagementItem, EngagementPersonItem } from '../page';
+import { COMMON_CURRENCIES, formatMoney, getCurrencySymbol } from '@/lib/currency';
+import { EngagementItem } from '../page';
 
 interface ActivityItem {
   id: string;
@@ -52,6 +53,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
   const [editTitle, setEditTitle] = useState('');
   const [editStatus, setEditStatus] = useState<any>('active');
   const [editType, setEditType] = useState('consultancy');
+  const [editCurrency, setEditCurrency] = useState('USD');
   const [editRateType, setEditRateType] = useState('daily');
   const [editRateValue, setEditRateValue] = useState('');
   const [editTotalValue, setEditTotalValue] = useState('');
@@ -92,6 +94,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
         setEditTitle(eng.title);
         setEditStatus(eng.status);
         setEditType(eng.engagement_type);
+        setEditCurrency(eng.currency || 'USD');
         setEditRateType(eng.rate_type);
         setEditRateValue(eng.rate_value !== null && eng.rate_value !== undefined ? String(eng.rate_value) : '');
         setEditTotalValue(eng.total_value !== null && eng.total_value !== undefined ? String(eng.total_value) : '');
@@ -135,6 +138,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
         title: editTitle.trim(),
         status: editStatus,
         engagement_type: editType,
+        currency: editCurrency,
         rate_type: editRateType,
         rate_value: editRateValue ? parseFloat(editRateValue) : null,
         total_value: editTotalValue ? parseFloat(editTotalValue) : null,
@@ -227,8 +231,8 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
         setShowLogActivityModal(false);
         setActTitle('');
         setActSummary('');
-        setSuccessMessage('Activity / Notion Note logged to engagement.');
-        setTimeout(() => setSuccessMessage(null), 3500);
+        setSuccessMessage('Activity / meeting note recorded.');
+        setTimeout(() => setSuccessMessage(null), 3000);
       }
     } catch (err: any) {
       alert(err.message || 'Failed to log activity.');
@@ -320,7 +324,8 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setShowLogActivityModal(true)}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs rounded-xl transition"
@@ -341,14 +346,23 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
           <div className="p-3 bg-slate-50 rounded-xl">
             <span className="text-slate-400 block mb-1">Billing Rate</span>
             <span className="text-sm font-bold text-slate-900">
-              {engagement.rate_value ? `$${Number(engagement.rate_value).toLocaleString()} / ${engagement.rate_type}` : 'Not set'}
+              {engagement.rate_value ? (
+                <>
+                  {formatMoney(engagement.rate_value, engagement.currency)}{' '}
+                  <span className="text-xs font-normal text-slate-500">/{engagement.rate_type}</span>
+                </>
+              ) : (
+                'Not set'
+              )}
             </span>
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl">
             <span className="text-slate-400 block mb-1">Total Contract Budget</span>
             <span className="text-sm font-bold text-slate-900">
-              {engagement.total_value ? `$${Number(engagement.total_value).toLocaleString()} ${engagement.currency}` : 'Fixed / Open'}
+              {engagement.total_value
+                ? formatMoney(engagement.total_value, engagement.currency, { includeCode: true })
+                : 'Fixed / Open'}
             </span>
           </div>
 
@@ -590,39 +604,63 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Rate Type</label>
-                  <select
-                    value={editRateType}
-                    onChange={(e) => setEditRateType(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg bg-white text-xs"
-                  >
-                    <option value="daily">Daily</option>
-                    <option value="hourly">Hourly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="fixed">Fixed</option>
-                  </select>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">Rate & Billing Structure</span>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[11px] font-semibold text-slate-600">Currency:</label>
+                    <select
+                      value={editCurrency}
+                      onChange={(e) => setEditCurrency(e.target.value)}
+                      className="px-2 py-1 border border-slate-300 rounded-lg bg-white text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      {COMMON_CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} ({c.symbol})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Rate Value ($)</label>
-                  <input
-                    type="number"
-                    value={editRateValue}
-                    onChange={(e) => setEditRateValue(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
-                  />
-                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Rate Type</label>
+                    <select
+                      value={editRateType}
+                      onChange={(e) => setEditRateType(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-slate-300 rounded-lg bg-white text-xs"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="hourly">Hourly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="fixed">Fixed</option>
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Total Cap ($)</label>
-                  <input
-                    type="number"
-                    value={editTotalValue}
-                    onChange={(e) => setEditTotalValue(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
-                  />
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Rate Value ({getCurrencySymbol(editCurrency)})
+                    </label>
+                    <input
+                      type="number"
+                      value={editRateValue}
+                      onChange={(e) => setEditRateValue(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Total Cap ({getCurrencySymbol(editCurrency)})
+                    </label>
+                    <input
+                      type="number"
+                      value={editTotalValue}
+                      onChange={(e) => setEditTotalValue(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 

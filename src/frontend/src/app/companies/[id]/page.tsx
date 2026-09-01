@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
+import { formatMoney } from '@/lib/currency';
 
 // Segment definitions & visual mapping
 const SEGMENT_META: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -1445,11 +1446,11 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
                       <div className="text-right">
                         {eng.rate_value ? (
                           <span className="text-sm font-bold text-slate-900">
-                            ${Number(eng.rate_value).toLocaleString()} <span className="text-xs font-medium text-slate-500">/{eng.rate_type}</span>
+                            {formatMoney(eng.rate_value, eng.currency)} <span className="text-xs font-medium text-slate-500">/{eng.rate_type}</span>
                           </span>
                         ) : (
                           <span className="text-sm font-bold text-slate-900">
-                            ${Number(eng.total_value || 0).toLocaleString()} {eng.currency || 'USD'}
+                            {formatMoney(eng.total_value, eng.currency, { includeCode: true })}
                           </span>
                         )}
                       </div>

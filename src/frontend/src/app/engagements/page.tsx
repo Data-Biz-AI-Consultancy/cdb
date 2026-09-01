@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
+import { COMMON_CURRENCIES, formatMoney, getCurrencySymbol } from '@/lib/currency';
 
 export interface EngagementPersonItem {
   person_id: string;
@@ -356,16 +357,16 @@ export default function EngagementsPage() {
                   <div className="text-right">
                     {eng.rate_value ? (
                       <div className="text-sm font-bold text-slate-900">
-                        ${Number(eng.rate_value).toLocaleString()} <span className="text-xs font-medium text-slate-500">/{eng.rate_type}</span>
+                        {formatMoney(eng.rate_value, eng.currency)} <span className="text-xs font-medium text-slate-500">/{eng.rate_type}</span>
                       </div>
                     ) : (
                       <div className="text-sm font-bold text-slate-900">
-                        ${Number(eng.total_value || 0).toLocaleString()} {eng.currency}
+                        {formatMoney(eng.total_value, eng.currency, { includeCode: true })}
                       </div>
                     )}
                     {eng.total_value && eng.rate_value && (
                       <div className="text-xs text-slate-500">
-                        Cap: ${Number(eng.total_value).toLocaleString()} {eng.currency}
+                        Cap: {formatMoney(eng.total_value, eng.currency, { includeCode: true })}
                       </div>
                     )}
                   </div>
@@ -566,7 +567,24 @@ export default function EngagementsPage() {
 
               {/* Rates & Financials */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">Rate & Billing Structure</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">Rate & Billing Structure</span>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[11px] font-semibold text-slate-600">Currency:</label>
+                    <select
+                      value={formCurrency}
+                      onChange={(e) => setFormCurrency(e.target.value)}
+                      className="px-2 py-1 border border-slate-300 rounded-lg bg-white text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      {COMMON_CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} ({c.symbol})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Rate Type</label>
@@ -583,7 +601,9 @@ export default function EngagementsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Rate Amount ($)</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Rate Amount ({getCurrencySymbol(formCurrency)})
+                    </label>
                     <input
                       type="number"
                       placeholder="1500"
@@ -594,7 +614,9 @@ export default function EngagementsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Total Cap / Budget ($)</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Total Cap ({getCurrencySymbol(formCurrency)})
+                    </label>
                     <input
                       type="number"
                       placeholder="45000"
