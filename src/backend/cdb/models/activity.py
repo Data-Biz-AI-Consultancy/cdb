@@ -1,12 +1,16 @@
 import datetime
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cdb.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utc_now
+
+if TYPE_CHECKING:
+    from cdb.models.company import Company
+    from cdb.models.person import Person
 
 
 class Activity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -30,6 +34,9 @@ class Activity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
         index=True,
     )
+
+    person: Mapped["Person | None"] = relationship("Person", lazy="selectin")
+    company: Mapped["Company | None"] = relationship("Company", lazy="selectin")
 
     type: Mapped[str] = mapped_column(
         String(50), nullable=False, index=True

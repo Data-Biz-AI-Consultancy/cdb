@@ -487,31 +487,123 @@ Triggers batch evaluation of dynamic Person segments (`clients_and_prospects`, `
 
 ## 7. Activities
 
+### `GET /activities/stats`
+
+Returns aggregated activity metrics grouped by type and source across the entire interaction history.
+
+**Response 200:**
+```json
+{
+  "total": 42,
+  "by_type": {
+    "meeting": 15,
+    "linkedin_message": 20,
+    "email": 0,
+    "call": 5,
+    "note": 2
+  },
+  "by_source": {
+    "linkedin": 20,
+    "notion": 15,
+    "manual": 7
+  },
+  "timeline": [
+    {
+      "date": "2026-08-30",
+      "total": 8,
+      "by_type": { "meeting": 2, "linkedin_message": 4, "call": 2 }
+    },
+    {
+      "date": "2026-09-01",
+      "total": 12,
+      "by_type": { "meeting": 5, "linkedin_message": 5, "note": 2 }
+    }
+  ]
+}
+```
+
 ### `GET /activities`
 
-**Query params:** `person_id`, `company_id`, `type`, `source`, `from` (ISO date), `to` (ISO date).
+List chronological activity logs with optional multi-dimensional filters, full-text search, and pagination.
 
-**Response 200:** paginated list ordered by `occurred_at DESC`.
+**Query params:** 
+- `q` (string, optional): Search query matching against title, summary, raw notes, contact names/emails, or company names.
+- `person_id` (UUID, optional): Filter by associated contact.
+- `company_id` (UUID, optional): Filter by associated company.
+- `type` (`meeting` | `linkedin_message` | `email` | `call` | `note` | `whatsapp`, optional).
+- `source` (`notion` | `gmail` | `linkedin` | `whatsapp` | `manual`, optional).
+- `from` / `to` (ISO 8601 datetime strings, optional).
+- `page` (int, 1-indexed, optional).
+- `page_size` / `limit` (int 1-200, default 50).
+- `cursor` (string, optional).
+- `sort` (field name, default: `occurred_at`).
+- `order` (`asc` | `desc`, default: `desc`).
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "c1f111df-a86d-48f9-a1f4-4903db22a74b",
+      "person_id": "f21b2e57-3f5e-447f-ac4e-3fe1ed92de36",
+      "company_id": "a8fb6679-db72-4eeb-8dc7-3a4aa0a1078b",
+      "person": {
+        "id": "f21b2e57-3f5e-447f-ac4e-3fe1ed92de36",
+        "first_name": "Alice",
+        "last_name": "Smith",
+        "primary_email": "alice@taxfix.com",
+        "avatar_url": null,
+        "linkedin_url": "https://linkedin.com/in/alice-smith"
+      },
+      "company": {
+        "id": "a8fb6679-db72-4eeb-8dc7-3a4aa0a1078b",
+        "name": "Taxfix",
+        "domain": "taxfix.com",
+        "avatar_url": null,
+        "industry": "Fintech"
+      },
+      "type": "meeting",
+      "source": "notion",
+      "source_id": "notion-block-1234",
+      "occurred_at": "2026-09-01T10:00:00Z",
+      "title": "Executive Sync with Taxfix",
+      "summary": "Reviewed data platform expansion and signed SLA",
+      "raw_content": "Transcript and notes...",
+      "attributes": {},
+      "created_at": "2026-09-01T10:00:00Z",
+      "updated_at": "2026-09-01T10:00:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 20,
+    "next_cursor": "20",
+    "has_more": true,
+    "total": 42
+  }
+}
+```
 
 ### `POST /activities`
 
-Create a manual activity.
+Create a manual activity or log notes/meetings.
 
 ```json
 {
   "person_id": "<uuid>",
-  "company_id": null,
+  "company_id": "<uuid>",
   "type": "call",
   "source": "manual",
   "occurred_at": "2026-08-19T14:00:00Z",
   "title": "Discovery call",
-  "summary": "Discussed consulting scope. Follow up in 2 weeks."
+  "summary": "Discussed consulting scope. Follow up in 2 weeks.",
+  "raw_content": "Detailed conversation transcript..."
 }
 ```
 
 ### `GET /activities/{id}` / `PATCH /activities/{id}` / `DELETE /activities/{id}`
 
-Standard CRUD. `source_id`-tagged activities (auto-imported) can be patched but not deleted.
+Standard CRUD for individual activity logs with populated `person` and `company` metadata.
 
 ---
 

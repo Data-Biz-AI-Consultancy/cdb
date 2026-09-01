@@ -507,25 +507,36 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  if (error) {
+  if (error || !company) {
     return (
-      <div className="p-6 bg-red-50 text-red-700 rounded-xl border border-red-200 shadow-sm space-y-3">
-        <h2 className="font-bold text-base">Error Loading Company</h2>
-        <p className="text-sm">{error}</p>
-        <Link href="/companies" className="inline-block text-xs font-semibold text-red-800 underline">
-          ← Return to Companies List
-        </Link>
-      </div>
-    );
-  }
-
-  if (!company) {
-    return (
-      <div className="p-6 text-center space-y-3">
-        <p className="text-slate-600">Company record not found.</p>
-        <Link href="/companies" className="text-blue-600 hover:underline text-sm">
-          ← Back to Companies
-        </Link>
+      <div className="max-w-2xl mx-auto py-12 px-4">
+        <div className="bg-white p-8 rounded-2xl border border-rose-200 shadow-sm text-center space-y-4">
+          <div className="w-16 h-16 bg-rose-50 border border-rose-200 text-rose-600 rounded-2xl flex items-center justify-center text-2xl mx-auto">
+            🏢
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-slate-900">Company Record Not Found</h2>
+            <p className="text-sm text-slate-500 max-w-md mx-auto">
+              {error
+                ? error
+                : `The requested company record${id ? ` (ID: ${id})` : ''} does not exist in the database or may have been deleted.`}
+            </p>
+          </div>
+          <div className="pt-4 flex items-center justify-center gap-3">
+            <Link
+              href="/companies"
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-sm transition"
+            >
+              ← Back to Companies Directory
+            </Link>
+            <Link
+              href="/activities"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+            >
+              View Activities Feed
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

@@ -37,12 +37,48 @@ class ActivityUpdate(BaseModel):
     attributes: dict[str, Any] | None = None
 
 
+class ActivityPersonSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    first_name: str | None = None
+    last_name: str | None = None
+    primary_email: str | None = None
+    avatar_url: str | None = None
+    linkedin_url: str | None = None
+
+
+class ActivityCompanySummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    domain: str | None = None
+    avatar_url: str | None = None
+    industry: str | None = None
+
+
+class ActivityTimelineBucket(BaseModel):
+    date: str  # YYYY-MM-DD
+    total: int
+    by_type: dict[str, int] = Field(default_factory=dict)
+
+
+class ActivityStatsResponse(BaseModel):
+    total: int
+    by_type: dict[str, int]
+    by_source: dict[str, int]
+    timeline: list[ActivityTimelineBucket] = Field(default_factory=list)
+
+
 class ActivityResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     person_id: uuid.UUID | None = None
     company_id: uuid.UUID | None = None
+    person: ActivityPersonSummary | None = None
+    company: ActivityCompanySummary | None = None
     type: str
     source: str
     source_id: str | None = None

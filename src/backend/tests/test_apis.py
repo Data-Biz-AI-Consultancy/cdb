@@ -225,6 +225,7 @@ async def test_company_and_relationship_crud(client: AsyncClient, auth_headers: 
 
 @pytest.mark.asyncio
 async def test_activity_crud(client: AsyncClient, auth_headers: dict[str, str]):
+    # Create Person
     p_resp = await client.post(
         "/api/v1/persons",
         json={"first_name": "Charlie", "last_name": "Brown", "primary_email": "charlie@test.com"},
@@ -232,25 +233,78 @@ async def test_activity_crud(client: AsyncClient, auth_headers: dict[str, str]):
     )
     person_id = p_resp.json()["id"]
 
+    # Create Company
+    c_resp = await client.post(
+        "/api/v1/companies",
+        json={"name": "Peanuts Corp", "domain": "peanuts.example.com"},
+        headers=auth_headers,
+    )
+    company_id = c_resp.json()["id"]
+
+    # 1. Create activity with person & company
     act_resp = await client.post(
         "/api/v1/activities",
         json={
             "person_id": person_id,
+            "company_id": company_id,
             "type": "call",
             "source": "manual",
-            "title": "Introductory Call",
-            "summary": "Discussed roadmap",
+            "title": "Introductory Call with Charlie",
+            "summary": "Discussed roadmap and partnership",
         },
         headers=auth_headers,
     )
     assert act_resp.status_code == 201
-    act_id = act_resp.json()["id"]
+    act_data = act_resp.json()
+    act_id = act_data["id"]
     assert act_id is not None
+    assert act_data["person"] is not None
+    assert act_data["person"]["first_name"] == "Charlie"
+    assert act_data["company"] is not None
+    assert act_data["company"]["name"] == "Peanuts Corp"
 
-    # List activities
-    list_acts = await client.get(f"/api/v1/activities?person_id={person_id}", headers=auth_headers)
-    assert list_acts.status_code == 200
-    assert len(list_acts.json()["data"]) == 1
+    # 2. Stats endpoint
+    stats_resp = await client.get("/api/v1/activities/stats", headers=auth_headers)
+    assert stats_resp.status_code == 200
+    stats = stats_resp.json()
+    assert stats["total"] >= 1
+    assert "call" in stats["by_type"]
+    assert stats["by_type"]["call"] >= 1
+    assert "manual" in stats["by_source"]
+    assert "timeline" in stats and len(stats["timeline"]) >= 1
+
+    # 3. List with search q
+    search_resp = await client.get("/api/v1/activities?q=roadmap", headers=auth_headers)
+    assert search_resp.status_code == 200
+    search_data = search_resp.json()["data"]
+    assert any(a["id"] == act_id for a in search_data)
+
+    # 4. List with pagination
+    page_resp = await client.get(
+        f"/api/v1/activities?person_id={person_id}&page=1&page_size=10", headers=auth_headers
+    )
+    assert page_resp.status_code == 200
+    p_json = page_resp.json()
+    assert len(p_json["data"]) == 1
+    assert p_json["pagination"]["page"] == 1
+    assert p_json["pagination"]["total"] == 1
+
+    # 5. Update activity
+    up_resp = await client.patch(
+        f"/api/v1/activities/{act_id}",
+        json={"title": "Updated Call Title", "summary": "New summary"},
+        headers=auth_headers,
+    )
+    assert up_resp.status_code == 200
+    assert up_resp.json()["title"] == "Updated Call Title"
+
+    # 6. Delete activity
+    del_resp = await client.delete(f"/api/v1/activities/{act_id}", headers=auth_headers)
+    assert del_resp.status_code == 204
+
+    # Confirm not found
+    get_del = await client.get(f"/api/v1/activities/{act_id}", headers=auth_headers)
+    assert get_del.status_code == 404
 
 
 @pytest.mark.asyncio
