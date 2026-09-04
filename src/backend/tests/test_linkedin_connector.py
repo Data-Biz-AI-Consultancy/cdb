@@ -1,12 +1,13 @@
 import datetime
 from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.activity import Activity
-from cdb.models.intake import IntakeLinkedInConnection, IntakeLinkedInMessage
+from cdb.models.intake import IntakeLinkedInMessage
 from cdb.models.person import Person
 from cdb.services.connectors.linkedin import (
     LinkedInConnectorService,
@@ -16,10 +17,10 @@ from cdb.services.connectors.linkedin import (
 
 def test_parse_flexible_datetime():
     dt1 = parse_flexible_datetime("2024-05-14T15:30:00Z")
-    assert dt1 == datetime.datetime(2024, 5, 14, 15, 30, tzinfo=datetime.timezone.utc)
+    assert dt1 == datetime.datetime(2024, 5, 14, 15, 30, tzinfo=datetime.UTC)
 
     dt2 = parse_flexible_datetime("2023-11-20 08:45:00 UTC")
-    assert dt2 == datetime.datetime(2023, 11, 20, 8, 45, tzinfo=datetime.timezone.utc)
+    assert dt2 == datetime.datetime(2023, 11, 20, 8, 45, tzinfo=datetime.UTC)
 
     dt3 = parse_flexible_datetime("2022-01-15")
     assert dt3.year == 2022 and dt3.month == 1 and dt3.day == 15
@@ -77,13 +78,13 @@ def test_parse_messages_grouping_and_timestamps():
     assert "Alice Cooper: Hi Jimmy" in c123.raw_content
     assert "Alice Cooper: Great, let us schedule" in c123.raw_content
     # Timestamp fidelity: latest message date
-    assert c123.last_sent_at == datetime.datetime(2023, 1, 12, 14, 0, tzinfo=datetime.timezone.utc)
-    assert c123.first_sent_at == datetime.datetime(2023, 1, 10, 10, 0, tzinfo=datetime.timezone.utc)
+    assert c123.last_sent_at == datetime.datetime(2023, 1, 12, 14, 0, tzinfo=datetime.UTC)
+    assert c123.first_sent_at == datetime.datetime(2023, 1, 10, 10, 0, tzinfo=datetime.UTC)
 
     c456 = r_map["convo_456"]
     assert c456.message_count == 1
     assert c456.participant_names == "Bob Dylan"
-    assert c456.last_sent_at == datetime.datetime(2023, 5, 1, 9, 0, tzinfo=datetime.timezone.utc)
+    assert c456.last_sent_at == datetime.datetime(2023, 5, 1, 9, 0, tzinfo=datetime.UTC)
 
 
 def test_parse_connections():
@@ -108,7 +109,7 @@ def test_parse_connections():
     assert c.position == "VP of Engineering"
     assert c.email_address == "charlie@acme.com"
     assert c.profile_url == "https://www.linkedin.com/in/charliebrown"
-    assert c.connected_at == datetime.datetime(2022, 8, 15, 12, 0, tzinfo=datetime.timezone.utc)
+    assert c.connected_at == datetime.datetime(2022, 8, 15, 12, 0, tzinfo=datetime.UTC)
 
 
 @pytest.mark.asyncio
@@ -159,10 +160,10 @@ async def test_direct_sync_preserves_activity_timestamp(db_session: AsyncSession
     ).scalar_one_or_none()
 
     assert intake is not None
-    expected_dt = datetime.datetime(2023, 3, 15, 8, 30, tzinfo=datetime.timezone.utc)
+    expected_dt = datetime.datetime(2023, 3, 15, 8, 30, tzinfo=datetime.UTC)
     # Account for SQLite naive datetime storage
     intake_dt = (
-        intake.last_sent_at.replace(tzinfo=datetime.timezone.utc)
+        intake.last_sent_at.replace(tzinfo=datetime.UTC)
         if intake.last_sent_at and intake.last_sent_at.tzinfo is None
         else intake.last_sent_at
     )
@@ -179,7 +180,7 @@ async def test_direct_sync_preserves_activity_timestamp(db_session: AsyncSession
     assert act.person_id == person.id
     # Crucial check: Activity.occurred_at MUST be 2023-03-15, NOT now()
     act_dt = (
-        act.occurred_at.replace(tzinfo=datetime.timezone.utc)
+        act.occurred_at.replace(tzinfo=datetime.UTC)
         if act.occurred_at and act.occurred_at.tzinfo is None
         else act.occurred_at
     )

@@ -27,9 +27,9 @@ BACKEND_ROOT = os.path.dirname(SCRIPT_DIR)
 if BACKEND_ROOT not in sys.path:
     sys.path.insert(0, BACKEND_ROOT)
 
-from cdb.core.config import settings
-from cdb.models.activity import Activity
-from cdb.models.intake import IntakeLinkedInMessage
+from cdb.core.config import settings  # noqa: E402
+from cdb.models.activity import Activity  # noqa: E402
+from cdb.models.intake import IntakeLinkedInMessage  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,

@@ -2,6 +2,7 @@ import datetime
 import logging
 import re
 from typing import Any
+
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,7 +49,7 @@ def parse_flexible_datetime(dt_str: str | None) -> datetime.datetime | None:
             target = cleaned.replace(" UTC", "").strip() if "%Z" not in fmt else cleaned
             parsed = datetime.datetime.strptime(target, fmt)
             if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+                parsed = parsed.replace(tzinfo=datetime.UTC)
             return parsed
         except Exception:
             continue
@@ -139,7 +140,7 @@ class LinkedInConnectorService:
 
             date_str = msg.get("DATE") or msg.get("date") or msg.get("sent_at") or ""
             parsed_dt = parse_flexible_datetime(str(date_str)) or datetime.datetime.now(
-                datetime.timezone.utc
+                datetime.UTC
             )
 
             sender = (msg.get("FROM") or msg.get("sender_name") or "").strip()
