@@ -54,6 +54,9 @@ class IntakeLinkedInMessage(Base, UUIDPrimaryKeyMixin):
         ForeignKey("persons.id", ondelete="SET NULL"),
         nullable=True,
     )
+    last_sent_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     ingested_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

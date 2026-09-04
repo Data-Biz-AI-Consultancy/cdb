@@ -200,12 +200,25 @@ async def ingest_linkedin_messages(
             duplicates_skipped += 1
             continue
 
+        # Resolve original message timestamp
+        msg_timestamp = rec.last_sent_at
+        if not msg_timestamp and isinstance(rec.raw_payload, dict):
+            for dt_key in ["last_sent_at", "latest_message_date", "sent_at", "date"]:
+                val = rec.raw_payload.get(dt_key)
+                if val:
+                    try:
+                        msg_timestamp = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+                        break
+                    except Exception:
+                        pass
+
         intake = IntakeLinkedInMessage(
             conversation_id=rec.conversation_id,
             participant_names=rec.participant_names,
             message_count=rec.message_count,
             raw_content=rec.raw_content,
             raw_payload=rec.raw_payload,
+            last_sent_at=msg_timestamp,
             status="pending",
         )
         db.add(intake)
@@ -257,13 +270,14 @@ async def ingest_linkedin_messages(
         if person_id:
             intake.resolved_person_id = person_id
 
-            # Log Activity
+            # Log Activity with authentic message timestamp
+            occurred_at = msg_timestamp or datetime.datetime.now(datetime.UTC)
             act = Activity(
                 person_id=person_id,
                 type="linkedin_message",
                 source="linkedin",
                 source_id=f"li_msg:{rec.conversation_id}",
-                occurred_at=datetime.datetime.now(datetime.UTC),
+                occurred_at=occurred_at,
                 title=f"LinkedIn Conversation ({rec.message_count} messages)",
                 summary=f"Intent: {signals['intent']} | Opportunity: {signals['opportunity_type']}",
                 raw_content=rec.raw_content,

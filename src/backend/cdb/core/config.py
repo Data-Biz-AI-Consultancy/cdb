@@ -71,6 +71,20 @@ class Settings(BaseSettings):
     # Ingestion & Backfill
     AUTO_BACKFILL_ON_STARTUP: bool = False
 
+    # Direct Connectors Configuration
+    LINKEDIN_ACCESS_TOKEN: str | None = None
+    LINKEDIN_API_BASE_URL: str = "https://api.linkedin.com/rest"
+    LINKEDIN_VERSION: str = "202312"
+    LINKEDIN_RESTLI_PROTOCOL_VERSION: str = "2.0.0"
+    LINKEDIN_SYNC_HOURS_INTERVAL: int = 6
+
+    # Notion Direct Connector (future migration)
+    NOTION_API_KEY: str | None = None
+    NOTION_VERSION: str = "2022-06-28"
+
+    # Optional Jager Database URL (for legacy data healing/migration)
+    JAGER_DATABASE_URL: str | None = None
+
     # CORS
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
