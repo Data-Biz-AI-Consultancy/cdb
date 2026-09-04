@@ -285,10 +285,10 @@ class LinkedInConnectorService:
         }
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            # 1. Sync Messages
+            # 1. Sync Messages (INBOX)
             if sync_messages:
                 logger.info("Directly fetching LinkedIn messages from Member Portability API...")
-                raw_messages = await self.fetch_snapshot_domain("MESSAGES", client=client)
+                raw_messages = await self.fetch_snapshot_domain("INBOX", client=client)
                 results["messages_fetched"] = len(raw_messages)
                 parsed_messages = self.parse_messages(raw_messages)
                 if parsed_messages:

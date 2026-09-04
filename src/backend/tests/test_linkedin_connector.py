@@ -144,7 +144,7 @@ async def test_direct_sync_preserves_activity_timestamp(db_session: AsyncSession
 
     with patch.object(service, "fetch_snapshot_domain", new_callable=AsyncMock) as mock_fetch:
         mock_fetch.side_effect = lambda domain, client=None: (
-            raw_messages if domain == "MESSAGES" else []
+            raw_messages if domain in ("INBOX", "MESSAGES") else []
         )
 
         res = await service.sync(db_session, sync_messages=True, sync_connections=False)
