@@ -2,7 +2,7 @@ import importlib.metadata
 import tomllib
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,7 +24,7 @@ def _get_app_version() -> str:
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "../../.env", "../.env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -70,6 +70,26 @@ class Settings(BaseSettings):
 
     # Ingestion & Backfill
     AUTO_BACKFILL_ON_STARTUP: bool = False
+
+    # Direct Connectors Configuration
+    LINKEDIN_ACCESS_TOKEN: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "LINKEDIN_ACCESS_TOKEN",
+            "LINKEDIN_MEMBER_DATA_PORTABILITY_API_TOKEN",
+        ),
+    )
+    LINKEDIN_API_BASE_URL: str = "https://api.linkedin.com/rest"
+    LINKEDIN_VERSION: str = "202312"
+    LINKEDIN_RESTLI_PROTOCOL_VERSION: str = "2.0.0"
+    LINKEDIN_SYNC_HOURS_INTERVAL: int = 6
+
+    # Notion Direct Connector (future migration)
+    NOTION_API_KEY: str | None = None
+    NOTION_VERSION: str = "2022-06-28"
+
+    # Optional Jager Database URL (for legacy data healing/migration)
+    JAGER_DATABASE_URL: str | None = None
 
     # CORS
     CORS_ORIGINS: list[str] = [

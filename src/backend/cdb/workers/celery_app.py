@@ -14,6 +14,13 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    beat_schedule={
+        "sync-linkedin-direct-periodic": {
+            "task": "cdb.workers.tasks.sync_linkedin_direct",
+            "schedule": settings.LINKEDIN_SYNC_HOURS_INTERVAL * 3600,
+            "args": (True, True),
+        },
+    },
 )
 
 

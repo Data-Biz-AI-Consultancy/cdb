@@ -25,6 +25,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://cdb-redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-${CDB_SECRET_KEY:-development-secret-key-at-least-32-characters-long}}
       - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
+      - LINKEDIN_ACCESS_TOKEN=${LINKEDIN_ACCESS_TOKEN:-${LINKEDIN_MEMBER_DATA_PORTABILITY_API_TOKEN:-}}
       - FIRST_SUPERUSER_EMAIL=${FIRST_SUPERUSER_EMAIL:-admin@cdb.internal}
       - FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:-admin123456}
       - FIRST_SUPERUSER_FULL_NAME=${FIRST_SUPERUSER_FULL_NAME:-CDB Admin}
@@ -55,6 +56,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://cdb-redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-${CDB_SECRET_KEY:-development-secret-key-at-least-32-characters-long}}
       - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
+      - LINKEDIN_ACCESS_TOKEN=${LINKEDIN_ACCESS_TOKEN:-${LINKEDIN_MEMBER_DATA_PORTABILITY_API_TOKEN:-}}
     depends_on:
       cdb-db:
         condition: service_healthy
