@@ -1,9 +1,12 @@
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+logger = logging.getLogger(__name__)
 
 
 class APIError(Exception):
@@ -72,11 +75,6 @@ class ValidationError(APIError):
 
 class BadRequestError(ValidationError):
     pass
-
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 def register_error_handlers(app: FastAPI) -> None:
