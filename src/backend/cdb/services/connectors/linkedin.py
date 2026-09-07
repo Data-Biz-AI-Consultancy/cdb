@@ -4,10 +4,12 @@ import re
 from typing import Any
 
 import httpx
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.core.config import settings
 from cdb.core.errors import ValidationError
+from cdb.models.intake import IntakeLinkedInConnection
 from cdb.schemas.ingestion import (
     LinkedInConnectionRecord,
     LinkedInConnectionsIngestRequest,
@@ -216,6 +218,177 @@ class LinkedInConnectorService:
 
         return records
 
+    async def fetch_changelog_messages(
+        self,
+        client: httpx.AsyncClient | None = None,
+        count: int = 50,
+        max_pages: int = 15,
+    ) -> list[dict[str, Any]]:
+        """
+        Fetches message events from the Member Changelog API (real-time stream, last 28 days).
+        """
+        url = f"{self.api_base_url}/memberChangeLogs"
+        headers = self._get_headers()
+
+        close_client = False
+        if client is None:
+            client = httpx.AsyncClient(timeout=60.0)
+            close_client = True
+
+        all_message_events: list[dict[str, Any]] = []
+        cursor_ms: int | None = None
+
+        try:
+            for _ in range(max_pages):
+                params: dict[str, Any] = {
+                    "q": "memberAndApplication",
+                    "count": count,
+                }
+                if cursor_ms is not None:
+                    params["startTime"] = cursor_ms
+
+                try:
+                    resp = await client.get(url, params=params, headers=headers)
+                    resp.raise_for_status()
+                    data = resp.json()
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code == 429:
+                        logger.warning(
+                            "LinkedIn memberChangeLogs daily quota reached (HTTP 429). Falling back to snapshot."
+                        )
+                        break
+                    raise
+
+                elements = data.get("elements", [])
+                if not elements:
+                    break
+
+                for elem in elements:
+                    if elem.get("resourceName") == "messages":
+                        all_message_events.append(elem)
+
+                last_processed = elements[-1].get("processedAt")
+                if (
+                    not last_processed
+                    or (cursor_ms is not None and last_processed <= cursor_ms)
+                    or len(elements) < count
+                ):
+                    break
+                cursor_ms = last_processed + 1
+
+            return all_message_events
+        finally:
+            if close_client:
+                await client.aclose()
+
+    def parse_changelog_messages(
+        self,
+        raw_events: list[dict[str, Any]],
+        connection_names: dict[str, str] | None = None,
+        owner_name: str = "Jimmy Pang",
+    ) -> list[LinkedInMessageRecord]:
+        """
+        Parses live message events from memberChangeLogs, grouping by thread URN,
+        inferring participant names, and establishing accurate message timestamps.
+        """
+        conn_map = connection_names or {}
+        threads: dict[str, list[dict[str, Any]]] = {}
+
+        for elem in raw_events:
+            act = elem.get("activity", {})
+            thread_urn = act.get("thread", "") or elem.get("resourceId", "")
+            convo_id = thread_urn.split(":")[-1] if ":" in thread_urn else thread_urn
+            convo_id = convo_id.strip()
+            if not convo_id:
+                continue
+
+            deliv_ms = act.get("deliveredAt") or act.get("createdAt") or elem.get("processedAt")
+            if deliv_ms:
+                sent_at = datetime.datetime.fromtimestamp(deliv_ms / 1000, tz=datetime.UTC)
+            else:
+                sent_at = datetime.datetime.now(datetime.UTC)
+
+            content = (
+                act.get("content", {}).get("fallback")
+                or act.get("content", {}).get("content", {}).get("string")
+                or ""
+            ).strip()
+
+            author = act.get("author") or act.get("actor") or ""
+            owner_urn = elem.get("owner") or "Cq7E0YsGks"
+            is_owner = (owner_urn in author) or ("Cq7E0YsGks" in author)
+            sender = owner_name if is_owner else "Contact"
+
+            threads.setdefault(convo_id, []).append(
+                {
+                    "sent_at": sent_at,
+                    "sender_name": sender,
+                    "content": content,
+                    "is_owner": is_owner,
+                    "raw": elem,
+                }
+            )
+
+        records: list[LinkedInMessageRecord] = []
+        for convo_id, msgs in threads.items():
+            msgs.sort(key=lambda m: m["sent_at"])
+            earliest_dt = msgs[0]["sent_at"]
+            latest_dt = msgs[-1]["sent_at"]
+
+            all_text = "\n".join([m["content"] for m in msgs if m["content"]])
+            inferred_name = self._infer_participant_name(all_text, conn_map)
+
+            transcript_lines = [
+                f"{m['sender_name']}: {m['content']}" for m in msgs if m["content"]
+            ]
+            raw_content = "\n".join(transcript_lines)
+
+            records.append(
+                LinkedInMessageRecord(
+                    conversation_id=convo_id,
+                    participant_names=inferred_name,
+                    message_count=len(msgs),
+                    raw_content=raw_content,
+                    last_sent_at=latest_dt,
+                    first_sent_at=earliest_dt,
+                    raw_payload={
+                        "conversation_id": convo_id,
+                        "last_sent_at": latest_dt.isoformat(),
+                        "first_sent_at": earliest_dt.isoformat(),
+                        "message_count": len(msgs),
+                        "source": "memberChangeLogs",
+                    },
+                )
+            )
+        return records
+
+    @staticmethod
+    def _infer_participant_name(text: str, conn_map: dict[str, str]) -> str:
+        """Infers contact name from greeting, intro, signoff, and matches against known connections."""
+        # 1. Introduction: 'my name is X'
+        m_intro = re.search(r'\bmy name is\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', text, re.IGNORECASE)
+        if m_intro and "jimmy" not in m_intro.group(1).lower():
+            cand = m_intro.group(1).split()[0].lower()
+            return conn_map.get(cand, m_intro.group(1).title())
+
+        # 2. Greeting in text: 'hi Rose', 'hey Emily'
+        for m in re.finditer(r'\b(?:hi|hey|hello|dear)\s+([A-Z][a-z]+)', text, re.IGNORECASE):
+            cand = m.group(1)
+            if cand.lower() not in ["jimmy", "pang", "there", "all", "everyone", "team", "good"]:
+                return conn_map.get(cand.lower(), cand.title())
+
+        # 3. Signoff: 'Best regards,\nAngela' or 'Br,\nprasad'
+        m_sign = re.search(
+            r'(?:regards|cheers|br|warm regards|best),?\s*\n+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
+            text,
+            re.IGNORECASE,
+        )
+        if m_sign and "jimmy" not in m_sign.group(1).lower():
+            cand = m_sign.group(1).split()[0].lower()
+            return conn_map.get(cand, m_sign.group(1).title())
+
+        return "LinkedIn Member"
+
     def parse_connections(
         self, raw_records: list[dict[str, Any]]
     ) -> list[LinkedInConnectionRecord]:
@@ -272,6 +445,7 @@ class LinkedInConnectorService:
     ) -> dict[str, Any]:
         """
         Directly queries the LinkedIn API and ingests records into CDB.
+        Combines historical snapshot data with real-time changelog events.
         """
         if not self.access_token:
             raise ValidationError("LinkedIn access token is not configured.")
@@ -285,15 +459,79 @@ class LinkedInConnectorService:
         }
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            # 1. Sync Messages (INBOX)
+            # 1. Sync Messages (INBOX snapshot + Changelog live stream)
             if sync_messages:
                 logger.info("Directly fetching LinkedIn messages from Member Portability API...")
                 raw_messages = await self.fetch_snapshot_domain("INBOX", client=client)
-                results["messages_fetched"] = len(raw_messages)
-                parsed_messages = self.parse_messages(raw_messages)
-                if parsed_messages:
+                changelog_events = await self.fetch_changelog_messages(client=client)
+
+                # Preload connection names for participant resolution
+                conn_names: dict[str, str] = {}
+                try:
+                    conn_rows = (
+                        await db.execute(
+                            select(
+                                IntakeLinkedInConnection.first_name,
+                                IntakeLinkedInConnection.last_name,
+                            )
+                        )
+                    ).all()
+                    for fn, ln in conn_rows:
+                        if fn:
+                            full = f"{fn.strip()} {ln.strip()}" if ln else fn.strip()
+                            conn_names.setdefault(fn.strip().lower(), full)
+                except Exception as ex:
+                    logger.warning("Could not query connection names for resolution: %s", ex)
+
+                snapshot_records = self.parse_messages(raw_messages, owner_name="Jimmy Pang")
+                changelog_records = self.parse_changelog_messages(
+                    changelog_events, connection_names=conn_names, owner_name="Jimmy Pang"
+                )
+
+                # Merge snapshot and changelog conversations
+                merged: dict[str, LinkedInMessageRecord] = {
+                    r.conversation_id: r for r in snapshot_records
+                }
+                for cr in changelog_records:
+                    if cr.conversation_id in merged:
+                        existing = merged[cr.conversation_id]
+                        combined_content = (
+                            (existing.raw_content or "") + "\n" + (cr.raw_content or "")
+                        )
+                        latest_sent = max(
+                            [dt for dt in [existing.last_sent_at, cr.last_sent_at] if dt is not None]
+                        )
+                        earliest_sent = min(
+                            [dt for dt in [existing.first_sent_at, cr.first_sent_at] if dt is not None]
+                        )
+                        p_name = (
+                            cr.participant_names
+                            if cr.participant_names != "LinkedIn Member"
+                            else existing.participant_names
+                        )
+                        merged[cr.conversation_id] = LinkedInMessageRecord(
+                            conversation_id=cr.conversation_id,
+                            participant_names=p_name or existing.participant_names,
+                            message_count=existing.message_count + cr.message_count,
+                            raw_content=combined_content.strip(),
+                            last_sent_at=latest_sent,
+                            first_sent_at=earliest_sent,
+                            raw_payload={
+                                "conversation_id": cr.conversation_id,
+                                "last_sent_at": latest_sent.isoformat() if latest_sent else None,
+                                "first_sent_at": earliest_sent.isoformat() if earliest_sent else None,
+                                "message_count": existing.message_count + cr.message_count,
+                                "has_changelog": True,
+                            },
+                        )
+                    else:
+                        merged[cr.conversation_id] = cr
+
+                all_messages = list(merged.values())
+                results["messages_fetched"] = len(raw_messages) + len(changelog_events)
+                if all_messages:
                     msg_resp = await ingest_linkedin_messages(
-                        db, LinkedInMessagesIngestRequest(records=parsed_messages)
+                        db, LinkedInMessagesIngestRequest(records=all_messages)
                     )
                     results["conversations_ingested"] = msg_resp.queued
                     results["conversations_skipped"] = msg_resp.duplicates_skipped
@@ -312,3 +550,4 @@ class LinkedInConnectorService:
                     results["connections_skipped"] = conn_resp.duplicates_skipped
 
         return results
+

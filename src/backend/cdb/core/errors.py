@@ -74,6 +74,11 @@ class BadRequestError(ValidationError):
     pass
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
@@ -131,13 +136,15 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("Unhandled server exception: %s", exc)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "error": {
                     "code": "INTERNAL_ERROR",
-                    "message": "An unexpected server error occurred",
+                    "message": str(exc) if exc else "An unexpected server error occurred",
                     "details": {},
                 }
             },
         )
+
