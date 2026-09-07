@@ -1,3 +1,17 @@
+# [1.25.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.24.0...v1.25.0) (2026-09-07)
+
+
+### Bug Fixes
+
+* **core:** move import logging to top of errors.py to pass ruff E402 ([ad823ca](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ad823caa2041cdb34d77f60b954b025e940e3903))
+* update LinkedIn connector to fetch messages from INBOX domain instead of MESSAGES ([3ffa620](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/3ffa6203a4cf45e86c25a21734d6d901f5349047))
+
+
+### Features
+
+* **connectors:** add real-time LinkedIn changelog message ingestion and timestamp resolution ([ca4878f](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ca4878f6e9a7fb2a261e425e8e5c832abe276e23))
+* implement LinkedIn connector with historical message timestamp tracking and periodic sync tasks ([b986306](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/b98630655298f554edf70f31b664c709c1bc8894))
+
 # [1.24.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.23.0...v1.24.0) (2026-09-01)
 
 
