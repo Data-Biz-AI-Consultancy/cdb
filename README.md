@@ -254,6 +254,45 @@ curl -X POST http://localhost:8000/api/v1/ingest/linkedin-connections \
 
 ---
 
+## 🔌 Native Data Connectors
+
+CDB includes native background data connectors to synchronize external platform data directly without requiring intermediate ETL pipelines or orchestration tooling.
+
+### Direct LinkedIn Connector
+
+The direct LinkedIn connector interfaces with the LinkedIn Member Portability API using a unified dual-ingestion architecture:
+
+1. **Static Historical Archive (`memberSnapshotData?domain=INBOX`)**:
+   - Ingests full conversation thread histories and participant profiles.
+2. **Live Rolling Stream (`memberChangeLogs?q=memberAndApplication`)**:
+   - Continuously ingests real-time messages and interactions over the past 28 days.
+   - Automatically infers contact names and links them against resolved contacts in `intake_linkedin_connections`.
+3. **Timestamp Fidelity & Self-Healing**:
+   - Computes `last_sent_at = MAX(sent_at)` for every thread and persists the authentic message datetime directly into `Activity.occurred_at` (preventing bulk insertion timestamps like `now()`).
+   - Re-syncing automatically heals previously corrupted activity records in the database.
+
+#### Configuration
+Set your LinkedIn token in `.env`:
+```env
+LINKEDIN_ACCESS_TOKEN=AQX...
+# Optional interval in hours for Celery Beat schedule (default: 6)
+LINKEDIN_SYNC_HOURS_INTERVAL=6
+```
+
+#### Connector API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/connectors/linkedin/status` | Returns connector configuration status and active REST API versions. |
+| `POST` | `/api/v1/connectors/linkedin/sync` | Triggers on-demand synchronization. Supports `sync_messages=true`, `sync_connections=true`, and `async_run=true` (for Celery background offload). |
+
+#### Automated Celery Execution
+- **Celery Beat**: Configured in `cdb.workers.celery_app` to automatically run `sync_linkedin_direct` every 6 hours.
+- **On-Demand Background Task**: Passing `?async_run=true` to the sync endpoint immediately queues the job to Redis and Celery worker with an instant `200 OK` response.
+
+---
+
+
 ## 📁 Repository Structure
 
 

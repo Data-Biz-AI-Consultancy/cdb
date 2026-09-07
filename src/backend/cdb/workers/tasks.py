@@ -45,3 +45,26 @@ def run_full_er_background():
 def evaluate_segments_background():
     """Background task to evaluate dynamic contact segments & temperatures."""
     return asyncio.run(_evaluate_segments_async())
+
+
+async def _sync_linkedin_direct_async(sync_messages: bool = True, sync_connections: bool = True):
+    from cdb.services.connectors.linkedin import LinkedInConnectorService
+
+    async with AsyncSessionLocal() as session:
+        service = LinkedInConnectorService()
+        return await service.sync(
+            session,
+            sync_messages=sync_messages,
+            sync_connections=sync_connections,
+        )
+
+
+@celery_app.task(name="cdb.workers.tasks.sync_linkedin_direct")
+def sync_linkedin_direct_background(sync_messages: bool = True, sync_connections: bool = True):
+    """Background task to directly pull LinkedIn messages & connections into CDB."""
+    return asyncio.run(
+        _sync_linkedin_direct_async(
+            sync_messages=sync_messages,
+            sync_connections=sync_connections,
+        )
+    )

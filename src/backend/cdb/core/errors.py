@@ -1,9 +1,12 @@
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+logger = logging.getLogger(__name__)
 
 
 class APIError(Exception):
@@ -131,13 +134,15 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("Unhandled server exception: %s", exc)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "error": {
                     "code": "INTERNAL_ERROR",
-                    "message": "An unexpected server error occurred",
+                    "message": str(exc) if exc else "An unexpected server error occurred",
                     "details": {},
                 }
             },
         )
+

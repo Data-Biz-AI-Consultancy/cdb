@@ -259,11 +259,12 @@ async def backfill_linkedin_messages_into_activities(db: AsyncSession) -> dict[s
             if not person_id:
                 continue
 
-            occurred_at = msg.ingested_at or datetime.datetime.now(datetime.UTC)
-            if msg.raw_payload and isinstance(msg.raw_payload, dict):
+            occurred_at = getattr(msg, "last_sent_at", None)
+            if not occurred_at and msg.raw_payload and isinstance(msg.raw_payload, dict):
                 for dt_key in [
                     "last_sent_at",
                     "latest_message_date",
+                    "sent_at",
                     "first_sent_at",
                     "created_at",
                 ]:
@@ -271,11 +272,13 @@ async def backfill_linkedin_messages_into_activities(db: AsyncSession) -> dict[s
                     if val:
                         try:
                             occurred_at = datetime.datetime.fromisoformat(
-                                val.replace("Z", "+00:00")
+                                str(val).replace("Z", "+00:00")
                             )
                             break
                         except Exception:
                             pass
+            if not occurred_at:
+                occurred_at = msg.ingested_at or datetime.datetime.now(datetime.UTC)
 
             signals = detect_message_metadata(msg.raw_content)
             title = f"LinkedIn Conversation with {msg.participant_names or 'Contact'} ({msg.message_count} messages)"

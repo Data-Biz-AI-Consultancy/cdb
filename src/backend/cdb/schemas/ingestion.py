@@ -25,6 +25,8 @@ class LinkedInMessageRecord(BaseModel):
     participant_names: str | None = None
     message_count: int = 0
     raw_content: str | None = None
+    last_sent_at: datetime.datetime | None = None
+    first_sent_at: datetime.datetime | None = None
     raw_payload: dict[str, Any] = Field(default_factory=dict)
 
 
