@@ -142,10 +142,14 @@ async def test_direct_sync_preserves_activity_timestamp(db_session: AsyncSession
 
     service = LinkedInConnectorService(access_token="mock-token")
 
-    with patch.object(service, "fetch_snapshot_domain", new_callable=AsyncMock) as mock_fetch:
+    with (
+        patch.object(service, "fetch_snapshot_domain", new_callable=AsyncMock) as mock_fetch,
+        patch.object(service, "fetch_changelog_messages", new_callable=AsyncMock) as mock_changelog,
+    ):
         mock_fetch.side_effect = lambda domain, client=None: (
             raw_messages if domain in ("INBOX", "MESSAGES") else []
         )
+        mock_changelog.return_value = []
 
         res = await service.sync(db_session, sync_messages=True, sync_connections=False)
         assert res["conversations_ingested"] == 1
@@ -187,6 +191,132 @@ async def test_direct_sync_preserves_activity_timestamp(db_session: AsyncSession
     assert act_dt == expected_dt
 
 
+def test_parse_changelog_messages_and_infer_name():
+    service = LinkedInConnectorService()
+    raw_events = [
+        {
+            "owner": "urn:li:person:Cq7E0YsGks",
+            "resourceName": "messages",
+            "processedAt": 1788536130033,
+            "activity": {
+                "author": "urn:li:person:other_user",
+                "thread": "urn:li:messagingThread:2-thread_changelog_001",
+                "deliveredAt": 1788536129071,  # 2026-09-04 15:35:29 UTC
+                "content": {
+                    "fallback": "Hi Jimmy, I'm hiring for a Senior Growth Analyst role. Open to chat?",
+                },
+            },
+        },
+        {
+            "owner": "urn:li:person:Cq7E0YsGks",
+            "resourceName": "messages",
+            "processedAt": 1788537000000,
+            "activity": {
+                "author": "urn:li:person:Cq7E0YsGks",
+                "thread": "urn:li:messagingThread:2-thread_changelog_001",
+                "deliveredAt": 1788537000000,  # 2026-09-04 15:50:00 UTC
+                "content": {
+                    "fallback": "hey Rose, thanks for reaching out! Happy to discuss.",
+                },
+            },
+        },
+    ]
+
+    conn_map = {"rose": "Rose Benjamin"}
+    records = service.parse_changelog_messages(
+        raw_events, connection_names=conn_map, owner_name="Jimmy Pang"
+    )
+
+    assert len(records) == 1
+    r = records[0]
+    assert r.conversation_id == "2-thread_changelog_001"
+    assert r.participant_names == "Rose Benjamin"
+    assert r.message_count == 2
+    assert "Contact: Hi Jimmy, I'm hiring" in r.raw_content
+    assert "Jimmy Pang: hey Rose" in r.raw_content
+    assert r.last_sent_at == datetime.datetime(2026, 9, 4, 15, 50, tzinfo=datetime.UTC)
+
+
+@pytest.mark.asyncio
+async def test_resync_heals_existing_conversation_and_activity(db_session: AsyncSession):
+    """
+    Verifies that when a conversation was previously ingested with a wrong timestamp,
+    re-syncing with an authentic timestamp heals both the intake record and the activity.
+    """
+    # 1. Pre-create Person
+    person = Person(
+        first_name="Bruce",
+        last_name="Wayne",
+        primary_email="bruce@waynecorp.com",
+        sources=["linkedin"],
+    )
+    db_session.add(person)
+    await db_session.flush()
+
+    # 2. Existing Intake with corrupted timestamp and Activity
+    fake_old_time = datetime.datetime(2026, 9, 1, 4, 0, tzinfo=datetime.UTC)
+    intake = IntakeLinkedInMessage(
+        conversation_id="convo_bruce_001",
+        participant_names="Bruce Wayne",
+        message_count=1,
+        raw_content="Contact: Quick question.",
+        status="resolved",
+        resolved_person_id=person.id,
+        last_sent_at=None,  # missing timestamp
+    )
+    db_session.add(intake)
+
+    act = Activity(
+        person_id=person.id,
+        type="linkedin_message",
+        source="linkedin",
+        source_id="li_msg:convo_bruce_001",
+        occurred_at=fake_old_time,
+        title="LinkedIn Conversation (1 messages)",
+    )
+    db_session.add(act)
+    await db_session.commit()
+
+    # 3. New sync data with authentic date
+    authentic_time = datetime.datetime(2026, 9, 5, 14, 0, tzinfo=datetime.UTC)
+    raw_messages = [
+        {
+            "CONVERSATION ID": "convo_bruce_001",
+            "DATE": "2026-09-05 14:00:00 UTC",
+            "FROM": "Bruce Wayne",
+            "TO": "Jimmy Pang",
+            "CONTENT": "Updated: Investment discussion for the new fund.",
+        }
+    ]
+
+    service = LinkedInConnectorService(access_token="mock-token")
+    with (
+        patch.object(service, "fetch_snapshot_domain", new_callable=AsyncMock) as mock_fetch,
+        patch.object(service, "fetch_changelog_messages", new_callable=AsyncMock) as mock_changelog,
+    ):
+        mock_fetch.return_value = raw_messages
+        mock_changelog.return_value = []
+
+        res = await service.sync(db_session, sync_messages=True, sync_connections=False)
+        assert res["conversations_skipped"] == 1
+
+    # 4. Verify healing in DB
+    refreshed_act = (
+        await db_session.execute(
+            select(Activity).where(Activity.source_id == "li_msg:convo_bruce_001")
+        )
+    ).scalar_one_or_none()
+
+    assert refreshed_act is not None
+    refreshed_act_dt = (
+        refreshed_act.occurred_at.replace(tzinfo=datetime.UTC)
+        if refreshed_act.occurred_at.tzinfo is None
+        else refreshed_act.occurred_at
+    )
+    # The activity occurred_at should have been healed from fake 2026-09-01 to authentic 2026-09-05!
+    assert refreshed_act_dt == authentic_time
+
+
 @pytest.mark.asyncio
 async def test_connectors_api_endpoints(client: AsyncClient):
     headers = {"X-API-Key": "development-api-key"}
@@ -215,3 +345,4 @@ async def test_connectors_api_endpoints(client: AsyncClient):
         sync_data = resp.json()
         assert sync_data["status"] == "success"
         assert sync_data["conversations_ingested"] == 2
+
