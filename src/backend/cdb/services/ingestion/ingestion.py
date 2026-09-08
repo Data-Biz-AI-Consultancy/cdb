@@ -475,23 +475,20 @@ async def ingest_notion_meeting_notes(
 
         primary_person_id = resolved_persons[0].id if resolved_persons else None
 
-        if primary_person_id:
-            intake.resolved_person_id = primary_person_id
+        act = Activity(
+            person_id=primary_person_id,
+            type="meeting",
+            source="notion",
+            source_id=f"notion:{rec.page_id}",
+            occurred_at=rec.meeting_date or datetime.datetime.now(datetime.UTC),
+            title=rec.title or "Notion Meeting",
+            summary=rec.content,
+            raw_content=rec.content,
+            attributes={"url": rec.url, "attendees": rec.attendees},
+        )
+        db.add(act)
 
-            act = Activity(
-                person_id=primary_person_id,
-                type="meeting",
-                source="notion",
-                source_id=f"notion:{rec.page_id}",
-                occurred_at=rec.meeting_date or datetime.datetime.now(datetime.UTC),
-                title=rec.title or "Notion Meeting",
-                summary=rec.content,
-                raw_content=rec.content,
-                attributes={"url": rec.url, "attendees": rec.attendees},
-            )
-            db.add(act)
-
-        intake.status = "resolved" if primary_person_id else "pending"
+        intake.status = "resolved" if primary_person_id else "ingested"
         queued += 1
 
     await db.commit()
