@@ -407,3 +407,80 @@ async def test_notion_connector_endpoints(client: AsyncClient):
         )
         assert fallback_resp.status_code == 200
         assert fallback_resp.json()["status"] == "fallback_inline"
+
+
+def test_parse_meeting_note_unlimited_text_1m_chars():
+    service = NotionConnectorService(api_key="test-key")
+    # Generate 1.2 million characters of transcription across multiple blocks
+    chunk = "Speaker 1: Explaining system architecture and end-to-end data pipeline requirements.\n" * 15000  # ~1.25M chars
+    assert len(chunk) > 1_000_000
+
+    raw_page = {
+        "id": "page-huge-transcript",
+        "properties": {
+            "Name": {"type": "title", "title": [{"plain_text": "Long 4-Hour Architecture Review"}]}
+        },
+    }
+    raw_blocks = [
+        {
+            "type": "quote",
+            "quote": {"rich_text": [{"plain_text": chunk}]},
+            "children": [
+                {
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [{"plain_text": "Final concluding remarks after 4 hours."}]},
+                }
+            ],
+        }
+    ]
+
+    record = service.parse_meeting_note(raw_page, blocks=raw_blocks)
+    assert record.summary is not None
+    assert len(record.summary) > 1_000_000
+    assert "Final concluding remarks after 4 hours." in record.summary
+    assert record.raw_payload["blocks_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_fetch_page_blocks_recursive_child_blocks():
+    service = NotionConnectorService(api_key="test-key")
+    mock_client = AsyncMock()
+
+    # Top-level page response has 1 quote block with has_children=True
+    resp_top = MagicMock(spec=Response)
+    resp_top.status_code = 200
+    resp_top.json.return_value = {
+        "results": [
+            {
+                "id": "quote-block-1",
+                "type": "quote",
+                "has_children": True,
+                "quote": {"rich_text": [{"plain_text": "Top quote block"}]},
+            }
+        ],
+        "has_more": False,
+    }
+
+    # Child response has 1 paragraph block with has_children=False
+    resp_child = MagicMock(spec=Response)
+    resp_child.status_code = 200
+    resp_child.json.return_value = {
+        "results": [
+            {
+                "id": "child-p-1",
+                "type": "paragraph",
+                "has_children": False,
+                "paragraph": {"rich_text": [{"plain_text": "Child transcription inside quote"}]},
+            }
+        ],
+        "has_more": False,
+    }
+
+    mock_client.get.side_effect = [resp_top, resp_child]
+
+    blocks = await service.fetch_page_blocks("test-page", client=mock_client, recursive=True)
+    assert len(blocks) == 1
+    assert "children" in blocks[0]
+    assert len(blocks[0]["children"]) == 1
+    assert blocks[0]["children"][0]["paragraph"]["rich_text"][0]["plain_text"] == "Child transcription inside quote"
+

@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import logging
 import re
@@ -130,9 +131,12 @@ class NotionConnectorService:
         self,
         page_id: str,
         client: httpx.AsyncClient | None = None,
+        recursive: bool = True,
+        max_depth: int = 5,
     ) -> list[dict[str, Any]]:
         """
-        Fetches child blocks for a given page using pagination.
+        Fetches child blocks for a given page or parent block using pagination.
+        If recursive=True and max_depth > 0, concurrently traverses blocks where has_children=True.
         """
         formatted_id = format_uuid(page_id)
         url = f"{self.api_base_url}/blocks/{formatted_id}/children"
@@ -155,7 +159,11 @@ class NotionConnectorService:
 
                 resp = await client.get(url, params=params, headers=headers)
                 if resp.status_code != 200:
-                    logger.warning("Failed to fetch blocks for page %s: status %d", page_id, resp.status_code)
+                    logger.warning(
+                        "Failed to fetch blocks for page/block %s: status %d",
+                        page_id,
+                        resp.status_code,
+                    )
                     break
 
                 data = resp.json()
@@ -166,6 +174,32 @@ class NotionConnectorService:
                 start_cursor = data.get("next_cursor")
                 if not start_cursor:
                     break
+
+            if recursive and max_depth > 0 and blocks:
+                tasks = []
+                child_indices = []
+                for idx, b in enumerate(blocks):
+                    if b.get("has_children"):
+                        tasks.append(
+                            self.fetch_page_blocks(
+                                b["id"],
+                                client=client,
+                                recursive=True,
+                                max_depth=max_depth - 1,
+                            )
+                        )
+                        child_indices.append(idx)
+                if tasks:
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    for idx, child_res in zip(child_indices, results):
+                        if isinstance(child_res, list):
+                            blocks[idx]["children"] = child_res
+                        else:
+                            logger.warning(
+                                "Failed to fetch children for block %s: %s",
+                                blocks[idx].get("id"),
+                                child_res,
+                            )
 
             return blocks
         finally:
@@ -179,6 +213,7 @@ class NotionConnectorService:
     ) -> NotionMeetingNoteRecord:
         """
         Extracts structured meeting note data from Notion page properties and child blocks.
+        Preserves complete full-length meeting transcriptions without truncation (supports 1M+ characters).
         """
         page_id = page.get("id", "")
         props = page.get("properties", {}) or {}
@@ -187,6 +222,7 @@ class NotionConnectorService:
             or page.get("database_id", "")
         )
 
+        title = ""
         meeting_date_str = None
         attendees = ""
         summary = ""
@@ -238,12 +274,15 @@ class NotionConnectorService:
         if not title:
             title = page.get("title") or page.get("name") or "Untitled Meeting Note"
 
-        # Block content extraction (transcription, summaries, to-dos)
-        text_content = ""
+        # Block content extraction (transcription, summaries, to-dos, nested blocks)
+        text_parts: list[str] = []
         to_dos: list[str] = []
+        total_blocks_count = 0
 
-        if blocks:
-            for b in blocks:
+        def _traverse_blocks(block_list: list[dict[str, Any]]) -> None:
+            nonlocal total_blocks_count
+            for b in block_list:
+                total_blocks_count += 1
                 btype = b.get("type", "")
                 bcontent = b.get(btype, {})
                 if not isinstance(bcontent, dict):
@@ -259,20 +298,39 @@ class NotionConnectorService:
                     checked_prefix = "[x] " if bcontent.get("checked") else "[ ] "
                     todo_str = checked_prefix + btext
                     to_dos.append(todo_str)
-                    text_content += todo_str + "\n"
+                    text_parts.append(todo_str)
+                elif btype == "table_row":
+                    cells = bcontent.get("cells", [])
+                    cell_texts = [
+                        "".join(t.get("plain_text", "") for t in cell) for cell in cells
+                    ]
+                    if any(c.strip() for c in cell_texts):
+                        text_parts.append(" | ".join(cell_texts))
+                elif btype == "code":
+                    lang = bcontent.get("language", "")
+                    if btext:
+                        text_parts.append(f"```{lang}\n{btext}\n```")
                 elif btext:
                     if btype.startswith("heading_"):
-                        text_content += f"\n### {btext}\n"
+                        text_parts.append(f"\n### {btext}\n")
                     elif btype == "bulleted_list_item":
-                        text_content += f"* {btext}\n"
+                        text_parts.append(f"* {btext}")
                     elif btype == "numbered_list_item":
-                        text_content += f"1. {btext}\n"
+                        text_parts.append(f"1. {btext}")
                     elif btype == "quote":
-                        text_content += f"> {btext}\n"
+                        text_parts.append(f"> {btext}")
                     elif btype == "callout":
-                        text_content += f"💡 {btext}\n"
+                        text_parts.append(f"💡 {btext}")
                     else:
-                        text_content += btext + "\n"
+                        text_parts.append(btext)
+
+                if b.get("children"):
+                    _traverse_blocks(b["children"])
+
+        if blocks:
+            _traverse_blocks(blocks)
+
+        text_content = "\n\n".join(text_parts).strip()
 
         # Extract meeting fields from parsed properties
         for k, val in parsed_props.items():
@@ -298,9 +356,12 @@ class NotionConnectorService:
         final_date_str = meeting_date_str or created_time
         meeting_dt = parse_flexible_datetime(final_date_str) or datetime.datetime.now(datetime.UTC)
 
-
-        if not summary and text_content.strip():
-            summary = text_content[:1000]
+        # Store complete full-length meeting transcript without artificial truncation
+        if text_content:
+            if summary and summary.strip() not in text_content:
+                summary = f"Summary:\n{summary.strip()}\n\nTranscription:\n{text_content}"
+            else:
+                summary = text_content
 
         if not to_dos and action_items:
             to_dos = [item.strip() for item in action_items.split("\n") if item.strip()]
@@ -317,7 +378,7 @@ class NotionConnectorService:
             raw_payload={
                 "page": page,
                 "parsed_props": parsed_props,
-                "blocks_count": len(blocks or []),
+                "blocks_count": total_blocks_count,
             },
         )
 

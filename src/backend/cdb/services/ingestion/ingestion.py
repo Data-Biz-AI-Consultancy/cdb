@@ -358,7 +358,41 @@ async def ingest_notion_meeting_notes(
         ).scalar_one_or_none()
 
         if existing:
-            duplicates_skipped += 1
+            updated = False
+            if rec.summary and (not existing.summary or len(rec.summary) > len(existing.summary)):
+                existing.summary = rec.summary
+                updated = True
+            if rec.title and existing.title != rec.title:
+                existing.title = rec.title
+                updated = True
+            if rec.attendees and existing.attendees != rec.attendees:
+                existing.attendees = rec.attendees
+                updated = True
+            if rec.to_dos and existing.to_dos != rec.to_dos:
+                existing.to_dos = rec.to_dos
+                updated = True
+            if rec.raw_payload:
+                existing.raw_payload = rec.raw_payload
+
+            # Also update linked Activity if summary or title changed
+            if updated and existing.page_id:
+                act = (
+                    await db.execute(
+                        select(Activity).where(
+                            Activity.source_id == f"notion:{existing.page_id}"
+                        )
+                    )
+                ).scalars().first()
+                if act:
+                    if rec.summary and (not act.summary or len(rec.summary) > len(act.summary)):
+                        act.summary = rec.summary
+                    if rec.title:
+                        act.title = rec.title
+
+            if updated:
+                queued += 1
+            else:
+                duplicates_skipped += 1
             continue
 
         intake = IntakeNotionMeetingNote(
