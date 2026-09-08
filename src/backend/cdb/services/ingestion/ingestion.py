@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import String, cast, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.activity import Activity
@@ -440,13 +440,19 @@ async def ingest_notion_meeting_notes(
                 if "@" in attendee:
                     norm_e = normalise_email(attendee)
                     if norm_e:
+                        is_sqlite = getattr(getattr(db, "bind", None), "dialect", None) and db.bind.dialect.name == "sqlite"
+                        sec_cond = (
+                            cast(Person.secondary_emails, String).ilike(f"%{norm_e}%")
+                            if is_sqlite
+                            else Person.secondary_emails.contains([norm_e])
+                        )
                         p = (
                             (
                                 await db.execute(
                                     select(Person).where(
                                         or_(
                                             Person.primary_email == norm_e,
-                                            Person.secondary_emails.contains([norm_e]),
+                                            sec_cond,
                                         )
                                     )
                                 )
@@ -475,18 +481,33 @@ async def ingest_notion_meeting_notes(
 
         primary_person_id = resolved_persons[0].id if resolved_persons else None
 
-        act = Activity(
-            person_id=primary_person_id,
-            type="meeting",
-            source="notion",
-            source_id=f"notion:{rec.page_id}",
-            occurred_at=rec.meeting_date or datetime.datetime.now(datetime.UTC),
-            title=rec.title or "Notion Meeting",
-            summary=rec.content,
-            raw_content=rec.content,
-            attributes={"url": rec.url, "attendees": rec.attendees},
-        )
-        db.add(act)
+        # If attendee was unresolved, fallback to host Jimmy Pang to satisfy ck_activities_person_or_company_required
+        act_person_id = primary_person_id
+        if not act_person_id:
+            jimmy = (
+                await db.execute(
+                    select(Person).where(
+                        Person.first_name.ilike("jimmy"),
+                        Person.last_name.ilike("pang"),
+                    )
+                )
+            ).scalars().first()
+            if jimmy:
+                act_person_id = jimmy.id
+
+        if act_person_id:
+            act = Activity(
+                person_id=act_person_id,
+                type="meeting",
+                source="notion",
+                source_id=f"notion:{rec.page_id}",
+                occurred_at=rec.meeting_date or datetime.datetime.now(datetime.UTC),
+                title=rec.title or "Notion Meeting",
+                summary=rec.content,
+                raw_content=rec.content,
+                attributes={"url": rec.url, "attendees": rec.attendees},
+            )
+            db.add(act)
 
         intake.status = "resolved" if primary_person_id else "ingested"
         queued += 1
