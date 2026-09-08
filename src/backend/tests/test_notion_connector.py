@@ -3,15 +3,26 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.core.errors import ValidationError
-from cdb.schemas.ingestion import NotionMeetingNoteRecord
+from cdb.models.activity import Activity
+from cdb.models.company import Company
+from cdb.models.intake import IntakeNotionMeetingNote
+from cdb.models.person import Person
+from cdb.models.relationship import PersonCompanyRelationship
+from cdb.schemas.ingestion import (
+    NotionMeetingNoteRecord,
+    NotionMeetingNotesIngestRequest,
+)
 from cdb.services.connectors.notion import (
     NotionConnectorService,
     format_uuid,
     parse_flexible_datetime,
 )
+from cdb.services.ingestion.backfill import backfill_notion_meeting_notes_into_activities
+from cdb.services.ingestion.ingestion import ingest_notion_meeting_notes
 from cdb.workers.tasks import (
     _sync_notion_direct_async,
     sync_notion_direct_background,
@@ -548,3 +559,165 @@ def test_notion_meeting_note_record_summary_backwards_compatibility():
     record2 = NotionMeetingNoteRecord.model_validate(direct_dict)
     assert record2.content == "This is direct content"
     assert record2.summary == "This is direct content"
+
+
+@pytest.mark.asyncio
+async def test_ingest_notion_meeting_notes_creates_activity_with_or_without_person(
+    db_session: AsyncSession,
+):
+    # 1. Setup host and a known person in DB
+    host_jimmy = Person(
+        first_name="Jimmy",
+        last_name="Pang",
+        primary_email="jimmy@test.com",
+    )
+    person = Person(
+        first_name="Nicola",
+        last_name="Corda",
+        primary_email="nicola.corda@emnify.com",
+    )
+    db_session.add_all([host_jimmy, person])
+    await db_session.commit()
+
+    # 2. Ingest 2 records: one with matching attendee email, one with empty attendees
+    record_with_person = NotionMeetingNoteRecord(
+        page_id="page-nicola-1",
+        title="Debrief with Nicola",
+        attendees="nicola.corda@emnify.com",
+        content="Technical debrief with Nicola Corda",
+    )
+    record_unresolved = NotionMeetingNoteRecord(
+        page_id="page-unresolved-2",
+        title="Interview with emnify",
+        attendees="",
+        content="General discussion and interview notes",
+    )
+    req = NotionMeetingNotesIngestRequest(records=[record_with_person, record_unresolved])
+    resp = await ingest_notion_meeting_notes(db_session, req)
+    assert resp.queued == 2
+
+    # 3. Verify both activities were created in the activities table
+    acts = (
+        (await db_session.execute(select(Activity).where(Activity.source == "notion")))
+        .scalars()
+        .all()
+    )
+    assert len(acts) == 2
+
+    act_nicola = next(a for a in acts if a.source_id == "notion:page-nicola-1")
+    assert act_nicola.person_id == person.id
+    assert act_nicola.summary == "Technical debrief with Nicola Corda"
+
+    act_unresolved = next(a for a in acts if a.source_id == "notion:page-unresolved-2")
+    assert act_unresolved.person_id == host_jimmy.id
+    assert act_unresolved.summary == "General discussion and interview notes"
+
+    # 4. Test update flow: re-ingest with updated/longer content
+    update_record = NotionMeetingNoteRecord(
+        page_id="page-nicola-1",
+        title="Debrief with Nicola (Updated)",
+        attendees="nicola.corda@emnify.com",
+        content="Technical debrief with Nicola Corda - Full 50k character transcript appended here...",
+    )
+    update_req = NotionMeetingNotesIngestRequest(records=[update_record])
+    update_resp = await ingest_notion_meeting_notes(db_session, update_req)
+    assert update_resp.queued == 1
+
+    # Verify existing activity was updated
+    await db_session.refresh(act_nicola)
+    assert act_nicola.title == "Debrief with Nicola (Updated)"
+    assert "Full 50k character transcript" in act_nicola.summary
+
+
+@pytest.mark.asyncio
+async def test_backfill_notion_meeting_notes_into_activities(db_session: AsyncSession):
+    # Setup host Jimmy Pang, external person Yarek, company emnify
+    host_jimmy = Person(first_name="Jimmy", last_name="Pang", primary_email="jimmy@test.com")
+    yarek = Person(first_name="Yarek", last_name="Matacz", primary_email="yarek@test.com")
+    company_emnify = Company(name="emnify", domain="emnify.com")
+    company_lightdash = Company(name="Lightdash", domain="lightdash.com")
+    db_session.add_all([host_jimmy, yarek, company_emnify, company_lightdash])
+    await db_session.flush()
+
+    # Link Yarek to Lightdash
+    rel = PersonCompanyRelationship(person_id=yarek.id, company_id=company_lightdash.id)
+    db_session.add(rel)
+
+    # Add 4 intake notes:
+    # 1. External person match (prioritizing Yarek over Jimmy in "Jimmy Pang x Yarek")
+    note1 = IntakeNotionMeetingNote(
+        page_id="page-yarek-1",
+        title="Jimmy Pang x Yarek 2026-09-03T15:07:00.000+02:00",
+        content="Sync with Yarek on business development",
+    )
+    # 2. Company match in title ("Interview with emnify")
+    note2 = IntakeNotionMeetingNote(
+        page_id="page-emnify-2",
+        title="Interview with emnify 2026-09-07T15:51:00.000+02:00",
+        content="Executive discussion with emnify team",
+    )
+    # 3. Unmatched note ("Marketing and Sales Guide") -> should fallback to host Jimmy Pang
+    note3 = IntakeNotionMeetingNote(
+        page_id="page-general-3",
+        title="Marketing and Sales Guide",
+        content="General internal notes",
+    )
+    # 4. Note with existing activity that needs updating
+    note4 = IntakeNotionMeetingNote(
+        page_id="page-existing-4",
+        title="Sync Note 2026-08-20T10:00:00.000+02:00",
+        content="Short summary",
+    )
+    db_session.add_all([note1, note2, note3, note4])
+    await db_session.flush()
+
+    # Add an existing partial activity for note4
+    existing_act = Activity(
+        person_id=host_jimmy.id,
+        type="meeting",
+        source="notion",
+        source_id="notion:page-existing-4",
+        occurred_at=datetime.datetime(2026, 8, 20, 10, 0, tzinfo=datetime.UTC),
+        title="Old Title",
+        summary="Short summary",
+    )
+    db_session.add(existing_act)
+    await db_session.commit()
+
+    # Run backfill
+    res = await backfill_notion_meeting_notes_into_activities(db_session)
+    assert res["status"] == "success"
+    assert res["created_activities"] == 3
+    assert res["updated_activities"] == 1
+
+    # Verify note1 matched Yarek (external contact prioritized over Jimmy) and inherited Yarek's company
+    act1 = (
+        await db_session.execute(
+            select(Activity).where(Activity.source_id == "notion:page-yarek-1")
+        )
+    ).scalar_one()
+    assert act1.person_id == yarek.id
+    assert act1.company_id == company_lightdash.id
+    assert act1.title == "Jimmy Pang x Yarek"
+
+    # Verify note2 matched company emnify directly from title
+    act2 = (
+        await db_session.execute(
+            select(Activity).where(Activity.source_id == "notion:page-emnify-2")
+        )
+    ).scalar_one()
+    assert act2.company_id == company_emnify.id
+    assert act2.title == "Interview with emnify"
+
+    # Verify note3 fallback to host Jimmy to satisfy person/company constraint
+    act3 = (
+        await db_session.execute(
+            select(Activity).where(Activity.source_id == "notion:page-general-3")
+        )
+    ).scalar_one()
+    assert act3.person_id == host_jimmy.id
+
+    # Verify note4 existing activity had its title cleaned
+    await db_session.refresh(existing_act)
+    assert existing_act.title == "Sync Note"
+
