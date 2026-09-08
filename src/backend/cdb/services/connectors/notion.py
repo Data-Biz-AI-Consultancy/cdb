@@ -191,7 +191,7 @@ class NotionConnectorService:
                         child_indices.append(idx)
                 if tasks:
                     results = await asyncio.gather(*tasks, return_exceptions=True)
-                    for idx, child_res in zip(child_indices, results):
+                    for idx, child_res in zip(child_indices, results, strict=True):
                         if isinstance(child_res, list):
                             blocks[idx]["children"] = child_res
                         else:
@@ -217,10 +217,7 @@ class NotionConnectorService:
         """
         page_id = page.get("id", "")
         props = page.get("properties", {}) or {}
-        parent_db = (
-            page.get("parent", {}).get("database_id", "")
-            or page.get("database_id", "")
-        )
+        parent_db = page.get("parent", {}).get("database_id", "") or page.get("database_id", "")
 
         title = ""
         meeting_date_str = None
@@ -301,9 +298,7 @@ class NotionConnectorService:
                     text_parts.append(todo_str)
                 elif btype == "table_row":
                     cells = bcontent.get("cells", [])
-                    cell_texts = [
-                        "".join(t.get("plain_text", "") for t in cell) for cell in cells
-                    ]
+                    cell_texts = ["".join(t.get("plain_text", "") for t in cell) for cell in cells]
                     if any(c.strip() for c in cell_texts):
                         text_parts.append(" | ".join(cell_texts))
                 elif btype == "code":
@@ -339,7 +334,10 @@ class NotionConnectorService:
             lk = k.lower()
             if "date" in lk and not meeting_date_str:
                 meeting_date_str = str(val)
-            elif any(t in lk for t in ["attendee", "participant", "who", "people", "invited"]) and not attendees:
+            elif (
+                any(t in lk for t in ["attendee", "participant", "who", "people", "invited"])
+                and not attendees
+            ):
                 attendees = str(val)
             elif any(t in lk for t in ["summary", "tldr", "overview", "notes"]) and not summary:
                 summary = str(val)
@@ -348,7 +346,10 @@ class NotionConnectorService:
 
         if not meeting_date_str and title:
             # Check for embedded ISO timestamp or date in title (e.g. "Interview with emnify 2026-09-07T15:51:00.000+02:00")
-            match = re.search(r"(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|Z)?)?)", title)
+            match = re.search(
+                r"(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|Z)?)?)",
+                title,
+            )
             if match:
                 meeting_date_str = match.group(1)
 
@@ -457,8 +458,9 @@ class NotionConnectorService:
 
         sync_engine = create_engine(target_url)
         with sync_engine.connect() as conn:
-            notes = conn.execute(
-                text("""
+            notes = (
+                conn.execute(
+                    text("""
                     SELECT
                         id::text AS page_id,
                         database_id AS database_name,
@@ -470,7 +472,10 @@ class NotionConnectorService:
                         url
                     FROM s_notion.meeting_notes
                 """)
-            ).mappings().all()
+                )
+                .mappings()
+                .all()
+            )
 
         records: list[NotionMeetingNoteRecord] = []
         for n in notes:

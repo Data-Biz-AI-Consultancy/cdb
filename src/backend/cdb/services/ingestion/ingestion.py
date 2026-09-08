@@ -144,18 +144,22 @@ async def _resolve_linkedin_connection(db: AsyncSession, intake: IntakeLinkedInC
         comp = None
         if comp_domain:
             comp = (
-                await db.execute(
-                    select(Company)
-                    .where(or_(Company.name.ilike(comp_clean), Company.domain == comp_domain))
-                    .limit(1)
+                (
+                    await db.execute(
+                        select(Company)
+                        .where(or_(Company.name.ilike(comp_clean), Company.domain == comp_domain))
+                        .limit(1)
+                    )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
         else:
             comp = (
-                await db.execute(
-                    select(Company).where(Company.name.ilike(comp_clean)).limit(1)
-                )
-            ).scalars().first()
+                (await db.execute(select(Company).where(Company.name.ilike(comp_clean)).limit(1)))
+                .scalars()
+                .first()
+            )
 
         if not comp:
             comp = Company(name=comp_clean, domain=comp_domain or None)
@@ -164,13 +168,19 @@ async def _resolve_linkedin_connection(db: AsyncSession, intake: IntakeLinkedInC
 
         # Add relationship
         existing_rel = (
-            await db.execute(
-                select(PersonCompanyRelationship).where(
-                    PersonCompanyRelationship.person_id == matched_person.id,
-                    PersonCompanyRelationship.company_id == comp.id,
-                ).limit(1)
+            (
+                await db.execute(
+                    select(PersonCompanyRelationship)
+                    .where(
+                        PersonCompanyRelationship.person_id == matched_person.id,
+                        PersonCompanyRelationship.company_id == comp.id,
+                    )
+                    .limit(1)
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
         if not existing_rel:
             db.add(
@@ -205,14 +215,18 @@ async def ingest_linkedin_messages(
                 val = rec.raw_payload.get(dt_key)
                 if val:
                     try:
-                        msg_timestamp = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+                        msg_timestamp = datetime.datetime.fromisoformat(
+                            str(val).replace("Z", "+00:00")
+                        )
                         break
                     except Exception:
                         pass
 
         if existing:
             # If existing conversation lacked authentic timestamp or has new messages, update it
-            if msg_timestamp and (not existing.last_sent_at or msg_timestamp != existing.last_sent_at):
+            if msg_timestamp and (
+                not existing.last_sent_at or msg_timestamp != existing.last_sent_at
+            ):
                 existing.last_sent_at = msg_timestamp
                 existing.message_count = max(existing.message_count, rec.message_count)
                 if rec.raw_content and len(rec.raw_content) > len(existing.raw_content or ""):
@@ -220,7 +234,9 @@ async def ingest_linkedin_messages(
                 existing.raw_payload = rec.raw_payload
 
                 # Retroactively heal corresponding Activity occurred_at
-                act_stmt = select(Activity).where(Activity.source_id == f"li_msg:{rec.conversation_id}")
+                act_stmt = select(Activity).where(
+                    Activity.source_id == f"li_msg:{rec.conversation_id}"
+                )
                 act = (await db.execute(act_stmt)).scalar_one_or_none()
                 if act and act.occurred_at != msg_timestamp:
                     act.occurred_at = msg_timestamp
@@ -377,12 +393,16 @@ async def ingest_notion_meeting_notes(
             # Also update linked Activity if content or title changed
             if updated and existing.page_id:
                 act = (
-                    await db.execute(
-                        select(Activity).where(
-                            Activity.source_id == f"notion:{existing.page_id}"
+                    (
+                        await db.execute(
+                            select(Activity).where(
+                                Activity.source_id == f"notion:{existing.page_id}"
+                            )
                         )
                     )
-                ).scalars().first()
+                    .scalars()
+                    .first()
+                )
                 if act:
                     if rec.content and (not act.summary or len(rec.content) > len(act.summary)):
                         act.summary = rec.content

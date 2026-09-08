@@ -5,6 +5,7 @@ Revises: 0005_add_intake_msg_last_sent
 Create Date: 2026-09-08 16:08:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op

@@ -24,7 +24,10 @@ def test_format_uuid():
     assert formatted == "3876e98d-4ef8-807e-ab9b-e1b0b029246c"
 
     # Already formatted
-    assert format_uuid("3876e98d-4ef8-807e-ab9b-e1b0b029246c") == "3876e98d-4ef8-807e-ab9b-e1b0b029246c"
+    assert (
+        format_uuid("3876e98d-4ef8-807e-ab9b-e1b0b029246c")
+        == "3876e98d-4ef8-807e-ab9b-e1b0b029246c"
+    )
     assert format_uuid("") == ""
 
 
@@ -98,7 +101,10 @@ def test_parse_meeting_note_all_property_types_and_blocks():
             "ProjectURL": {"type": "url", "url": "https://company.internal/projects"},
             "ContactEmail": {"type": "email", "email": "contact@partner.com"},
             "Created time": {"type": "created_time", "created_time": "2024-07-01T09:00:00Z"},
-            "Last edited time": {"type": "last_edited_time", "last_edited_time": "2024-07-01T09:30:00Z"},
+            "Last edited time": {
+                "type": "last_edited_time",
+                "last_edited_time": "2024-07-01T09:30:00Z",
+            },
         },
     }
 
@@ -109,7 +115,9 @@ def test_parse_meeting_note_all_property_types_and_blocks():
         },
         {
             "type": "bulleted_list_item",
-            "bulleted_list_item": {"rich_text": [{"plain_text": "Discuss architecture refactoring"}]},
+            "bulleted_list_item": {
+                "rich_text": [{"plain_text": "Discuss architecture refactoring"}]
+            },
         },
         {
             "type": "numbered_list_item",
@@ -250,10 +258,13 @@ async def test_sync_from_notion_api_success_and_empty():
         },
     }
 
-    with patch.object(service, "fetch_database_pages", new_callable=AsyncMock) as mock_fetch, \
-         patch.object(service, "fetch_page_blocks", new_callable=AsyncMock) as mock_blocks, \
-         patch("cdb.services.connectors.notion.ingest_notion_meeting_notes", new_callable=AsyncMock) as mock_ingest:
-
+    with (
+        patch.object(service, "fetch_database_pages", new_callable=AsyncMock) as mock_fetch,
+        patch.object(service, "fetch_page_blocks", new_callable=AsyncMock) as mock_blocks,
+        patch(
+            "cdb.services.connectors.notion.ingest_notion_meeting_notes", new_callable=AsyncMock
+        ) as mock_ingest,
+    ):
         mock_fetch.return_value = [page_data]
         mock_blocks.return_value = []
         mock_ingest.return_value = MagicMock(queued=1, duplicates_skipped=0)
@@ -294,11 +305,17 @@ async def test_sync_from_jager_db():
     mock_cursor.mappings.return_value.all.return_value = [mock_row]
     mock_conn.execute.return_value = mock_cursor
 
-    with patch("sqlalchemy.create_engine", return_value=mock_engine), \
-         patch("cdb.services.connectors.notion.ingest_notion_meeting_notes", new_callable=AsyncMock) as mock_ingest:
+    with (
+        patch("sqlalchemy.create_engine", return_value=mock_engine),
+        patch(
+            "cdb.services.connectors.notion.ingest_notion_meeting_notes", new_callable=AsyncMock
+        ) as mock_ingest,
+    ):
         mock_ingest.return_value = MagicMock(queued=1, duplicates_skipped=0)
 
-        result = await service.sync_from_jager_db(mock_db, jager_db_url="postgresql://test:test@localhost:5432/jager")
+        result = await service.sync_from_jager_db(
+            mock_db, jager_db_url="postgresql://test:test@localhost:5432/jager"
+        )
         assert result["status"] == "success"
         assert result["total_fetched"] == 1
         assert result["queued"] == 1
@@ -309,9 +326,10 @@ async def test_sync_modes_routing():
     service = NotionConnectorService(api_key="secret-key")
     mock_db = AsyncMock(spec=AsyncSession)
 
-    with patch.object(service, "sync_from_notion_api", new_callable=AsyncMock) as mock_api_sync, \
-         patch.object(service, "sync_from_jager_db", new_callable=AsyncMock) as mock_db_sync:
-
+    with (
+        patch.object(service, "sync_from_notion_api", new_callable=AsyncMock) as mock_api_sync,
+        patch.object(service, "sync_from_jager_db", new_callable=AsyncMock) as mock_db_sync,
+    ):
         mock_api_sync.return_value = {"status": "api"}
         mock_db_sync.return_value = {"status": "db"}
 
@@ -332,8 +350,10 @@ async def test_sync_modes_routing():
 async def test_sync_unconfigured_error():
     mock_db = AsyncMock(spec=AsyncSession)
 
-    with patch("cdb.core.config.settings.NOTION_API_KEY", None), \
-         patch("cdb.core.config.settings.JAGER_DATABASE_URL", None):
+    with (
+        patch("cdb.core.config.settings.NOTION_API_KEY", None),
+        patch("cdb.core.config.settings.JAGER_DATABASE_URL", None),
+    ):
         service = NotionConnectorService(api_key=None, database_ids=[])
         with pytest.raises(ValidationError, match="Neither NOTION_API_KEY nor JAGER_DATABASE_URL"):
             await service.sync(mock_db, source="auto")
@@ -342,8 +362,12 @@ async def test_sync_unconfigured_error():
 @pytest.mark.asyncio
 async def test_celery_task_async_worker():
     # Test _sync_notion_direct_async
-    with patch("cdb.workers.tasks.AsyncSessionLocal"), \
-         patch("cdb.services.connectors.notion.NotionConnectorService.sync", new_callable=AsyncMock) as mock_sync:
+    with (
+        patch("cdb.workers.tasks.AsyncSessionLocal"),
+        patch(
+            "cdb.services.connectors.notion.NotionConnectorService.sync", new_callable=AsyncMock
+        ) as mock_sync,
+    ):
         mock_sync.return_value = {"status": "success", "queued": 5}
         res = await _sync_notion_direct_async(source="auto")
         assert res["status"] == "success"
@@ -356,7 +380,6 @@ def test_sync_notion_direct_background():
         res = sync_notion_direct_background(source="auto")
         assert res["status"] == "celery_done"
         mock_run.assert_called_once()
-
 
 
 @pytest.mark.asyncio
@@ -388,7 +411,9 @@ async def test_notion_connector_endpoints(client: AsyncClient):
         assert post_data["task_id"] == "task-notion-456"
 
     # Test POST sync inline execution (async_run=false)
-    with patch("cdb.api.v1.connectors.NotionConnectorService.sync", new_callable=AsyncMock) as mock_sync:
+    with patch(
+        "cdb.api.v1.connectors.NotionConnectorService.sync", new_callable=AsyncMock
+    ) as mock_sync:
         mock_sync.return_value = {"status": "success", "queued": 2, "duplicates_skipped": 0}
         sync_resp = await client.post(
             "/api/v1/connectors/notion/sync?async_run=false",
@@ -400,8 +425,15 @@ async def test_notion_connector_endpoints(client: AsyncClient):
         assert sync_data["queued"] == 2
 
     # Test fallback to inline when celery dispatch raises exception
-    with patch("cdb.workers.tasks.sync_notion_direct_background.delay", side_effect=Exception("Redis down")), \
-         patch("cdb.api.v1.connectors.NotionConnectorService.sync", new_callable=AsyncMock) as mock_fallback_sync:
+    with (
+        patch(
+            "cdb.workers.tasks.sync_notion_direct_background.delay",
+            side_effect=Exception("Redis down"),
+        ),
+        patch(
+            "cdb.api.v1.connectors.NotionConnectorService.sync", new_callable=AsyncMock
+        ) as mock_fallback_sync,
+    ):
         mock_fallback_sync.return_value = {"status": "fallback_inline"}
         fallback_resp = await client.post(
             "/api/v1/connectors/notion/sync?async_run=true",
@@ -414,7 +446,10 @@ async def test_notion_connector_endpoints(client: AsyncClient):
 def test_parse_meeting_note_unlimited_text_1m_chars():
     service = NotionConnectorService(api_key="test-key")
     # Generate 1.2 million characters of transcription across multiple blocks
-    chunk = "Speaker 1: Explaining system architecture and end-to-end data pipeline requirements.\n" * 15000  # ~1.25M chars
+    chunk = (
+        "Speaker 1: Explaining system architecture and end-to-end data pipeline requirements.\n"
+        * 15000
+    )  # ~1.25M chars
     assert len(chunk) > 1_000_000
 
     raw_page = {
@@ -430,7 +465,9 @@ def test_parse_meeting_note_unlimited_text_1m_chars():
             "children": [
                 {
                     "type": "paragraph",
-                    "paragraph": {"rich_text": [{"plain_text": "Final concluding remarks after 4 hours."}]},
+                    "paragraph": {
+                        "rich_text": [{"plain_text": "Final concluding remarks after 4 hours."}]
+                    },
                 }
             ],
         }
@@ -485,7 +522,10 @@ async def test_fetch_page_blocks_recursive_child_blocks():
     assert len(blocks) == 1
     assert "children" in blocks[0]
     assert len(blocks[0]["children"]) == 1
-    assert blocks[0]["children"][0]["paragraph"]["rich_text"][0]["plain_text"] == "Child transcription inside quote"
+    assert (
+        blocks[0]["children"][0]["paragraph"]["rich_text"][0]["plain_text"]
+        == "Child transcription inside quote"
+    )
 
 
 def test_notion_meeting_note_record_summary_backwards_compatibility():
@@ -508,5 +548,3 @@ def test_notion_meeting_note_record_summary_backwards_compatibility():
     record2 = NotionMeetingNoteRecord.model_validate(direct_dict)
     assert record2.content == "This is direct content"
     assert record2.summary == "This is direct content"
-
-
