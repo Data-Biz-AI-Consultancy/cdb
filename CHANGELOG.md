@@ -1,3 +1,10 @@
+# [1.27.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.26.0...v1.27.0) (2026-09-08)
+
+
+### Features
+
+* implement recursive block fetching in Notion connector and enhance record synchronization logic to prevent data truncation. ([77f6ba3](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/77f6ba3a55975a7dc3eb38edefcfe0f37f06a13e))
+
 # [1.26.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.25.0...v1.26.0) (2026-09-08)
 
 
