@@ -1,3 +1,11 @@
+# [1.26.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.25.0...v1.26.0) (2026-09-08)
+
+
+### Features
+
+* enhance Notion connector to extract dates from title mentions and regex, and update configuration to support periodic Celery task scheduling. ([e030015](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/e030015bd9d116fc7c68bc4b29a575b3453c9623))
+* implement Notion connector service with database synchronization, background task processing, and API endpoints. ([877897b](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/877897bfd9449bfbb467ed77178e372ca49a0a96))
+
 # [1.25.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.24.0...v1.25.0) (2026-09-07)
 
 
