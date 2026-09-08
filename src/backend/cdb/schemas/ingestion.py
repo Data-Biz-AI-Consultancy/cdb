@@ -1,7 +1,7 @@
 import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class LinkedInConnectionRecord(BaseModel):
@@ -40,10 +40,23 @@ class NotionMeetingNoteRecord(BaseModel):
     title: str | None = None
     meeting_date: datetime.datetime | None = None
     attendees: str | None = None
-    summary: str | None = None
+    content: str | None = None
     to_dos: list[Any] = Field(default_factory=list)
     url: str | None = None
     raw_payload: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_content_from_summary_if_present(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "summary" in data and "content" not in data:
+                data["content"] = data["summary"]
+        return data
+
+    @property
+    def summary(self) -> str | None:
+        """Backwards compatibility alias for content."""
+        return self.content
 
 
 class NotionMeetingNotesIngestRequest(BaseModel):

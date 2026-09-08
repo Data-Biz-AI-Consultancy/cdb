@@ -74,7 +74,7 @@ class IntakeNotionMeetingNote(Base, UUIDPrimaryKeyMixin):
         DateTime(timezone=True), nullable=True
     )
     attendees: Mapped[str | None] = mapped_column(Text, nullable=True)
-    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
     to_dos: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     url: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)

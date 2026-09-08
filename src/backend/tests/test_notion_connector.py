@@ -6,6 +6,7 @@ from httpx import AsyncClient, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.core.errors import ValidationError
+from cdb.schemas.ingestion import NotionMeetingNoteRecord
 from cdb.services.connectors.notion import (
     NotionConnectorService,
     format_uuid,
@@ -144,7 +145,8 @@ def test_parse_meeting_note_all_property_types_and_blocks():
     assert "Meeting with Client" in record.title
     assert record.meeting_date is not None
     assert "Alice Cooper" in (record.attendees or "")
-    assert "Detailed strategic alignment" in (record.summary or "")
+    assert "Detailed strategic alignment" in (record.content or "")
+    assert "Detailed strategic alignment" in (record.summary or "")  # backwards compatibility alias
     assert len(record.to_dos) == 2
     assert "[ ] Draft initial pull request" in record.to_dos
     assert "[x] Review database migration schema" in record.to_dos
@@ -435,9 +437,10 @@ def test_parse_meeting_note_unlimited_text_1m_chars():
     ]
 
     record = service.parse_meeting_note(raw_page, blocks=raw_blocks)
-    assert record.summary is not None
-    assert len(record.summary) > 1_000_000
-    assert "Final concluding remarks after 4 hours." in record.summary
+    assert record.content is not None
+    assert len(record.content) > 1_000_000
+    assert "Final concluding remarks after 4 hours." in record.content
+    assert record.summary == record.content
     assert record.raw_payload["blocks_count"] == 2
 
 
@@ -483,4 +486,27 @@ async def test_fetch_page_blocks_recursive_child_blocks():
     assert "children" in blocks[0]
     assert len(blocks[0]["children"]) == 1
     assert blocks[0]["children"][0]["paragraph"]["rich_text"][0]["plain_text"] == "Child transcription inside quote"
+
+
+def test_notion_meeting_note_record_summary_backwards_compatibility():
+    # Test that passing 'summary' in a legacy payload seamlessly populates 'content'
+    raw_dict = {
+        "page_id": "legacy-page-1",
+        "title": "Legacy Payload Meeting",
+        "summary": "This was passed as summary in JSON",
+    }
+    record = NotionMeetingNoteRecord.model_validate(raw_dict)
+    assert record.content == "This was passed as summary in JSON"
+    assert record.summary == "This was passed as summary in JSON"
+
+    # Test explicit content field
+    direct_dict = {
+        "page_id": "new-page-2",
+        "title": "Modern Payload Meeting",
+        "content": "This is direct content",
+    }
+    record2 = NotionMeetingNoteRecord.model_validate(direct_dict)
+    assert record2.content == "This is direct content"
+    assert record2.summary == "This is direct content"
+
 

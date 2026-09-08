@@ -459,8 +459,8 @@ async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dic
                     source_id=source_id,
                     occurred_at=occurred_at,
                     title=clean_title,
-                    summary=note.summary or f"Notion Meeting Note: {clean_title}",
-                    raw_content=note.summary,
+                    summary=note.content or f"Notion Meeting Note: {clean_title}",
+                    raw_content=note.content,
                     attributes={
                         "database_name": note.database_name,
                         "url": note.url,

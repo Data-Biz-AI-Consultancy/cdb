@@ -359,8 +359,8 @@ async def ingest_notion_meeting_notes(
 
         if existing:
             updated = False
-            if rec.summary and (not existing.summary or len(rec.summary) > len(existing.summary)):
-                existing.summary = rec.summary
+            if rec.content and (not existing.content or len(rec.content) > len(existing.content)):
+                existing.content = rec.content
                 updated = True
             if rec.title and existing.title != rec.title:
                 existing.title = rec.title
@@ -374,7 +374,7 @@ async def ingest_notion_meeting_notes(
             if rec.raw_payload:
                 existing.raw_payload = rec.raw_payload
 
-            # Also update linked Activity if summary or title changed
+            # Also update linked Activity if content or title changed
             if updated and existing.page_id:
                 act = (
                     await db.execute(
@@ -384,8 +384,8 @@ async def ingest_notion_meeting_notes(
                     )
                 ).scalars().first()
                 if act:
-                    if rec.summary and (not act.summary or len(rec.summary) > len(act.summary)):
-                        act.summary = rec.summary
+                    if rec.content and (not act.summary or len(rec.content) > len(act.summary)):
+                        act.summary = rec.content
                     if rec.title:
                         act.title = rec.title
 
@@ -401,7 +401,7 @@ async def ingest_notion_meeting_notes(
             title=rec.title,
             meeting_date=rec.meeting_date,
             attendees=rec.attendees,
-            summary=rec.summary,
+            content=rec.content,
             to_dos=rec.to_dos,
             url=rec.url,
             raw_payload=rec.raw_payload,
@@ -465,8 +465,8 @@ async def ingest_notion_meeting_notes(
                 source_id=f"notion:{rec.page_id}",
                 occurred_at=rec.meeting_date or datetime.datetime.now(datetime.UTC),
                 title=rec.title or "Notion Meeting",
-                summary=rec.summary,
-                raw_content=str(rec.to_dos),
+                summary=rec.content,
+                raw_content=rec.content,
                 attributes={"url": rec.url, "attendees": rec.attendees},
             )
             db.add(act)

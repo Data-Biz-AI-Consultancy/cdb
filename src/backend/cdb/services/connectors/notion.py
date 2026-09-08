@@ -356,12 +356,15 @@ class NotionConnectorService:
         final_date_str = meeting_date_str or created_time
         meeting_dt = parse_flexible_datetime(final_date_str) or datetime.datetime.now(datetime.UTC)
 
-        # Store complete full-length meeting transcript without artificial truncation
+        # Store complete full-length meeting transcript and content without artificial truncation
+        content = ""
         if text_content:
             if summary and summary.strip() not in text_content:
-                summary = f"Summary:\n{summary.strip()}\n\nTranscription:\n{text_content}"
+                content = f"Summary:\n{summary.strip()}\n\nTranscription:\n{text_content}"
             else:
-                summary = text_content
+                content = text_content
+        elif summary:
+            content = summary
 
         if not to_dos and action_items:
             to_dos = [item.strip() for item in action_items.split("\n") if item.strip()]
@@ -372,7 +375,7 @@ class NotionConnectorService:
             title=title,
             meeting_date=meeting_dt,
             attendees=attendees or None,
-            summary=summary or None,
+            content=content or None,
             to_dos=to_dos,
             url=page.get("url"),
             raw_payload={
@@ -489,7 +492,7 @@ class NotionConnectorService:
                     title=n.get("title") or "Meeting Note",
                     meeting_date=meeting_dt,
                     attendees=n.get("attendees"),
-                    summary=n.get("summary"),
+                    content=n.get("summary"),
                     to_dos=to_dos,
                     url=n.get("url"),
                     raw_payload=dict(n),
