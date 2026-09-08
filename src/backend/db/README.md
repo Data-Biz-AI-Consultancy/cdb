@@ -664,7 +664,7 @@ CREATE TABLE intake_notion_meeting_notes (
     title           VARCHAR(1024),
     meeting_date    TIMESTAMPTZ,
     attendees       TEXT,                           -- raw attendee string; parsed during ER
-    summary         TEXT,
+    content         TEXT,                           -- full meeting content, executive notes & transcription
     to_dos          JSONB NOT NULL DEFAULT '[]',
     url             TEXT,
     raw_payload     JSONB NOT NULL DEFAULT '{}',
