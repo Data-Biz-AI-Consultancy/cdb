@@ -1,5 +1,6 @@
 import datetime
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -186,7 +187,10 @@ class NotionConnectorService:
             or page.get("database_id", "")
         )
 
-        title = ""
+        meeting_date_str = None
+        attendees = ""
+        summary = ""
+        action_items = ""
         parsed_props: dict[str, Any] = {}
 
         for key, prop in props.items():
@@ -195,10 +199,19 @@ class NotionConnectorService:
             ptype = prop.get("type")
             val = None
             if ptype == "title":
-                title = "".join([t.get("plain_text", "") for t in prop.get("title", [])])
+                title_parts = []
+                for t in prop.get("title", []):
+                    title_parts.append(t.get("plain_text", ""))
+                    if t.get("type") == "mention" and t.get("mention", {}).get("type") == "date":
+                        d = t.get("mention", {}).get("date", {}).get("start")
+                        if d and not meeting_date_str:
+                            meeting_date_str = d
+                title = "".join(title_parts)
                 val = title
             elif ptype == "rich_text":
                 val = "".join([t.get("plain_text", "") for t in prop.get("rich_text", [])])
+            elif ptype in ("created_time", "last_edited_time"):
+                val = prop.get(ptype)
             elif ptype == "number":
                 val = prop.get("number")
             elif ptype == "select":
@@ -262,11 +275,6 @@ class NotionConnectorService:
                         text_content += btext + "\n"
 
         # Extract meeting fields from parsed properties
-        meeting_date_str = None
-        attendees = ""
-        summary = ""
-        action_items = ""
-
         for k, val in parsed_props.items():
             if not val:
                 continue
@@ -280,9 +288,16 @@ class NotionConnectorService:
             elif any(t in lk for t in ["action", "task", "next step", "todo"]) and not action_items:
                 action_items = str(val)
 
+        if not meeting_date_str and title:
+            # Check for embedded ISO timestamp or date in title (e.g. "Interview with emnify 2026-09-07T15:51:00.000+02:00")
+            match = re.search(r"(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|Z)?)?)", title)
+            if match:
+                meeting_date_str = match.group(1)
+
         created_time = page.get("created_time")
         final_date_str = meeting_date_str or created_time
         meeting_dt = parse_flexible_datetime(final_date_str) or datetime.datetime.now(datetime.UTC)
+
 
         if not summary and text_content.strip():
             summary = text_content[:1000]

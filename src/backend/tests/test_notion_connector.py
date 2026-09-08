@@ -185,13 +185,14 @@ async def test_sync_from_notion_api():
 
 @pytest.mark.asyncio
 async def test_sync_unconfigured_error():
-    service = NotionConnectorService(api_key=None, database_ids=[])
     mock_db = AsyncMock(spec=AsyncSession)
 
     with patch("cdb.core.config.settings.NOTION_API_KEY", None), \
          patch("cdb.core.config.settings.JAGER_DATABASE_URL", None):
+        service = NotionConnectorService(api_key=None, database_ids=[])
         with pytest.raises(ValidationError, match="Neither NOTION_API_KEY nor JAGER_DATABASE_URL"):
             await service.sync(mock_db, source="auto")
+
 
 
 @pytest.mark.asyncio

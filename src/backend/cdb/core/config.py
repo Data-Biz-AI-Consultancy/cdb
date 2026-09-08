@@ -1,6 +1,7 @@
 import importlib.metadata
 import tomllib
 from pathlib import Path
+from typing import Any
 
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -89,7 +90,7 @@ class Settings(BaseSettings):
     NOTION_API_BASE_URL: str = "https://api.notion.com/v1"
     NOTION_VERSION: str = "2022-06-28"
     NOTION_SYNC_HOURS_INTERVAL: int = 6
-    NOTION_MEETING_NOTES_DATABASE_IDS: list[str] = [
+    NOTION_MEETING_NOTES_DATABASE_IDS: list[str] | str = [
         "3876e98d4ef8807eab9be1b0b029246c",  # Interview Meeting notes
         "3876e98d4ef880a6a61ae99d8912694f",  # Meetups & Seminars
         "3a36e98d4ef88084a1aec60052a3cb80",  # FaDi meeting notes
@@ -121,9 +122,25 @@ class Settings(BaseSettings):
 
     @field_validator("NOTION_MEETING_NOTES_DATABASE_IDS", mode="before")
     @classmethod
-    def assemble_notion_databases(cls, v: str | list[str]) -> list[str]:
-        if isinstance(v, str) and not v.startswith("["):
+    def assemble_notion_databases(cls, v: Any) -> list[str]:
+        if not v:
+            return [
+                "3876e98d4ef8807eab9be1b0b029246c",
+                "3876e98d4ef880a6a61ae99d8912694f",
+                "3a36e98d4ef88084a1aec60052a3cb80",
+            ]
+        if isinstance(v, str):
+            if v.startswith("["):
+                try:
+                    import json
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed if str(x).strip()]
+                except Exception:
+                    pass
             return [i.strip() for i in v.split(",") if i.strip()]
+        if isinstance(v, list):
+            return [str(i).strip() for i in v if str(i).strip()]
         return v
 
 
