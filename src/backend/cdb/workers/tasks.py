@@ -68,3 +68,18 @@ def sync_linkedin_direct_background(sync_messages: bool = True, sync_connections
             sync_connections=sync_connections,
         )
     )
+
+
+async def _sync_notion_direct_async(source: str = "auto"):
+    from cdb.services.connectors.notion import NotionConnectorService
+
+    async with AsyncSessionLocal() as session:
+        service = NotionConnectorService()
+        return await service.sync(session, source=source)
+
+
+@celery_app.task(name="cdb.workers.tasks.sync_notion_direct")
+def sync_notion_direct_background(source: str = "auto"):
+    """Background task to directly pull Notion meeting notes into CDB."""
+    return asyncio.run(_sync_notion_direct_async(source=source))
+

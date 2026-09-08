@@ -26,6 +26,9 @@ services:
       - SECRET_KEY=${SECRET_KEY:-${CDB_SECRET_KEY:-development-secret-key-at-least-32-characters-long}}
       - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
       - LINKEDIN_ACCESS_TOKEN=${LINKEDIN_ACCESS_TOKEN:-${LINKEDIN_MEMBER_DATA_PORTABILITY_API_TOKEN:-}}
+      - NOTION_API_KEY=${NOTION_API_KEY:-}
+      - NOTION_SYNC_HOURS_INTERVAL=${NOTION_SYNC_HOURS_INTERVAL:-6}
+      - NOTION_MEETING_NOTES_DATABASE_IDS=${NOTION_MEETING_NOTES_DATABASE_IDS:-}
       - FIRST_SUPERUSER_EMAIL=${FIRST_SUPERUSER_EMAIL:-admin@cdb.internal}
       - FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:-admin123456}
       - FIRST_SUPERUSER_FULL_NAME=${FIRST_SUPERUSER_FULL_NAME:-CDB Admin}
@@ -44,7 +47,7 @@ services:
       dockerfile: Dockerfile
     container_name: cdb-worker
     restart: unless-stopped
-    command: celery -A cdb.workers.celery_app worker --loglevel=info
+    command: celery -A cdb.workers.celery_app worker -B --loglevel=info
     volumes:
       - ./src/backend:/app
     environment:
@@ -57,6 +60,9 @@ services:
       - SECRET_KEY=${SECRET_KEY:-${CDB_SECRET_KEY:-development-secret-key-at-least-32-characters-long}}
       - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
       - LINKEDIN_ACCESS_TOKEN=${LINKEDIN_ACCESS_TOKEN:-${LINKEDIN_MEMBER_DATA_PORTABILITY_API_TOKEN:-}}
+      - NOTION_API_KEY=${NOTION_API_KEY:-}
+      - NOTION_SYNC_HOURS_INTERVAL=${NOTION_SYNC_HOURS_INTERVAL:-6}
+      - NOTION_MEETING_NOTES_DATABASE_IDS=${NOTION_MEETING_NOTES_DATABASE_IDS:-}
     depends_on:
       cdb-db:
         condition: service_healthy

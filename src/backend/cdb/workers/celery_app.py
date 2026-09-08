@@ -20,6 +20,11 @@ celery_app.conf.update(
             "schedule": settings.LINKEDIN_SYNC_HOURS_INTERVAL * 3600,
             "args": (True, True),
         },
+        "sync-notion-direct-periodic": {
+            "task": "cdb.workers.tasks.sync_notion_direct",
+            "schedule": settings.NOTION_SYNC_HOURS_INTERVAL * 3600,
+            "args": ("auto",),
+        },
     },
 )
 

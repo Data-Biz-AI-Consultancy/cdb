@@ -292,6 +292,42 @@ LINKEDIN_SYNC_HOURS_INTERVAL=6
 
 ---
 
+### Direct Notion Connector
+
+The direct Notion connector synchronizes meeting notes, debriefs, attendee lists, summaries, and action items directly into CDB without relying on external n8n workflows:
+
+1. **Dual-Mode Sync Support**:
+   - **Direct Notion API (Primary)**: Directly queries Notion databases (`/v1/databases/{id}/query`) and child blocks (`/v1/blocks/{id}/children`) using `NOTION_API_KEY`.
+   - **Jager PostgreSQL Fallback**: Reads directly from `s_notion.meeting_notes` if `JAGER_DATABASE_URL` is set.
+2. **Entity Linking & Intake Ingestion**:
+   - Extracts structured meeting metadata into `IntakeNotionMeetingNote`.
+   - Resolves meeting participants against golden records in `Person` table.
+   - Automatically populates `Activity` timeline with meeting debriefs and action items.
+
+#### Configuration
+Set your Notion token and target database IDs in `.env`:
+```env
+NOTION_API_KEY=secret_...
+# Optional interval in hours for Celery Beat schedule (default: 6)
+NOTION_SYNC_HOURS_INTERVAL=6
+# Comma-separated Notion database UUIDs (optional, defaults to standard meeting notes databases)
+NOTION_MEETING_NOTES_DATABASE_IDS=3876e98d4ef8807eab9be1b0b029246c,3876e98d4ef880a6a61ae99d8912694f,3a36e98d4ef88084a1aec60052a3cb80
+```
+
+#### Connector API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/connectors/notion/status` | Returns Notion configuration status, API version, and monitored database IDs. |
+| `POST` | `/api/v1/connectors/notion/sync` | Triggers on-demand synchronization. Supports `source='auto'`, `'notion_api'`, `'jager_db'`, and `async_run=true` (for Celery background offload). |
+
+#### Automated Celery Execution
+- **Celery Beat**: Configured in `cdb.workers.celery_app` to automatically run `sync_notion_direct` every 6 hours.
+- **On-Demand Background Task**: Passing `?async_run=true` queues the job directly to the Celery worker.
+
+---
+
+
 
 ## 📁 Repository Structure
 
