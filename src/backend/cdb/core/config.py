@@ -84,9 +84,16 @@ class Settings(BaseSettings):
     LINKEDIN_RESTLI_PROTOCOL_VERSION: str = "2.0.0"
     LINKEDIN_SYNC_HOURS_INTERVAL: int = 6
 
-    # Notion Direct Connector (future migration)
+    # Notion Direct Connector
     NOTION_API_KEY: str | None = None
+    NOTION_API_BASE_URL: str = "https://api.notion.com/v1"
     NOTION_VERSION: str = "2022-06-28"
+    NOTION_SYNC_HOURS_INTERVAL: int = 6
+    NOTION_MEETING_NOTES_DATABASE_IDS: list[str] = [
+        "3876e98d4ef8807eab9be1b0b029246c",  # Interview Meeting notes
+        "3876e98d4ef880a6a61ae99d8912694f",  # Meetups & Seminars
+        "3a36e98d4ef88084a1aec60052a3cb80",  # FaDi meeting notes
+    ]
 
     # Optional Jager Database URL (for legacy data healing/migration)
     JAGER_DATABASE_URL: str | None = None
@@ -108,6 +115,13 @@ class Settings(BaseSettings):
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: str | list[str]) -> list[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",") if i.strip()]
+        return v
+
+    @field_validator("NOTION_MEETING_NOTES_DATABASE_IDS", mode="before")
+    @classmethod
+    def assemble_notion_databases(cls, v: str | list[str]) -> list[str]:
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",") if i.strip()]
         return v
