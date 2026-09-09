@@ -1,27 +1,9 @@
 import asyncio
-import os
-
-from celery import Celery
 
 from cdb.core.database import AsyncSessionLocal
 from cdb.services.entity_resolution.service import run_full_er_scan
 from cdb.services.segmentation.service import evaluate_segments_and_temperature
-
-REDIS_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6380/0")
-
-celery_app = Celery(
-    "cdb_worker",
-    broker=REDIS_URL,
-    backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6380/0"),
-)
-
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-)
+from cdb.workers.celery_app import celery_app
 
 
 async def _run_er_scan_async():
