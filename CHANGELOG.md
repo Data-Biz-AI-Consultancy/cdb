@@ -1,3 +1,13 @@
+# [1.28.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.27.0...v1.28.0) (2026-09-09)
+
+
+### Features
+
+* implement detected_signals table with supporting APIs and service logic for automated signal evaluation ([eb420fe](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/eb420febc2ea6eb322a3a9e392f56c8e7913d30e))
+* implement periodic signal evaluation using Celery Beat with configurable intervals ([1e3cfad](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/1e3cfad0da8f60801295f4c19e70db6df05168a9))
+* implement signal triage dashboard with automated detection evaluation and management capabilities ([4c37e33](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/4c37e3332fda3d370bda07280cdc425f24749928))
+* implement signals framework including database schema, core services, and API endpoints ([7629e62](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/7629e627ccb8396dd71034739685e1230859e5c0))
+
 # [1.27.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.26.0...v1.27.0) (2026-09-08)
 
 
