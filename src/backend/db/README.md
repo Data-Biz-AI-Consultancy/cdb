@@ -116,6 +116,19 @@ erDiagram
         varchar role
     }
 
+    signals {
+        varchar id PK
+        varchar name
+        varchar category
+        varchar target_entity
+        varchar severity
+        varchar detection_mechanism
+        text business_interpretation
+        jsonb parameters
+        jsonb recommended_action
+        boolean is_active
+    }
+
     intake_linkedin_connections {
         uuid id PK
         varchar connection_id
@@ -610,6 +623,35 @@ CREATE TABLE engagement_persons (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (engagement_id, person_id)
 );
+```
+
+### `signals`
+
+Dimension table cataloging opportunity and risk business event definitions, classification rules, trigger parameters, and recommended action playbooks.
+
+```sql
+CREATE TABLE signals (
+    id                      VARCHAR(50) PRIMARY KEY,              -- slug / code e.g. 'dormant_strategic_account'
+    name                    VARCHAR(100) NOT NULL,
+    category                VARCHAR(50) NOT NULL,                 -- 'opportunity' | 'risk' | 'hybrid'
+    target_entity           VARCHAR(50) NOT NULL,                 -- 'company' | 'person' | 'opportunity' | 'engagement'
+    severity                VARCHAR(50) NOT NULL DEFAULT 'medium',-- 'critical' | 'high' | 'medium' | 'low'
+    detection_mechanism     VARCHAR(50) NOT NULL DEFAULT 'deterministic_rule',
+                            -- 'deterministic_rule' | 'temporal_cadence' | 'text_pattern' | 'enrichment_feed'
+    description             TEXT,
+    business_interpretation TEXT NOT NULL,
+    parameters              JSONB NOT NULL DEFAULT '{}',          -- threshold days, keywords, qualifying conditions
+    recommended_action      JSONB NOT NULL DEFAULT '{}',          -- playbook, action_type, title, instructions
+    icon                    VARCHAR(50),                          -- e.g. '💤', '⏳', '📅', '🔄', '🚀', '⚔️'
+    color                   VARCHAR(50),                          -- e.g. 'amber', 'red', 'orange', 'blue', 'emerald', 'purple'
+    is_active               BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_signals_category      ON signals (category);
+CREATE INDEX idx_signals_target_entity ON signals (target_entity);
+CREATE INDEX idx_signals_is_active     ON signals (is_active);
 ```
 
 ---

@@ -82,4 +82,3 @@ async def _sync_notion_direct_async(source: str = "auto"):
 def sync_notion_direct_background(source: str = "auto"):
     """Background task to directly pull Notion meeting notes into CDB."""
     return asyncio.run(_sync_notion_direct_async(source=source))
-

@@ -440,7 +440,10 @@ async def ingest_notion_meeting_notes(
                 if "@" in attendee:
                     norm_e = normalise_email(attendee)
                     if norm_e:
-                        is_sqlite = getattr(getattr(db, "bind", None), "dialect", None) and db.bind.dialect.name == "sqlite"
+                        is_sqlite = (
+                            getattr(getattr(db, "bind", None), "dialect", None)
+                            and db.bind.dialect.name == "sqlite"
+                        )
                         sec_cond = (
                             cast(Person.secondary_emails, String).ilike(f"%{norm_e}%")
                             if is_sqlite
@@ -485,13 +488,17 @@ async def ingest_notion_meeting_notes(
         act_person_id = primary_person_id
         if not act_person_id:
             jimmy = (
-                await db.execute(
-                    select(Person).where(
-                        Person.first_name.ilike("jimmy"),
-                        Person.last_name.ilike("pang"),
+                (
+                    await db.execute(
+                        select(Person).where(
+                            Person.first_name.ilike("jimmy"),
+                            Person.last_name.ilike("pang"),
+                        )
                     )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
             if jimmy:
                 act_person_id = jimmy.id
 

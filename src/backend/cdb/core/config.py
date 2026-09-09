@@ -133,6 +133,7 @@ class Settings(BaseSettings):
             if v.startswith("["):
                 try:
                     import json
+
                     parsed = json.loads(v)
                     if isinstance(parsed, list):
                         return [str(x).strip() for x in parsed if str(x).strip()]

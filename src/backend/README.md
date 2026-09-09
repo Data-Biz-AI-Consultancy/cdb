@@ -21,7 +21,9 @@ src/cdb/
 │
 ├── services/     # 3. Domain & Business Logic Layer (Pure Python)
 │   ├── entity_resolution/ # Normalization, rule-based matching, and merge engine
-│   └── ingestion/         # Ingestion processors (LinkedIn, Notion, CSV/XLSX)
+│   ├── ingestion/         # Ingestion processors (LinkedIn, Notion, CSV/XLSX)
+│   ├── segmentation/      # Dynamic person segmentation & engagement temperature
+│   └── signals/           # Opportunity & Risk Signal Catalog dimension services
 │
 ├── models/       # 4. Database Persistence Layer (SQLAlchemy 2.x)
 │   ├── base.py   # Declarative Base, UUID primary keys, and timestamp mixins

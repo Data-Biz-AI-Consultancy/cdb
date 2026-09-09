@@ -148,7 +148,9 @@ class LinkedInConnectorService:
             sender = (msg.get("FROM") or msg.get("sender_name") or "").strip()
             recipient = (msg.get("TO") or msg.get("recipient_name") or "").strip()
             content = (msg.get("CONTENT") or msg.get("content") or "").strip()
-            sender_url = (msg.get("SENDER PROFILE URL") or msg.get("sender_profile_url") or "").strip()
+            sender_url = (
+                msg.get("SENDER PROFILE URL") or msg.get("sender_profile_url") or ""
+            ).strip()
             recipient_urls = (
                 msg.get("RECIPIENT PROFILE URLS") or msg.get("recipient_profile_urls") or ""
             ).strip()
@@ -338,9 +340,7 @@ class LinkedInConnectorService:
             all_text = "\n".join([m["content"] for m in msgs if m["content"]])
             inferred_name = self._infer_participant_name(all_text, conn_map)
 
-            transcript_lines = [
-                f"{m['sender_name']}: {m['content']}" for m in msgs if m["content"]
-            ]
+            transcript_lines = [f"{m['sender_name']}: {m['content']}" for m in msgs if m["content"]]
             raw_content = "\n".join(transcript_lines)
 
             records.append(
@@ -366,20 +366,20 @@ class LinkedInConnectorService:
     def _infer_participant_name(text: str, conn_map: dict[str, str]) -> str:
         """Infers contact name from greeting, intro, signoff, and matches against known connections."""
         # 1. Introduction: 'my name is X'
-        m_intro = re.search(r'\bmy name is\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', text, re.IGNORECASE)
+        m_intro = re.search(r"\bmy name is\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)", text, re.IGNORECASE)
         if m_intro and "jimmy" not in m_intro.group(1).lower():
             cand = m_intro.group(1).split()[0].lower()
             return conn_map.get(cand, m_intro.group(1).title())
 
         # 2. Greeting in text: 'hi Rose', 'hey Emily'
-        for m in re.finditer(r'\b(?:hi|hey|hello|dear)\s+([A-Z][a-z]+)', text, re.IGNORECASE):
+        for m in re.finditer(r"\b(?:hi|hey|hello|dear)\s+([A-Z][a-z]+)", text, re.IGNORECASE):
             cand = m.group(1)
             if cand.lower() not in ["jimmy", "pang", "there", "all", "everyone", "team", "good"]:
                 return conn_map.get(cand.lower(), cand.title())
 
         # 3. Signoff: 'Best regards,\nAngela' or 'Br,\nprasad'
         m_sign = re.search(
-            r'(?:regards|cheers|br|warm regards|best),?\s*\n+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
+            r"(?:regards|cheers|br|warm regards|best),?\s*\n+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)",
             text,
             re.IGNORECASE,
         )
@@ -405,7 +405,10 @@ class LinkedInConnectorService:
             url = (conn.get("URL") or conn.get("profile_url") or "").strip()
 
             connected_on_str = (
-                conn.get("Connected On") or conn.get("connected_at") or conn.get("connected_on") or ""
+                conn.get("Connected On")
+                or conn.get("connected_at")
+                or conn.get("connected_on")
+                or ""
             )
             connected_at = parse_flexible_datetime(str(connected_on_str))
 
@@ -417,9 +420,7 @@ class LinkedInConnectorService:
             elif first_name or last_name:
                 slug = re.sub(r"[^a-zA-Z0-9]", "_", f"{first_name}_{last_name}".lower())
 
-            conn_time_suffix = (
-                connected_at.strftime("%Y%m%d%H%M%S") if connected_at else "unknown"
-            )
+            conn_time_suffix = connected_at.strftime("%Y%m%d%H%M%S") if connected_at else "unknown"
             connection_id = f"li_conn_{slug}_{conn_time_suffix}"
 
             records.append(
@@ -499,10 +500,18 @@ class LinkedInConnectorService:
                             (existing.raw_content or "") + "\n" + (cr.raw_content or "")
                         )
                         latest_sent = max(
-                            [dt for dt in [existing.last_sent_at, cr.last_sent_at] if dt is not None]
+                            [
+                                dt
+                                for dt in [existing.last_sent_at, cr.last_sent_at]
+                                if dt is not None
+                            ]
                         )
                         earliest_sent = min(
-                            [dt for dt in [existing.first_sent_at, cr.first_sent_at] if dt is not None]
+                            [
+                                dt
+                                for dt in [existing.first_sent_at, cr.first_sent_at]
+                                if dt is not None
+                            ]
                         )
                         p_name = (
                             cr.participant_names
@@ -519,7 +528,9 @@ class LinkedInConnectorService:
                             raw_payload={
                                 "conversation_id": cr.conversation_id,
                                 "last_sent_at": latest_sent.isoformat() if latest_sent else None,
-                                "first_sent_at": earliest_sent.isoformat() if earliest_sent else None,
+                                "first_sent_at": earliest_sent.isoformat()
+                                if earliest_sent
+                                else None,
                                 "message_count": existing.message_count + cr.message_count,
                                 "has_changelog": True,
                             },
@@ -550,4 +561,3 @@ class LinkedInConnectorService:
                     results["connections_skipped"] = conn_resp.duplicates_skipped
 
         return results
-
