@@ -1,10 +1,29 @@
-from typing import Any
+import datetime
+import uuid
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Boolean, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from cdb.models.base import Base, TimestampMixin
+from cdb.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utc_now
+
+if TYPE_CHECKING:
+    from cdb.models.activity import Activity
+    from cdb.models.company import Company
+    from cdb.models.engagement import Engagement
+    from cdb.models.opportunity import Opportunity
+    from cdb.models.person import Person
+    from cdb.models.user import User
 
 
 class Signal(Base, TimestampMixin):
@@ -33,3 +52,100 @@ class Signal(Base, TimestampMixin):
     icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
     color: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
+
+class DetectedSignal(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "detected_signals"
+    __table_args__ = (
+        CheckConstraint(
+            "company_id IS NOT NULL OR person_id IS NOT NULL OR opportunity_id IS NOT NULL OR engagement_id IS NOT NULL",
+            name="ck_detected_signals_target_required",
+        ),
+    )
+
+    signal_id: Mapped[str] = mapped_column(
+        String(50),
+        ForeignKey("signals.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    person_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("persons.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    opportunity_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("opportunities.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("engagements.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    activity_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("activities.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="active",
+        index=True,
+    )  # 'active' | 'acknowledged' | 'actioned' | 'dismissed' | 'resolved'
+
+    severity: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="medium",
+        index=True,
+    )  # 'critical' | 'high' | 'medium' | 'low'
+
+    score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_payload: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
+    )
+
+    actioned_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    actioned_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    resolution_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    detected_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
+        index=True,
+    )
+    expires_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Relationships
+    signal: Mapped[Signal] = relationship("Signal", lazy="joined")
+    company: Mapped["Company | None"] = relationship("Company", lazy="selectin")
+    person: Mapped["Person | None"] = relationship("Person", lazy="selectin")
+    opportunity: Mapped["Opportunity | None"] = relationship("Opportunity", lazy="selectin")
+    engagement: Mapped["Engagement | None"] = relationship("Engagement", lazy="selectin")
+    activity: Mapped["Activity | None"] = relationship("Activity", lazy="selectin")
+    actioned_by: Mapped["User | None"] = relationship("User", lazy="selectin")

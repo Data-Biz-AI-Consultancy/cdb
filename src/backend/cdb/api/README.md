@@ -1241,6 +1241,74 @@ Retrieve the full definition, trigger thresholds, and action playbook for a spec
 **Response 200:** Full `SignalDefinition` object.
 **Response 404:** `NOT_FOUND` if signal slug does not exist.
 
+### `POST /signals/evaluate`
+
+Triggers the automated Signal Detection Engine to scan all 6 catalog signals across all database entities. Idempotent on rerun.
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "evaluated_at": "2026-09-09T10:00:00Z",
+  "total_active_signals": 12,
+  "new_signals_detected": 4,
+  "refreshed_signals": 8,
+  "by_signal": {
+    "dormant_strategic_account": 3,
+    "unanswered_conversation": 2,
+    "expiring_contract": 1,
+    "leadership_change": 2,
+    "hiring_funding_event": 2,
+    "competitor_signal": 2
+  }
+}
+```
+
+### `GET /signals/detected/stats`
+
+Retrieve real-time aggregate count metrics of active detected signals by severity, category, and signal type.
+
+**Response 200:**
+```json
+{
+  "total_active": 12,
+  "by_severity": { "critical": 3, "high": 7, "medium": 2 },
+  "by_category": { "risk": 7, "opportunity": 3, "hybrid": 2 },
+  "by_signal": { "dormant_strategic_account": 3, "unanswered_conversation": 2, ... },
+  "by_status": { "active": 12, "acknowledged": 2, "actioned": 5 }
+}
+```
+
+### `GET /signals/detected`
+
+List detected signal event instances (paginated) with multi-dimensional filtering.
+
+**Query params:**
+- `signal_id`: Filter by signal slug ID
+- `category`: Filter by category (`opportunity`, `risk`, `hybrid`)
+- `status`: Filter by status (`active`, `acknowledged`, `actioned`, `dismissed`, `resolved`)
+- `severity`: Filter by severity (`critical`, `high`, `medium`, `low`)
+- `company_id`: Filter by company UUID
+- `person_id`: Filter by person UUID
+- `opportunity_id`: Filter by opportunity UUID
+- `engagement_id`: Filter by engagement UUID
+- `page`: 1-indexed page number (default: 1)
+- `page_size`: items per page (default: 50)
+
+### `PATCH /signals/detected/{signal_instance_id}`
+
+Update the lifecycle status and resolution notes of a detected signal.
+
+**Request:**
+```json
+{
+  "status": "actioned", // "acknowledged" | "actioned" | "dismissed" | "resolved"
+  "resolution_notes": "Scheduled QBR meeting with VP of Data"
+}
+```
+
+**Response 200:** Updated `DetectedSignalResponse` with `actioned_at` timestamp.
+
 ---
 
 *See [Database Schema](src/backend/db/README.md) for field definitions and [Signal Catalog Specification](src/backend/cdb/services/signals/README.md) for business interpretation details.*

@@ -102,11 +102,12 @@ Pipeline & Engagements (CRM Lifecycle)       │
 * **Deterministic Auto-Merge**: High-confidence exact matches (e.g. matching LinkedIn URL or verified primary email) auto-merge instantly.
 * **Interactive Review Queue**: Ambiguous pairs surface in the UI for side-by-side comparison, allowing one-click **Accept Merge** or **Keep Separate**.
 
-### 6. Opportunity & Risk Signal Catalog (`signals`)
+### 6. Opportunity & Risk Signal Catalog & Detection Engine (`signals` & `detected_signals`)
 * **Standard Business Event Ontology**: Formal catalog stored in a dedicated PostgreSQL dimension table (`signals`) tracking 6 high-impact commercial events.
 * **Dual-Sided Classifications**: Covers revenue expansion opportunities (`hiring_funding_event`, `expiring_contract`, `leadership_change`) and relationship churn risks (`dormant_strategic_account`, `unanswered_conversation`, `competitor_signal`).
-* **Actionable Playbooks & SLA Thresholds**: Each catalog signal defines clear business interpretations, trigger parameters (warning & critical days, keyword patterns), and recommended next best actions.
-* **API Access & Integration**: Queryable via `GET /api/v1/signals/catalog` with multi-dimensional filtering by category, entity, and severity.
+* **Intelligent Stateful Tagging (`detected_signals`)**: Bridge/fact table linking active signal events directly to Companies, Persons, Opportunities, Engagements, and triggering Activity evidence.
+* **Automated Detection Engine**: Idempotent scanner detecting dormant accounts, expiring contracts, dropped conversation threads, leadership transitions, and competitor threats.
+* **Triage Lifecycle & Playbooks**: Manage signal states (`active` ➔ `acknowledged` ➔ `actioned` / `dismissed`) with resolution notes and audit logging via `/api/v1/signals/detected`.
 
 ---
 

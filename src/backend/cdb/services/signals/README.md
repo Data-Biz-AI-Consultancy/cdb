@@ -220,3 +220,61 @@ Example Response:
 `GET /api/v1/signals/catalog/{signal_id}`
 
 Returns the full `SignalDefinition` or `404 NOT_FOUND`.
+
+---
+
+## Detection Engine & `detected_signals` Bridge Table
+
+While `signals` provides the **dimension catalog** of signal definitions, the **`detected_signals`** table acts as the **central fact/bridge table** linking active and historical signal events to core business entities:
+
+```mermaid
+erDiagram
+    signals ||--o{ detected_signals : "classifies"
+    companies ||--o{ detected_signals : "tagged on"
+    persons ||--o{ detected_signals : "tagged on"
+    opportunities ||--o{ detected_signals : "tagged on"
+    engagements ||--o{ detected_signals : "tagged on"
+    activities ||--o{ detected_signals : "evidenced by"
+
+    detected_signals {
+        uuid id PK
+        varchar signal_id FK
+        uuid company_id FK
+        uuid person_id FK
+        uuid opportunity_id FK
+        uuid engagement_id FK
+        uuid activity_id FK
+        varchar status "active | acknowledged | actioned | dismissed | resolved"
+        varchar severity "critical | high | medium | low"
+        numeric score
+        varchar title
+        text summary
+        jsonb metadata
+        timestamptz detected_at
+        timestamptz actioned_at
+    }
+```
+
+### Detection Engine Rules (`detector.py`)
+
+1. **`dormant_strategic_account`**: Scans companies qualifying as strategic (signed engagement, won deal, or strategic tag) where `MAX(activity.occurred_at)` is older than 60 days (or no activity).
+2. **`unanswered_conversation`**: Scans inbound messages (LinkedIn, email, WhatsApp) where the external contact was the last sender > 3 days ago without an outbound response.
+3. **`expiring_contract`**: Scans active signed engagements where `expected_end_date` is within 60 days.
+4. **`leadership_change`**: Scans relationship ends in last 60 days (champion departures) and new executive relationships in last 60 days.
+5. **`hiring_funding_event`**: Scans activity texts in last 90 days matching funding round or technical hiring acceleration regex patterns.
+6. **`competitor_signal`**: Scans activity texts and opportunity notes for competitor evaluation or RFP bake-off mentions.
+
+### Idempotency & Lifecycle State Machine
+* **Idempotency**: Running `evaluate_all_signals` repeatedly does **not** duplicate active signals. Existing active signals for the same entity and signal code have their timestamps, severity, and metadata refreshed in place.
+* **Lifecycle States**:
+  - `active`: Newly detected signal awaiting review.
+  - `acknowledged`: Reviewed by a team member (in triage).
+  - `actioned`: Recommended action taken (e.g. QBR scheduled, message replied to). Sets `actioned_at` and `actioned_by_id`.
+  - `dismissed`: Flagged as not relevant or false positive.
+  - `resolved`: Naturally cleared or resolved.
+
+### Detection & Triage Endpoints
+* `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities and returns execution statistics.
+* `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`).
+* `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, and signal type.
+* `PATCH /api/v1/signals/detected/{id}`: Update signal state (`acknowledged`, `actioned`, `dismissed`) with resolution notes.
