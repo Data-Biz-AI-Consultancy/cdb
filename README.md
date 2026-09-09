@@ -64,8 +64,11 @@ Pipeline & Engagements (CRM Lifecycle)       │
     ├── Opportunities ───────────────────────┤
     │   (deals, pipeline & proposals)        │
     │                                        │
-    └── Engagements ─────────────────────────┘
-        (active jobs & client delivery)
+    ├── Engagements ─────────────────────────┤
+    │   (active jobs & client delivery)      │
+    │                                        │
+    └── Signals Radar ───────────────────────┘
+        (opportunity & risk detection triage)
 ```
 
 ---
@@ -108,6 +111,7 @@ Pipeline & Engagements (CRM Lifecycle)       │
 * **Intelligent Stateful Tagging (`detected_signals`)**: Bridge/fact table linking active signal events directly to Companies, Persons, Opportunities, Engagements, and triggering Activity evidence.
 * **Automated Detection Engine**: Idempotent scanner detecting dormant accounts, expiring contracts, dropped conversation threads, leadership transitions, and competitor threats.
 * **Triage Lifecycle & Playbooks**: Manage signal states (`active` ➔ `acknowledged` ➔ `actioned` / `dismissed`) with resolution notes and audit logging via `/api/v1/signals/detected`.
+* **Signals Radar & Triage Web UI (`/signals`)**: Live interactive dashboard featuring active radar KPI stats, one-click detection sweep trigger, multi-entity linking tags, triage action buttons (`Acknowledge`, `Take Action`, `Dismiss`), and visual catalog exploration.
 
 ---
 

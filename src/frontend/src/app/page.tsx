@@ -30,19 +30,21 @@ export default function HomePage() {
     opportunities: 0,
     erQueue: 0,
     engagements: 0,
+    signals: 0,
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadCounts() {
       try {
-        const [p, c, a, l, o, er] = await Promise.allSettled([
+        const [p, c, a, l, o, er, sig] = await Promise.allSettled([
           apiFetch<ApiResponse<any[]>>('/api/v1/persons?page_size=1'),
           apiFetch<ApiResponse<any[]>>('/api/v1/companies?page_size=1'),
           apiFetch<ApiResponse<any[]>>('/api/v1/activities?page_size=1'),
           apiFetch<ApiResponse<any[]>>('/api/v1/leads?page_size=1'),
           apiFetch<ApiResponse<any[]>>('/api/v1/opportunities?page_size=50'),
           apiFetch<ApiResponse<any[]>>('/api/v1/er/queue?page_size=1'),
+          apiFetch<any>('/api/v1/signals/detected/stats'),
         ]);
 
         const getTotal = (res: PromiseSettledResult<any>) => {
@@ -58,6 +60,11 @@ export default function HomePage() {
           ).length;
         }
 
+        const signalActiveCount =
+          sig.status === 'fulfilled' && sig.value?.total_active !== undefined
+            ? sig.value.total_active
+            : 0;
+
         setStats({
           persons: getTotal(p),
           companies: getTotal(c),
@@ -66,6 +73,7 @@ export default function HomePage() {
           opportunities: getTotal(o),
           erQueue: getTotal(er),
           engagements: engCount,
+          signals: signalActiveCount,
         });
       } catch (err) {
         console.error('Failed loading stats:', err);
@@ -136,6 +144,14 @@ export default function HomePage() {
           href: '/engagements',
           desc: 'Ongoing jobs with existing Clients, with all relevant activities & deliverable milestones',
           badge: 'New',
+        },
+        {
+          title: 'Signals Radar',
+          count: stats.signals,
+          countSuffix: 'active',
+          href: '/signals',
+          desc: 'Opportunity & risk detection catalog across dormant accounts, conversations, contracts, and market movements',
+          badge: 'Radar',
         },
       ],
     },

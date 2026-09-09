@@ -38,6 +38,7 @@ describe('HomePage Dashboard Overview', () => {
     expect(screen.getByText('Leads')).toBeInTheDocument();
     expect(screen.getByText('Opportunities')).toBeInTheDocument();
     expect(screen.getByText('Engagements')).toBeInTheDocument();
+    expect(screen.getByText('Signals Radar')).toBeInTheDocument();
 
     // Section 3: Settings
     expect(screen.getAllByText('Settings').length).toBeGreaterThanOrEqual(2);

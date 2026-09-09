@@ -21,6 +21,7 @@ src/frontend/
 │   │   ├── leads/                # Pipeline & Engagements: Lead Qualification Pipeline
 │   │   ├── opportunities/        # Pipeline & Engagements: Deal & Partnership Kanban/List
 │   │   ├── engagements/          # Pipeline & Engagements: Active Client Engagements
+│   │   ├── signals/              # Pipeline & Engagements: Opportunity & Risk Signals Radar & Triage Feed
 │   │   ├── ingestion/            # Settings: Data Intake & File Upload Portal (LinkedIn/CSV/Notion)
 │   │   └── settings/             # Settings: System, API Keys & Platform Configurations
 │   │
@@ -59,6 +60,7 @@ The application navigation is organized into 3 clear functional categories:
    - **Leads** (`/leads`): Interest qualification funnel (`New` → `Contacted` → `Qualified` → `Converted`) with conversation transcript & description viewer, default recency sorting (most recent lead first), signal strength badges, search, and one-click opportunity conversion modal.
    - **Opportunities** (`/opportunities`): Interactive drag-and-drop Kanban deal pipeline with pipeline forecasting KPIs (Active Pipeline, Confidence-Adjusted Weighted Value, Win Rate %), first-class Title & Description fields, Confidence Level meters, automated Stale (30d+) & Expired (90d+) inactivity alerts, overdue resolution target warnings (`🚨 Overdue`), attached contact persons & companies management, and a complete opportunity history (audit log & activity timeline).
    - **Client Engagements** (`/engagements`, `/engagements/[id]`): Workspace for ongoing client projects and contracted delivery work. Connects client organization, attached contact person(s) with roles, signed contracts (ID / URL link / status / signed date), key terms & conditions (T&Cs), billing rates (daily, hourly, monthly, fixed), total contract budgets, timeline countdowns, and linked Notion meeting notes & activity feeds.
+   - **Signals Radar** (`/signals`): Real-time Opportunity & Risk Signals Radar scanning dormant strategic accounts, unanswered conversations, expiring contracts, leadership changes, market events (hiring/funding), and competitor signals. Offers direct live DB evaluation trigger, multi-entity linking tags, triage state transitions (`acknowledged`, `actioned`, `dismissed`), and full signal dimension catalog exploration.
 
 3. **Settings**
    - **Data Ingestion** (`/ingestion`): File upload and intake portal for LinkedIn, Notion, and CSV imports.

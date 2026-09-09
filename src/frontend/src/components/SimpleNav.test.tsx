@@ -46,6 +46,7 @@ describe('SimpleNav Component', () => {
     expect(screen.getByText('Leads')).toBeInTheDocument();
     expect(screen.getByText('Opportunities')).toBeInTheDocument();
     expect(screen.getByText('Engagements')).toBeInTheDocument();
+    expect(screen.getByText('Signals Radar')).toBeInTheDocument();
 
     // Open Settings dropdown
     const settingsBtn = screen.getByText('Settings');
