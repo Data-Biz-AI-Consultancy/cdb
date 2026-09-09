@@ -220,3 +220,25 @@ def test_celery_evaluate_signals_task_registration():
     entry = beat_schedule["evaluate-signals-periodic"]
     assert entry["task"] == "cdb.workers.tasks.evaluate_signals_background"
     assert entry["schedule"] == 6 * 3600
+
+
+def test_celery_evaluate_signals_task_execution():
+    """Verify Celery task evaluate_signals_background runs evaluate_all_signals properly."""
+    from unittest.mock import AsyncMock, patch
+
+    from cdb.workers.tasks import evaluate_signals_background
+
+    mock_result = {
+        "status": "success",
+        "total_active_signals": 3,
+        "new_signals_detected": 1,
+        "refreshed_signals": 2,
+    }
+
+    with patch(
+        "cdb.services.signals.detector.evaluate_all_signals", new_callable=AsyncMock
+    ) as mock_eval:
+        mock_eval.return_value = mock_result
+        res = evaluate_signals_background()
+        assert res == mock_result
+        mock_eval.assert_called_once()

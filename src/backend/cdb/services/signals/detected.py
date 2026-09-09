@@ -115,7 +115,7 @@ async def get_detected_signal_stats(db: AsyncSession) -> DetectedSignalStatsResp
     """
     Computes summary breakdown metrics across all detected signals.
     """
-    stmt = select(DetectedSignal).join(Signal, Signal.id == DetectedSignal.signal_id)
+    stmt = select(DetectedSignal).options(selectinload(DetectedSignal.signal))
     records: Sequence[DetectedSignal] = (await db.execute(stmt)).scalars().all()
 
     by_severity: dict[str, int] = {}
