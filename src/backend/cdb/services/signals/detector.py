@@ -15,6 +15,11 @@ from cdb.models.person import Person
 from cdb.models.relationship import PersonCompanyRelationship
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.catalog import ensure_signals_dimension
+from cdb.services.signals.classification import (
+    assess_confidence,
+    build_evidence_payload,
+    detect_signal_conflicts,
+)
 
 # Keyword regexes
 FUNDING_REGEX = re.compile(
@@ -173,11 +178,40 @@ async def detect_dormant_strategic_accounts(
             days_inactive = 180  # Default long dormancy if no activity logged
 
         severity = "critical" if days_inactive >= 90 else "high"
+        confidence_val = Decimal("0.90") if last_act else Decimal("0.70")
+        conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(confidence_val)
+
+        evidence = build_evidence_payload(
+            evidence_type="temporal_inactivity",
+            source_entity_type="company",
+            source_entity_id=str(comp.id),
+            occurred_at=(
+                last_act.occurred_at.isoformat() if last_act and last_act.occurred_at else None
+            ),
+            days_elapsed=days_inactive,
+            excerpt=f"No touchpoints recorded for {days_inactive} days on strategic account '{comp.name}'",
+            key_metrics={
+                "days_inactive": days_inactive,
+                "threshold_days": 60 if severity == "high" else 90,
+            },
+            verification_status="verified" if last_act else "probable",
+        )
+
         title = f"Dormant Strategic Account: {comp.name} ({days_inactive}d inactive)"
         summary = (
             f"Strategic account '{comp.name}' has had no recorded meetings, calls, or communications "
             f"for {days_inactive} days. Proactive re-engagement recommended."
         )
+
+        meta = {
+            "days_inactive": days_inactive,
+            "company_name": comp.name,
+            "confidence_score": float(conf_score),
+            "confidence_tier": conf_tier.value,
+            "is_uncertain": is_uncertain,
+            "uncertainty_reasons": uncert_reasons,
+            "evidence": evidence,
+        }
 
         res = await _upsert_detected_signal(
             db,
@@ -187,8 +221,8 @@ async def detect_dormant_strategic_accounts(
             title=title,
             summary=summary,
             severity=severity,
-            score=Decimal("85.00") if severity == "critical" else Decimal("70.00"),
-            metadata_payload={"days_inactive": days_inactive, "company_name": comp.name},
+            score=conf_score,
+            metadata_payload=meta,
         )
         results.append(res)
 
@@ -225,12 +259,43 @@ async def detect_expiring_contracts(
         else:
             severity = "medium"
 
+        conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(Decimal("0.95"))
+        evidence = build_evidence_payload(
+            evidence_type="contract_milestone",
+            source_entity_type="engagement",
+            source_entity_id=str(eng.id),
+            occurred_at=eng.expected_end_date.isoformat(),
+            days_elapsed=days_left,
+            excerpt=f"Engagement '{eng.title}' expected end date is {eng.expected_end_date.isoformat()}",
+            key_metrics={
+                "days_left": days_left,
+                "expected_end_date": eng.expected_end_date.isoformat(),
+                "rate_type": eng.rate_type,
+                "currency": eng.currency,
+                "rate_value": float(eng.rate_value) if eng.rate_value else None,
+            },
+            verification_status="verified",
+        )
+
         status_label = f"{days_left}d remaining" if days_left >= 0 else f"{-days_left}d overdue"
         title = f"Expiring Contract: {eng.title} ({status_label})"
         summary = (
             f"Engagement '{eng.title}' ends on {eng.expected_end_date.isoformat()} ({status_label}). "
             f"Contract status is '{eng.contract_status}'. Immediate renewal or extension review required."
         )
+
+        meta = {
+            "days_left": days_left,
+            "expected_end_date": eng.expected_end_date.isoformat(),
+            "rate_type": eng.rate_type,
+            "currency": eng.currency,
+            "rate_value": float(eng.rate_value) if eng.rate_value else None,
+            "confidence_score": float(conf_score),
+            "confidence_tier": conf_tier.value,
+            "is_uncertain": is_uncertain,
+            "uncertainty_reasons": uncert_reasons,
+            "evidence": evidence,
+        }
 
         res = await _upsert_detected_signal(
             db,
@@ -241,14 +306,8 @@ async def detect_expiring_contracts(
             title=title,
             summary=summary,
             severity=severity,
-            score=Decimal("90.00") if days_left <= 14 else Decimal("75.00"),
-            metadata_payload={
-                "days_left": days_left,
-                "expected_end_date": eng.expected_end_date.isoformat(),
-                "rate_type": eng.rate_type,
-                "currency": eng.currency,
-                "rate_value": float(eng.rate_value) if eng.rate_value else None,
-            },
+            score=conf_score,
+            metadata_payload=meta,
         )
         results.append(res)
 
@@ -308,12 +367,36 @@ async def detect_unanswered_conversations(
         person = await db.get(Person, person_id)
         person_name = f"{person.first_name} {person.last_name}" if person else "Contact"
         severity = "critical" if act_dt <= cutoff_7d else "high"
+        conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(Decimal("0.95"))
+
+        evidence = build_evidence_payload(
+            evidence_type="message_sla",
+            source_entity_type="activity",
+            source_entity_id=str(act.id),
+            occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
+            days_elapsed=days_unanswered,
+            excerpt=act.title or act.summary or f"Inbound message from {person_name}",
+            key_metrics={"days_unanswered": days_unanswered, "channel": act.type},
+            verification_status="verified",
+        )
 
         title = f"Unanswered Thread: {person_name} ({days_unanswered}d waiting)"
         summary = (
             f"Last message from {person_name} was received on {act.occurred_at.strftime('%Y-%m-%d')} "
             f"({days_unanswered} days ago) with no recorded response."
         )
+
+        meta = {
+            "days_unanswered": days_unanswered,
+            "channel": act.type,
+            "message_occurred_at": act.occurred_at.isoformat() if act.occurred_at else None,
+            "person_name": person_name,
+            "confidence_score": float(conf_score),
+            "confidence_tier": conf_tier.value,
+            "is_uncertain": is_uncertain,
+            "uncertainty_reasons": uncert_reasons,
+            "evidence": evidence,
+        }
 
         res = await _upsert_detected_signal(
             db,
@@ -324,13 +407,8 @@ async def detect_unanswered_conversations(
             title=title,
             summary=summary,
             severity=severity,
-            score=Decimal("95.00") if severity == "critical" else Decimal("80.00"),
-            metadata_payload={
-                "days_unanswered": days_unanswered,
-                "channel": act.type,
-                "message_occurred_at": act.occurred_at.isoformat(),
-                "person_name": person_name,
-            },
+            score=conf_score,
+            metadata_payload=meta,
         )
         results.append(res)
 
@@ -363,11 +441,38 @@ async def detect_leadership_changes(
         person_name = f"{person.first_name} {person.last_name}" if person else "Contact"
         comp_name = company.name if company else "Company"
 
+        conf_val = Decimal("0.85") if rel.ended_at else Decimal("0.65")
+        conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(conf_val)
+
+        evidence = build_evidence_payload(
+            evidence_type="relationship_transition",
+            source_entity_type="relationship",
+            source_entity_id=str(rel.id),
+            occurred_at=rel.ended_at.isoformat() if rel.ended_at else None,
+            days_elapsed=(now.date() - rel.ended_at).days if rel.ended_at else None,
+            excerpt=f"{person_name} departed former role '{rel.title or 'Stakeholder'}' at {comp_name}",
+            key_metrics={"event_type": "departure", "role": rel.title},
+            verification_status="verified" if rel.ended_at else "probable",
+        )
+
         title = f"Leadership Departure: {person_name} left {comp_name}"
         summary = (
             f"{person_name} transitioned away from {comp_name} (former role: {rel.title or 'Stakeholder'}). "
             "Opportunity to congratulate and explore relationships at their new destination."
         )
+
+        meta = {
+            "event_type": "departure",
+            "role": rel.title,
+            "ended_at": rel.ended_at.isoformat() if rel.ended_at else None,
+            "company_name": comp_name,
+            "person_name": person_name,
+            "confidence_score": float(conf_score),
+            "confidence_tier": conf_tier.value,
+            "is_uncertain": is_uncertain,
+            "uncertainty_reasons": uncert_reasons,
+            "evidence": evidence,
+        }
 
         res = await _upsert_detected_signal(
             db,
@@ -377,14 +482,8 @@ async def detect_leadership_changes(
             title=title,
             summary=summary,
             severity="high",
-            score=Decimal("80.00"),
-            metadata_payload={
-                "event_type": "departure",
-                "role": rel.title,
-                "ended_at": rel.ended_at.isoformat() if rel.ended_at else None,
-                "company_name": comp_name,
-                "person_name": person_name,
-            },
+            score=conf_score,
+            metadata_payload=meta,
         )
         results.append(res)
 
@@ -408,11 +507,38 @@ async def detect_leadership_changes(
         person_name = f"{person.first_name} {person.last_name}" if person else "Leader"
         comp_name = company.name if company else "Target Company"
 
+        conf_val = Decimal("0.85") if rel.started_at else Decimal("0.65")
+        conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(conf_val)
+
+        evidence = build_evidence_payload(
+            evidence_type="relationship_transition",
+            source_entity_type="relationship",
+            source_entity_id=str(rel.id),
+            occurred_at=rel.started_at.isoformat() if rel.started_at else None,
+            days_elapsed=(now.date() - rel.started_at).days if rel.started_at else None,
+            excerpt=f"{person_name} joined {comp_name} as {rel.title}",
+            key_metrics={"event_type": "new_hire", "role": rel.title},
+            verification_status="verified" if rel.started_at else "probable",
+        )
+
         title = f"New Executive Leader: {person_name} ({rel.title}) at {comp_name}"
         summary = (
             f"{person_name} recently joined {comp_name} as {rel.title}. "
             "Fresh leadership mandates often unlock new data, AI, or advisory budgets."
         )
+
+        meta = {
+            "event_type": "new_hire",
+            "role": rel.title,
+            "started_at": rel.started_at.isoformat() if rel.started_at else None,
+            "company_name": comp_name,
+            "person_name": person_name,
+            "confidence_score": float(conf_score),
+            "confidence_tier": conf_tier.value,
+            "is_uncertain": is_uncertain,
+            "uncertainty_reasons": uncert_reasons,
+            "evidence": evidence,
+        }
 
         res = await _upsert_detected_signal(
             db,
@@ -422,14 +548,8 @@ async def detect_leadership_changes(
             title=title,
             summary=summary,
             severity="high",
-            score=Decimal("85.00"),
-            metadata_payload={
-                "event_type": "new_hire",
-                "role": rel.title,
-                "started_at": rel.started_at.isoformat() if rel.started_at else None,
-                "company_name": comp_name,
-                "person_name": person_name,
-            },
+            score=conf_score,
+            metadata_payload=meta,
         )
         results.append(res)
 
@@ -475,11 +595,50 @@ async def detect_hiring_funding_events(
         event_type = "Funding" if funding_match else "Hiring Expansion"
         matched_phrase = (funding_match or hiring_match).group(0)
 
+        # Confidence assessment based on phrase type and recency
+        act_dt = (
+            act.occurred_at
+            if act.occurred_at.tzinfo
+            else act.occurred_at.replace(tzinfo=datetime.UTC)
+        )
+        days_ago = (now - act_dt).days
+        conf_val = Decimal("0.80") if funding_match else Decimal("0.65")
+        flags: list[str] = []
+        if days_ago > 60:
+            conf_val -= Decimal("0.20")
+            flags.append(f"Event occurred {days_ago} days ago; growth context may have evolved")
+
+        conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
+            conf_val, ambiguity_flags=flags
+        )
+
+        evidence = build_evidence_payload(
+            evidence_type="text_pattern",
+            source_entity_type="activity",
+            source_entity_id=str(act.id),
+            occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
+            days_elapsed=days_ago,
+            excerpt=f"Matched '{matched_phrase}' in activity: {act.title or act.summary or ''}",
+            key_metrics={"event_type": event_type.lower(), "matched_phrase": matched_phrase},
+            verification_status="verified" if not is_uncertain else "probable",
+        )
+
         title = f"{event_type} Signal: {comp_name} ('{matched_phrase}')"
         summary = (
             f"Interaction on {act.occurred_at.strftime('%Y-%m-%d')} highlighted a growth/capital event: "
             f"'{matched_phrase}'. Potential advisory or capability acceleration opportunity."
         )
+
+        meta = {
+            "event_type": event_type.lower(),
+            "matched_phrase": matched_phrase,
+            "activity_date": act.occurred_at.isoformat() if act.occurred_at else None,
+            "confidence_score": float(conf_score),
+            "confidence_tier": conf_tier.value,
+            "is_uncertain": is_uncertain,
+            "uncertainty_reasons": uncert_reasons,
+            "evidence": evidence,
+        }
 
         res = await _upsert_detected_signal(
             db,
@@ -490,12 +649,8 @@ async def detect_hiring_funding_events(
             title=title,
             summary=summary,
             severity="medium",
-            score=Decimal("75.00"),
-            metadata_payload={
-                "event_type": event_type.lower(),
-                "matched_phrase": matched_phrase,
-                "activity_date": act.occurred_at.isoformat(),
-            },
+            score=conf_score,
+            metadata_payload=meta,
         )
         results.append(res)
 
@@ -539,11 +694,62 @@ async def detect_competitor_signals(
             continue
         seen_opps.add(target_key)
 
+        matched_lower = matched_phrase.lower()
+        named_consultancies = {
+            "slalom",
+            "thoughtworks",
+            "accenture",
+            "deloitte",
+            "competing proposal",
+            "bake-off",
+            "rfp",
+        }
+        is_named = any(name in matched_lower for name in named_consultancies)
+
+        act_dt = (
+            act.occurred_at
+            if act.occurred_at.tzinfo
+            else act.occurred_at.replace(tzinfo=datetime.UTC)
+        )
+        days_ago = (now - act_dt).days
+        conf_val = Decimal("0.85") if is_named else Decimal("0.60")
+        flags: list[str] = []
+        if days_ago > 60:
+            conf_val -= Decimal("0.15")
+            flags.append(
+                f"Mention occurred {days_ago} days ago; competitor evaluation may have concluded"
+            )
+
+        conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
+            conf_val, ambiguity_flags=flags
+        )
+
+        evidence = build_evidence_payload(
+            evidence_type="text_pattern",
+            source_entity_type="activity",
+            source_entity_id=str(act.id),
+            occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
+            days_elapsed=days_ago,
+            excerpt=f"Competitor phrase '{matched_phrase}' detected in interaction: {act.title or act.summary or ''}",
+            key_metrics={"matched_phrase": matched_phrase, "is_named_competitor": is_named},
+            verification_status="verified" if is_named else "probable",
+        )
+
         title = f"Competitor Threat: '{matched_phrase}' detected"
         summary = (
             f"Interaction on {act.occurred_at.strftime('%Y-%m-%d')} indicated competitor or alternative evaluation: "
             f"'{matched_phrase}'. Recommend activating competitive battlecard."
         )
+
+        meta = {
+            "matched_phrase": matched_phrase,
+            "activity_occurred_at": act.occurred_at.isoformat() if act.occurred_at else None,
+            "confidence_score": float(conf_score),
+            "confidence_tier": conf_tier.value,
+            "is_uncertain": is_uncertain,
+            "uncertainty_reasons": uncert_reasons,
+            "evidence": evidence,
+        }
 
         res = await _upsert_detected_signal(
             db,
@@ -555,11 +761,8 @@ async def detect_competitor_signals(
             title=title,
             summary=summary,
             severity="high",
-            score=Decimal("85.00"),
-            metadata_payload={
-                "matched_phrase": matched_phrase,
-                "activity_occurred_at": act.occurred_at.isoformat(),
-            },
+            score=conf_score,
+            metadata_payload=meta,
         )
         results.append(res)
 
@@ -568,7 +771,8 @@ async def detect_competitor_signals(
 
 async def evaluate_all_signals(db: AsyncSession) -> dict[str, Any]:
     """
-    Master orchestrator running detection rules across all 6 catalog signals.
+    Master orchestrator running detection rules across all 6 catalog signals,
+    followed by cross-signal conflict evaluation across Company, Opportunity, and Person scopes.
     """
     await ensure_signals_dimension(db)
     now = utc_now()
@@ -581,6 +785,37 @@ async def evaluate_all_signals(db: AsyncSession) -> dict[str, Any]:
     competitors = await detect_competitor_signals(db, now)
 
     all_pairs = dormant + unanswered + contracts + leadership + growth + competitors
+    await db.flush()
+
+    # Query all active/acknowledged signals to evaluate multi-entity conflicts
+    active_signals_stmt = select(DetectedSignal).where(
+        DetectedSignal.status.in_(["active", "acknowledged"])
+    )
+    active_signals = (await db.execute(active_signals_stmt)).scalars().all()
+
+    # Detect conflicts across Company, Opportunity, and Person scopes
+    conflict_map = detect_signal_conflicts(list(active_signals))
+
+    total_conflicting = 0
+    total_uncertain = 0
+
+    for sig in active_signals:
+        sig_id_str = str(sig.id)
+        c_info = conflict_map.get(sig_id_str, {})
+        meta = dict(sig.metadata_payload or {})
+
+        meta["has_conflict"] = c_info.get("has_conflict", False)
+        meta["conflicting_signal_ids"] = c_info.get("conflicting_signal_ids", [])
+        meta["conflict_summary"] = c_info.get("conflict_summary")
+        meta["conflict_scope"] = c_info.get("conflict_scope")
+
+        if meta["has_conflict"]:
+            total_conflicting += 1
+        if meta.get("is_uncertain", False):
+            total_uncertain += 1
+
+        sig.metadata_payload = meta
+
     await db.commit()
 
     by_signal: dict[str, int] = {}
@@ -594,18 +829,14 @@ async def evaluate_all_signals(db: AsyncSession) -> dict[str, Any]:
         else:
             refreshed_count += 1
 
-    # Total active signals in database
-    total_active = (
-        await db.scalar(
-            select(func.count(DetectedSignal.id)).where(DetectedSignal.status == "active")
-        )
-        or 0
-    )
+    total_active = len(active_signals)
 
     return {
         "status": "success",
         "evaluated_at": now,
         "total_active_signals": total_active,
+        "total_conflicting": total_conflicting,
+        "total_uncertain": total_uncertain,
         "new_signals_detected": new_count,
         "refreshed_signals": refreshed_count,
         "by_signal": by_signal,

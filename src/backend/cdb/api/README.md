@@ -1266,12 +1266,14 @@ Triggers the automated Signal Detection Engine to scan all 6 catalog signals acr
 
 ### `GET /signals/detected/stats`
 
-Retrieve real-time aggregate count metrics of active detected signals by severity, category, and signal type.
+Retrieve real-time aggregate count metrics of active detected signals by severity, category, and signal type, including conflicting signals and uncertain signals needing verification.
 
 **Response 200:**
 ```json
 {
   "total_active": 12,
+  "total_conflicting": 2,
+  "total_uncertain": 1,
   "by_severity": { "critical": 3, "high": 7, "medium": 2 },
   "by_category": { "risk": 7, "opportunity": 3, "hybrid": 2 },
   "by_signal": { "dormant_strategic_account": 3, "unanswered_conversation": 2, ... },
@@ -1281,7 +1283,7 @@ Retrieve real-time aggregate count metrics of active detected signals by severit
 
 ### `GET /signals/detected`
 
-List detected signal event instances (paginated) with multi-dimensional filtering.
+List detected signal event instances (paginated) with multi-dimensional filtering, confidence scoring, supporting evidence, and conflict detection.
 
 **Query params:**
 - `signal_id`: Filter by signal slug ID
@@ -1292,8 +1294,40 @@ List detected signal event instances (paginated) with multi-dimensional filterin
 - `person_id`: Filter by person UUID
 - `opportunity_id`: Filter by opportunity UUID
 - `engagement_id`: Filter by engagement UUID
+- `is_uncertain`: Filter by uncertainty flag (`true` | `false`)
+- `has_conflict`: Filter by conflicting polarities flag (`true` | `false`)
 - `page`: 1-indexed page number (default: 1)
 - `page_size`: items per page (default: 50)
+
+**Response 200 (Sample Item):**
+```json
+{
+  "id": "e2a4a350-4d40-4100-a6fe-b7d6b38c201a",
+  "signal_id": "dormant_strategic_account",
+  "company_id": "c30164e2-6fd5-4c07-ba71-6ba3b2a26514",
+  "status": "active",
+  "severity": "high",
+  "title": "Dormant Strategic Account: Acme Corp",
+  "summary": "No activity recorded in 75 days.",
+  "confidence_score": 0.85,
+  "confidence_tier": "high",
+  "is_uncertain": false,
+  "uncertainty_reasons": [],
+  "has_conflict": true,
+  "conflicting_signal_ids": ["f48a1200-8480-492c-b26a-992ca365022e"],
+  "conflict_summary": "Conflicting signals on Company: High Risk (dormant_strategic_account) vs Medium Opportunity (hiring_funding_event)",
+  "evidence": {
+    "type": "touchpoint_cadence",
+    "summary": "No activity logged for strategic account in 75 days.",
+    "timestamp": "2026-06-26T00:00:00Z",
+    "source_entity_type": "company",
+    "source_entity_id": "c30164e2-6fd5-4c07-ba71-6ba3b2a26514",
+    "excerpt": "Last interaction was 75 days ago",
+    "context": { "days_inactive": 75, "qualifying_type": "signed_engagement" }
+  },
+  "detected_at": "2026-09-09T10:00:00Z"
+}
+```
 
 ### `PATCH /signals/detected/{signal_instance_id}`
 

@@ -124,6 +124,15 @@ class DetectedSignalResponse(BaseModel):
     status: DetectedSignalStatus
     severity: SignalSeverity
     score: Decimal | None = None
+    confidence_score: Decimal | None = None
+    confidence_tier: str | None = None
+    is_uncertain: bool = False
+    uncertainty_reasons: list[str] = Field(default_factory=list)
+    has_conflict: bool = False
+    conflicting_signal_ids: list[str] = Field(default_factory=list)
+    conflict_summary: str | None = None
+    evidence: dict[str, Any] | None = None
+
     title: str
     summary: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict, validation_alias="metadata_payload")
@@ -146,6 +155,8 @@ class DetectedSignalUpdate(BaseModel):
 
 class DetectedSignalStatsResponse(BaseModel):
     total_active: int
+    total_conflicting: int = 0
+    total_uncertain: int = 0
     by_severity: dict[str, int]
     by_category: dict[str, int]
     by_signal: dict[str, int]
@@ -156,6 +167,8 @@ class SignalEvaluationResult(BaseModel):
     status: str = "success"
     evaluated_at: datetime
     total_active_signals: int
+    total_conflicting: int = 0
+    total_uncertain: int = 0
     new_signals_detected: int
     refreshed_signals: int
     by_signal: dict[str, int]

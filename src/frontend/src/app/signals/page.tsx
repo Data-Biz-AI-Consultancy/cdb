@@ -47,6 +47,15 @@ export interface DetectedSignal {
   status: DetectedSignalStatus;
   severity: SignalSeverity;
   score?: number | null;
+  confidence_score?: number | null;
+  confidence_tier?: 'high' | 'medium' | 'low' | string | null;
+  is_uncertain?: boolean;
+  uncertainty_reasons?: string[];
+  has_conflict?: boolean;
+  conflicting_signal_ids?: string[];
+  conflict_summary?: string | null;
+  conflict_scope?: string | null;
+  evidence?: Record<string, any> | null;
   title: string;
   summary?: string | null;
   metadata?: Record<string, any>;
@@ -70,6 +79,8 @@ export interface SignalCatalogResponse {
 
 export interface DetectedSignalStatsResponse {
   total_active: number;
+  total_conflicting?: number;
+  total_uncertain?: number;
   by_severity: Record<string, number>;
   by_category: Record<string, number>;
   by_signal: Record<string, number>;
@@ -80,13 +91,15 @@ export interface SignalEvaluationResult {
   status: string;
   evaluated_at: string;
   total_active_signals: number;
+  total_conflicting?: number;
+  total_uncertain?: number;
   new_signals_detected: number;
   refreshed_signals: number;
   by_signal: Record<string, number>;
 }
 
 export default function SignalsPage() {
-  const [activeTab, setActiveTab] = useState<'triage' | 'catalog'>('triage');
+  const [activeTab, setActiveTab] = useState<'triage' | 'conflicts' | 'uncertain' | 'catalog'>('triage');
   const [catalog, setCatalog] = useState<SignalDefinition[]>([]);
   const [signals, setSignals] = useState<DetectedSignal[]>([]);
   const [stats, setStats] = useState<DetectedSignalStatsResponse | null>(null);
@@ -207,6 +220,14 @@ export default function SignalsPage() {
   // Filtered detected signals
   const filteredSignals = useMemo(() => {
     return signals.filter((s) => {
+      // Dedicated tab filters
+      if (activeTab === 'conflicts' && !s.has_conflict) {
+        return false;
+      }
+      if (activeTab === 'uncertain' && !s.is_uncertain) {
+        return false;
+      }
+
       // Status filter
       if (statusFilter !== 'all' && s.status !== statusFilter) {
         return false;
@@ -246,7 +267,7 @@ export default function SignalsPage() {
       }
       return true;
     });
-  }, [signals, statusFilter, categoryFilter, severityFilter, signalTypeFilter, searchQuery]);
+  }, [signals, activeTab, statusFilter, categoryFilter, severityFilter, signalTypeFilter, searchQuery]);
 
   // Badge stylings
   const getSeverityBadge = (severity: SignalSeverity) => {
@@ -380,7 +401,7 @@ export default function SignalsPage() {
       )}
 
       {/* KPI Stats Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -391,8 +412,38 @@ export default function SignalsPage() {
             </p>
             <p className="text-xs text-slate-400 mt-1">Requiring commercial attention</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-xl text-emerald-600">
+          <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-xl text-slate-700">
             📡
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Conflicting Signals
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-rose-600 mt-1">
+              {stats?.total_conflicting ?? signals.filter((s) => s.has_conflict).length}
+            </p>
+            <p className="text-xs text-rose-500 mt-1">Opposing polarities</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-xl text-rose-600">
+            ⚠️
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Needs Verification
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-amber-600 mt-1">
+              {stats?.total_uncertain ?? signals.filter((s) => s.is_uncertain).length}
+            </p>
+            <p className="text-xs text-amber-500 mt-1">Low confidence / ambiguous</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-xl text-amber-600">
+            🔍
           </div>
         </div>
 
@@ -406,8 +457,8 @@ export default function SignalsPage() {
             </p>
             <p className="text-xs text-rose-500 mt-1">Urgent churn & dormant risks</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-xl text-rose-600">
-            ⚠️
+          <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-xl text-rose-600">
+            🔥
           </div>
         </div>
 
@@ -421,30 +472,15 @@ export default function SignalsPage() {
             </p>
             <p className="text-xs text-emerald-600 mt-1">Hiring, funding & expansions</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-xl text-emerald-600">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-xl text-emerald-600">
             🚀
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Resolved & Actioned
-            </p>
-            <p className="text-2xl sm:text-3xl font-bold text-indigo-600 mt-1">
-              {(stats?.by_status?.actioned ?? 0) + (stats?.by_status?.acknowledged ?? 0)}
-            </p>
-            <p className="text-xs text-indigo-500 mt-1">Triaged by team</p>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xl text-indigo-600">
-            🎯
           </div>
         </div>
       </div>
 
       {/* Tabs Navigation */}
       <div className="border-b border-slate-200">
-        <nav className="flex space-x-8" aria-label="Tabs">
+        <nav className="flex flex-wrap gap-4 sm:gap-8" aria-label="Tabs">
           <button
             onClick={() => setActiveTab('triage')}
             className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
@@ -453,9 +489,37 @@ export default function SignalsPage() {
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             }`}
           >
-            <span>Triage Feed & Live Alerts</span>
+            <span>All Active Signals</span>
             <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-              {filteredSignals.length}
+              {signals.filter((s) => s.status === 'active').length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('conflicts')}
+            className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
+              activeTab === 'conflicts'
+                ? 'border-rose-500 text-rose-600 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <span>⚠️ Conflicting Signals</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">
+              {signals.filter((s) => s.has_conflict).length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('uncertain')}
+            className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
+              activeTab === 'uncertain'
+                ? 'border-amber-500 text-amber-600 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <span>🔍 Needs Verification</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+              {signals.filter((s) => s.is_uncertain).length}
             </span>
           </button>
 
@@ -463,7 +527,7 @@ export default function SignalsPage() {
             onClick={() => setActiveTab('catalog')}
             className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
               activeTab === 'catalog'
-                ? 'border-emerald-500 text-emerald-600 font-semibold'
+                ? 'border-indigo-500 text-indigo-600 font-semibold'
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             }`}
           >
@@ -475,8 +539,8 @@ export default function SignalsPage() {
         </nav>
       </div>
 
-      {/* TAB 1: TRIAGE FEED */}
-      {activeTab === 'triage' && (
+      {/* TAB: TRIAGE FEED (All, Conflicting, or Needs Verification) */}
+      {activeTab !== 'catalog' && (
         <div className="space-y-6">
           {/* Filter Toolbar */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
@@ -632,6 +696,31 @@ export default function SignalsPage() {
                       >
                         {sig.status}
                       </span>
+                      {sig.confidence_score !== undefined && sig.confidence_score !== null && (
+                        <span
+                          className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${
+                            (sig.confidence_score >= 0.8 || sig.confidence_tier === 'high')
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                              : (sig.confidence_score >= 0.5 || sig.confidence_tier === 'medium')
+                              ? 'bg-amber-50 text-amber-700 border-amber-300'
+                              : 'bg-rose-50 text-rose-700 border-rose-300'
+                          }`}
+                        >
+                          🎯 {Math.round(sig.confidence_score * 100)}% Confidence
+                        </span>
+                      )}
+                      {sig.has_conflict && (
+                        <span className="text-xs px-2.5 py-0.5 rounded-full border bg-rose-100 text-rose-800 border-rose-300 font-semibold flex items-center gap-1">
+                          <span>⚠️</span>
+                          <span>Conflicting Signals</span>
+                        </span>
+                      )}
+                      {sig.is_uncertain && (
+                        <span className="text-xs px-2.5 py-0.5 rounded-full border bg-amber-100 text-amber-800 border-amber-300 font-semibold flex items-center gap-1">
+                          <span>🔍</span>
+                          <span>Needs Verification</span>
+                        </span>
+                      )}
                       <span className="text-xs text-slate-400">
                         Detected {new Date(sig.detected_at).toLocaleDateString()}
                       </span>
@@ -647,6 +736,52 @@ export default function SignalsPage() {
                         <p className="text-sm text-slate-600 mt-1 leading-relaxed">{sig.summary}</p>
                       )}
                     </div>
+
+                    {/* Conflict Alert Banner */}
+                    {sig.has_conflict && sig.conflict_summary && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-xs text-rose-900 space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-rose-800">
+                          <span>⚠️</span>
+                          <span>Opposing Signal Polarity Detected ({sig.conflict_scope || 'entity'} level)</span>
+                        </div>
+                        <p className="text-rose-700 leading-relaxed">{sig.conflict_summary}</p>
+                      </div>
+                    )}
+
+                    {/* Classification Uncertainty Callout */}
+                    {sig.is_uncertain && sig.uncertainty_reasons && sig.uncertainty_reasons.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-amber-800">
+                          <span>🔍</span>
+                          <span>Classification Uncertainty — Verification Recommended</span>
+                        </div>
+                        <ul className="list-disc list-inside text-amber-700 space-y-0.5">
+                          {sig.uncertainty_reasons.map((r, idx) => (
+                            <li key={idx}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Supporting Evidence Contract */}
+                    {sig.evidence && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 space-y-1.5">
+                        <div className="flex items-center justify-between text-slate-500 font-medium">
+                          <span className="flex items-center gap-1">
+                            <span>📋</span>
+                            <span>Supporting Evidence ({String(sig.evidence.evidence_type || 'interaction').replace(/_/g, ' ')})</span>
+                          </span>
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-slate-200/70 text-slate-600 capitalize">
+                            {sig.evidence.verification_status || 'verified'}
+                          </span>
+                        </div>
+                        {sig.evidence.excerpt && (
+                          <p className="font-mono text-[11px] bg-white border border-slate-200 rounded px-2.5 py-1.5 text-slate-800">
+                            &ldquo;{sig.evidence.excerpt}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* M:N Entity Tags Connection */}
                     <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">

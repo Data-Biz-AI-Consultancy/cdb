@@ -160,6 +160,10 @@ async def list_detected_signals(
     person_id: uuid.UUID | None = Query(None, description="Filter by person ID"),
     opportunity_id: uuid.UUID | None = Query(None, description="Filter by opportunity ID"),
     engagement_id: uuid.UUID | None = Query(None, description="Filter by engagement ID"),
+    is_uncertain: bool | None = Query(
+        None, description="Filter by uncertain / needs verification status"
+    ),
+    has_conflict: bool | None = Query(None, description="Filter by multi-signal conflict status"),
     page: int = Query(1, ge=1, description="1-indexed page number"),
     page_size: int = Query(50, ge=1, le=200, description="Items per page"),
     db: AsyncSession = Depends(get_db),
@@ -179,6 +183,8 @@ async def list_detected_signals(
         person_id=person_id,
         opportunity_id=opportunity_id,
         engagement_id=engagement_id,
+        is_uncertain=is_uncertain,
+        has_conflict=has_conflict,
         limit=page_size,
         offset=offset,
     )

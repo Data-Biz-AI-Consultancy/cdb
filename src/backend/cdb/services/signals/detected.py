@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Sequence
+from decimal import Decimal
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +26,15 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
     opp_title = sig.opportunity.title if sig.opportunity else None
     eng_title = sig.engagement.title if sig.engagement else None
 
+    meta = sig.metadata_payload or {}
+    raw_conf = meta.get("confidence_score")
+    if raw_conf is not None:
+        conf_score = Decimal(str(raw_conf))
+    elif sig.score is not None:
+        conf_score = Decimal(str(sig.score)) / Decimal("100") if sig.score > 1 else sig.score
+    else:
+        conf_score = None
+
     return DetectedSignalResponse(
         id=sig.id,
         signal_id=sig.signal_id,
@@ -41,9 +51,17 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         status=DetectedSignalStatus(sig.status),
         severity=SignalSeverity(sig.severity),
         score=sig.score,
+        confidence_score=conf_score,
+        confidence_tier=meta.get("confidence_tier"),
+        is_uncertain=meta.get("is_uncertain", False),
+        uncertainty_reasons=meta.get("uncertainty_reasons", []),
+        has_conflict=meta.get("has_conflict", False),
+        conflicting_signal_ids=meta.get("conflicting_signal_ids", []),
+        conflict_summary=meta.get("conflict_summary"),
+        evidence=meta.get("evidence"),
         title=sig.title,
         summary=sig.summary,
-        metadata_payload=sig.metadata_payload or {},
+        metadata_payload=meta,
         actioned_at=sig.actioned_at,
         actioned_by_id=sig.actioned_by_id,
         resolution_notes=sig.resolution_notes,
@@ -64,6 +82,8 @@ async def list_detected_signals(
     person_id: uuid.UUID | None = None,
     opportunity_id: uuid.UUID | None = None,
     engagement_id: uuid.UUID | None = None,
+    is_uncertain: bool | None = None,
+    has_conflict: bool | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[DetectedSignalResponse], int]:
@@ -101,6 +121,31 @@ async def list_detected_signals(
             Signal.category == category
         )
 
+    bind = db.get_bind()
+    is_sqlite = getattr(bind.dialect, "name", "") == "sqlite"
+
+    if is_uncertain is not None:
+        if is_sqlite:
+            target_val = 1 if is_uncertain else 0
+            stmt = stmt.where(
+                func.json_extract(DetectedSignal.metadata_payload, "$.is_uncertain") == target_val
+            )
+        else:
+            stmt = stmt.where(
+                DetectedSignal.metadata_payload["is_uncertain"].as_boolean() == is_uncertain
+            )
+
+    if has_conflict is not None:
+        if is_sqlite:
+            target_val = 1 if has_conflict else 0
+            stmt = stmt.where(
+                func.json_extract(DetectedSignal.metadata_payload, "$.has_conflict") == target_val
+            )
+        else:
+            stmt = stmt.where(
+                DetectedSignal.metadata_payload["has_conflict"].as_boolean() == has_conflict
+            )
+
     # Count total matching records
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.scalar(count_stmt)) or 0
@@ -123,11 +168,18 @@ async def get_detected_signal_stats(db: AsyncSession) -> DetectedSignalStatsResp
     by_signal: dict[str, int] = {}
     by_status: dict[str, int] = {}
     total_active = 0
+    total_conflicting = 0
+    total_uncertain = 0
 
     for r in records:
         by_status[r.status] = by_status.get(r.status, 0) + 1
         if r.status == "active":
             total_active += 1
+            meta = r.metadata_payload or {}
+            if meta.get("has_conflict"):
+                total_conflicting += 1
+            if meta.get("is_uncertain"):
+                total_uncertain += 1
             by_severity[r.severity] = by_severity.get(r.severity, 0) + 1
             if r.signal:
                 by_category[r.signal.category] = by_category.get(r.signal.category, 0) + 1
@@ -135,6 +187,8 @@ async def get_detected_signal_stats(db: AsyncSession) -> DetectedSignalStatsResp
 
     return DetectedSignalStatsResponse(
         total_active=total_active,
+        total_conflicting=total_conflicting,
+        total_uncertain=total_uncertain,
         by_severity=by_severity,
         by_category=by_category,
         by_signal=by_signal,

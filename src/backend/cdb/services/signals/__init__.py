@@ -5,6 +5,16 @@ from cdb.services.signals.catalog import (
     get_signal_by_id,
     get_signals_from_db,
 )
+from cdb.services.signals.classification import (
+    SIGNAL_CLASSIFICATION_RULES,
+    ConflictScope,
+    SignalConfidenceTier,
+    SignalPolarity,
+    assess_confidence,
+    build_evidence_payload,
+    detect_signal_conflicts,
+    resolve_signal_effective_polarity,
+)
 from cdb.services.signals.detected import (
     get_detected_signal_stats,
     list_detected_signals,
@@ -22,4 +32,12 @@ __all__ = [
     "list_detected_signals",
     "get_detected_signal_stats",
     "update_detected_signal",
+    "SIGNAL_CLASSIFICATION_RULES",
+    "ConflictScope",
+    "SignalConfidenceTier",
+    "SignalPolarity",
+    "assess_confidence",
+    "build_evidence_payload",
+    "detect_signal_conflicts",
+    "resolve_signal_effective_polarity",
 ]
