@@ -109,7 +109,7 @@ Pipeline & Engagements (CRM Lifecycle)       │
 * **Standard Business Event Ontology**: Formal catalog stored in a dedicated PostgreSQL dimension table (`signals`) tracking 6 high-impact commercial events.
 * **Dual-Sided Classifications**: Covers revenue expansion opportunities (`hiring_funding_event`, `expiring_contract`, `leadership_change`) and relationship churn risks (`dormant_strategic_account`, `unanswered_conversation`, `competitor_signal`).
 * **Intelligent Stateful Tagging (`detected_signals`)**: Bridge/fact table linking active signal events directly to Companies, Persons, Opportunities, Engagements, and triggering Activity evidence.
-* **Automated Detection Engine**: Idempotent scanner detecting dormant accounts, expiring contracts, dropped conversation threads, leadership transitions, and competitor threats.
+* **Automated Detection Engine**: Idempotent scanner detecting dormant accounts, expiring contracts, dropped conversation threads, leadership transitions, and competitor threats. Runs via on-demand API/UI sweeps as well as scheduled background execution via Celery Beat (every 6 hours).
 * **Triage Lifecycle & Playbooks**: Manage signal states (`active` ➔ `acknowledged` ➔ `actioned` / `dismissed`) with resolution notes and audit logging via `/api/v1/signals/detected`.
 * **Signals Radar & Triage Web UI (`/signals`)**: Live interactive dashboard featuring active radar KPI stats, one-click detection sweep trigger, multi-entity linking tags, triage action buttons (`Acknowledge`, `Take Action`, `Dismiss`), and visual catalog exploration.
 

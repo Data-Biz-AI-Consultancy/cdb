@@ -278,3 +278,9 @@ erDiagram
 * `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`).
 * `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, and signal type.
 * `PATCH /api/v1/signals/detected/{id}`: Update signal state (`acknowledged`, `actioned`, `dismissed`) with resolution notes.
+
+### Automated Background Execution (Celery Beat)
+* **Periodic Schedule**: Configured in `celery_app.py` under `evaluate-signals-periodic`.
+* **Cadence**: Runs automatically every `SIGNALS_EVALUATION_HOURS_INTERVAL` (default: 6 hours, configured in `config.py`).
+* **Worker Task**: `cdb.workers.tasks.evaluate_signals_background` runs `evaluate_all_signals` asynchronously via Celery worker without blocking the API or UI.
+

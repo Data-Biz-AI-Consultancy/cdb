@@ -26,6 +26,10 @@ celery_app.conf.update(
             "schedule": settings.NOTION_SYNC_HOURS_INTERVAL * 3600,
             "args": ("auto",),
         },
+        "evaluate-signals-periodic": {
+            "task": "cdb.workers.tasks.evaluate_signals_background",
+            "schedule": settings.SIGNALS_EVALUATION_HOURS_INTERVAL * 3600,
+        },
     },
 )
 

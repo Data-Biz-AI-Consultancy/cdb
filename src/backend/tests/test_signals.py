@@ -205,3 +205,18 @@ async def test_api_catalog_not_found(client: AsyncClient, auth_headers: dict[str
     assert "error" in body
     assert body["error"]["code"] == "NOT_FOUND"
     assert "unknown_signal" in body["error"]["message"]
+
+
+def test_celery_evaluate_signals_task_registration():
+    """Verify Celery task evaluate_signals_background is registered on celery_app and in beat_schedule."""
+    from cdb.workers.celery_app import celery_app
+    from cdb.workers.tasks import evaluate_signals_background
+
+    assert "cdb.workers.tasks.evaluate_signals_background" in celery_app.tasks
+    assert callable(evaluate_signals_background)
+
+    beat_schedule = celery_app.conf.beat_schedule
+    assert "evaluate-signals-periodic" in beat_schedule
+    entry = beat_schedule["evaluate-signals-periodic"]
+    assert entry["task"] == "cdb.workers.tasks.evaluate_signals_background"
+    assert entry["schedule"] == 6 * 3600
