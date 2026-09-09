@@ -266,5 +266,55 @@ describe('SignalsPage Component', () => {
       );
     });
   });
+
+  it('filters detected signals by signal type using the Signal: All Types dropdown', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+    });
+
+    const signalFilterSelect = screen.getByLabelText('Filter by Signal Type');
+
+    // Filter to dormant_strategic_accounts
+    fireEvent.change(signalFilterSelect, { target: { value: 'dormant_strategic_accounts' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.queryByText('Hiring Expansion: Beta Inc')).not.toBeInTheDocument();
+    });
+
+    // Reset back to All Types
+    fireEvent.change(signalFilterSelect, { target: { value: 'all' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+    });
+  });
+
+  it('resets active filters when clicking the Reset filters button', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+    });
+
+    const signalFilterSelect = screen.getByLabelText('Filter by Signal Type');
+    fireEvent.change(signalFilterSelect, { target: { value: 'dormant_strategic_accounts' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Reset filters')).toBeInTheDocument();
+      expect(screen.queryByText('Hiring Expansion: Beta Inc')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Reset filters'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+      expect(screen.queryByText('Reset filters')).not.toBeInTheDocument();
+    });
+  });
 });
 

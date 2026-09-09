@@ -98,6 +98,20 @@ export interface SignalEvaluationResult {
   by_signal: Record<string, number>;
 }
 
+const normalizeSlug = (slug?: string | null): string => {
+  if (!slug) return '';
+  return slug
+    .toLowerCase()
+    .trim()
+    .replace(/_accounts$/, '_account')
+    .replace(/_conversations$/, '_conversation')
+    .replace(/_contracts$/, '_contract')
+    .replace(/_changes$/, '_change')
+    .replace(/_events$/, '_event')
+    .replace(/_signals$/, '_signal')
+    .replace(/_or_funding_/, '_funding_');
+};
+
 export default function SignalsPage() {
   const [activeTab, setActiveTab] = useState<'triage' | 'conflicts' | 'uncertain' | 'catalog'>('triage');
   const [catalog, setCatalog] = useState<SignalDefinition[]>([]);
@@ -108,12 +122,22 @@ export default function SignalsPage() {
   const [evaluationBanner, setEvaluationBanner] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
-  // Filters for Triage feed
+  // Filters state
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('active');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [signalTypeFilter, setSignalTypeFilter] = useState<string>('all');
+
+  // Dynamic catalog options based on active category filter
+  const availableCatalog = useMemo(() => {
+    if (categoryFilter === 'all') return catalog;
+    return catalog.filter(
+      (def) =>
+        def.category?.toLowerCase() === categoryFilter.toLowerCase() ||
+        def.category?.toLowerCase() === 'hybrid'
+    );
+  }, [catalog, categoryFilter]);
 
   // Modal state for Action / Dismiss notes
   const [modalSignal, setModalSignal] = useState<DetectedSignal | null>(null);
@@ -242,8 +266,18 @@ export default function SignalsPage() {
         return false;
       }
       // Signal Type filter
-      if (signalTypeFilter !== 'all' && s.signal_id !== signalTypeFilter) {
-        return false;
+      if (signalTypeFilter !== 'all') {
+        const targetSlug = normalizeSlug(signalTypeFilter);
+        const sigSlug = normalizeSlug(s.signal_id);
+        const defSlug = normalizeSlug(s.signal?.id);
+        if (
+          s.signal_id !== signalTypeFilter &&
+          s.signal?.id !== signalTypeFilter &&
+          sigSlug !== targetSlug &&
+          defSlug !== targetSlug
+        ) {
+          return false;
+        }
       }
       // Search query
       if (searchQuery.trim()) {
@@ -584,7 +618,24 @@ export default function SignalsPage() {
 
               <select
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
+                onChange={(e) => {
+                  const newCat = e.target.value;
+                  setCategoryFilter(newCat);
+                  if (newCat !== 'all' && signalTypeFilter !== 'all') {
+                    const matched = catalog.find(
+                      (c) =>
+                        c.id === signalTypeFilter ||
+                        normalizeSlug(c.id) === normalizeSlug(signalTypeFilter)
+                    );
+                    if (
+                      matched &&
+                      matched.category?.toLowerCase() !== newCat.toLowerCase() &&
+                      matched.category?.toLowerCase() !== 'hybrid'
+                    ) {
+                      setSignalTypeFilter('all');
+                    }
+                  }
+                }}
                 className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="all">Category: All</option>
@@ -606,18 +657,50 @@ export default function SignalsPage() {
               </select>
 
               <select
+                id="signal-type-filter"
+                aria-label="Filter by Signal Type"
                 value={signalTypeFilter}
                 onChange={(e) => setSignalTypeFilter(e.target.value)}
                 className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="all">Signal: All Types</option>
-                <option value="dormant_strategic_accounts">Dormant Strategic Accounts</option>
-                <option value="unanswered_conversations">Unanswered Conversations</option>
-                <option value="expiring_contracts">Expiring Contracts</option>
-                <option value="leadership_changes">Leadership Changes</option>
-                <option value="hiring_or_funding_events">Hiring or Funding Events</option>
-                <option value="competitor_signals">Competitor Signals</option>
+                {availableCatalog && availableCatalog.length > 0 ? (
+                  availableCatalog.map((def) => (
+                    <option key={def.id} value={def.id}>
+                      {def.name}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="dormant_strategic_account">Dormant Strategic Account</option>
+                    <option value="unanswered_conversation">Unanswered Conversation</option>
+                    <option value="expiring_contract">Expiring Contract</option>
+                    <option value="leadership_change">Leadership Change</option>
+                    <option value="hiring_funding_event">Hiring or Funding Event</option>
+                    <option value="competitor_signal">Competitor Signal</option>
+                  </>
+                )}
               </select>
+
+              {(statusFilter !== 'active' ||
+                categoryFilter !== 'all' ||
+                severityFilter !== 'all' ||
+                signalTypeFilter !== 'all' ||
+                searchQuery.trim().length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('active');
+                    setCategoryFilter('all');
+                    setSeverityFilter('all');
+                    setSignalTypeFilter('all');
+                    setSearchQuery('');
+                  }}
+                  className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-dashed border-slate-300 transition-colors"
+                >
+                  Reset filters
+                </button>
+              )}
             </div>
           </div>
 
