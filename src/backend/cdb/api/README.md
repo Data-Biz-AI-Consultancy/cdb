@@ -1182,4 +1182,133 @@ Upload a CSV/XLSX batch. Multipart form:
 
 ---
 
-*See [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) for field definitions and [ENTITY_RESOLUTION_SPEC.md](ENTITY_RESOLUTION_SPEC.md) for ER logic.*
+## 12. Signals Catalog
+
+Catalog of business opportunity and risk event signals stored in the PostgreSQL `signals` dimension table.
+
+### `GET /signals/catalog`
+
+List signal catalog definitions with aggregated summary statistics.
+
+**Query params:**
+- `category` (`opportunity` | `risk` | `hybrid`)
+- `target_entity` (`company` | `person` | `opportunity` | `engagement`)
+- `severity` (`critical` | `high` | `medium` | `low`)
+- `active_only` (bool, default `true`)
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "dormant_strategic_account",
+      "name": "Dormant Strategic Account",
+      "category": "risk",
+      "target_entity": "company",
+      "severity": "high",
+      "detection_mechanism": "temporal_cadence",
+      "description": "Identifies valuable or strategic accounts with no recorded interactions over an extended period.",
+      "business_interpretation": "In consulting and advisory, repeat business and account expansion represent 60-80% of revenue...",
+      "parameters": {
+        "warning_days": 60,
+        "critical_days": 90,
+        "qualifying_criteria": ["has_signed_engagement", "has_closed_won_opportunity"]
+      },
+      "recommended_action": {
+        "playbook": "executive_touchpoint",
+        "action_type": "schedule_sync",
+        "title": "Schedule Executive Check-In or QBR",
+        "description": "Reach out to past client sponsors..."
+      },
+      "icon": "💤",
+      "color": "amber",
+      "is_active": true
+    }
+  ],
+  "summary": {
+    "total_signals": 6,
+    "by_category": { "risk": 3, "opportunity": 1, "hybrid": 2 },
+    "by_target_entity": { "company": 2, "person": 2, "engagement": 1, "opportunity": 1 },
+    "by_severity": { "high": 4, "critical": 1, "medium": 1 }
+  }
+}
+```
+
+### `GET /signals/catalog/{signal_id}`
+
+Retrieve the full definition, trigger thresholds, and action playbook for a specific signal.
+
+**Response 200:** Full `SignalDefinition` object.
+**Response 404:** `NOT_FOUND` if signal slug does not exist.
+
+### `POST /signals/evaluate`
+
+Triggers the automated Signal Detection Engine to scan all 6 catalog signals across all database entities. Idempotent on rerun.
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "evaluated_at": "2026-09-09T10:00:00Z",
+  "total_active_signals": 12,
+  "new_signals_detected": 4,
+  "refreshed_signals": 8,
+  "by_signal": {
+    "dormant_strategic_account": 3,
+    "unanswered_conversation": 2,
+    "expiring_contract": 1,
+    "leadership_change": 2,
+    "hiring_funding_event": 2,
+    "competitor_signal": 2
+  }
+}
+```
+
+### `GET /signals/detected/stats`
+
+Retrieve real-time aggregate count metrics of active detected signals by severity, category, and signal type.
+
+**Response 200:**
+```json
+{
+  "total_active": 12,
+  "by_severity": { "critical": 3, "high": 7, "medium": 2 },
+  "by_category": { "risk": 7, "opportunity": 3, "hybrid": 2 },
+  "by_signal": { "dormant_strategic_account": 3, "unanswered_conversation": 2, ... },
+  "by_status": { "active": 12, "acknowledged": 2, "actioned": 5 }
+}
+```
+
+### `GET /signals/detected`
+
+List detected signal event instances (paginated) with multi-dimensional filtering.
+
+**Query params:**
+- `signal_id`: Filter by signal slug ID
+- `category`: Filter by category (`opportunity`, `risk`, `hybrid`)
+- `status`: Filter by status (`active`, `acknowledged`, `actioned`, `dismissed`, `resolved`)
+- `severity`: Filter by severity (`critical`, `high`, `medium`, `low`)
+- `company_id`: Filter by company UUID
+- `person_id`: Filter by person UUID
+- `opportunity_id`: Filter by opportunity UUID
+- `engagement_id`: Filter by engagement UUID
+- `page`: 1-indexed page number (default: 1)
+- `page_size`: items per page (default: 50)
+
+### `PATCH /signals/detected/{signal_instance_id}`
+
+Update the lifecycle status and resolution notes of a detected signal.
+
+**Request:**
+```json
+{
+  "status": "actioned", // "acknowledged" | "actioned" | "dismissed" | "resolved"
+  "resolution_notes": "Scheduled QBR meeting with VP of Data"
+}
+```
+
+**Response 200:** Updated `DetectedSignalResponse` with `actioned_at` timestamp.
+
+---
+
+*See [Database Schema](src/backend/db/README.md) for field definitions and [Signal Catalog Specification](src/backend/cdb/services/signals/README.md) for business interpretation details.*

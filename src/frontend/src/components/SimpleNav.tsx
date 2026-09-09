@@ -67,6 +67,12 @@ export const NAV_GROUPS: NavGroup[] = [
         desc: 'Ongoing jobs with existing clients & activities',
         badge: 'New',
       },
+      {
+        href: '/signals',
+        label: 'Signals Radar',
+        desc: 'Opportunity & risk detection catalog and triage feed',
+        badge: 'Radar',
+      },
     ],
   },
   {

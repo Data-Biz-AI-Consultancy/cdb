@@ -720,4 +720,3 @@ async def test_backfill_notion_meeting_notes_into_activities(db_session: AsyncSe
     # Verify note4 existing activity had its title cleaned
     await db_session.refresh(existing_act)
     assert existing_act.title == "Sync Note"
-

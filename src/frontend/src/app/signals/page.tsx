@@ -1,0 +1,945 @@
+'use client';
+
+import { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
+import { apiFetch, ApiResponse } from '@/lib/api';
+
+export type SignalCategory = 'opportunity' | 'risk' | 'hybrid';
+export type SignalSeverity = 'critical' | 'high' | 'medium' | 'low';
+export type DetectedSignalStatus = 'active' | 'acknowledged' | 'actioned' | 'dismissed' | 'resolved';
+
+export interface RecommendedAction {
+  playbook?: string;
+  action_type?: string;
+  title?: string;
+  description?: string;
+}
+
+export interface SignalDefinition {
+  id: string;
+  name: string;
+  category: SignalCategory;
+  target_entity: string;
+  severity: SignalSeverity;
+  detection_mechanism: string;
+  description?: string | null;
+  business_interpretation: string;
+  parameters: Record<string, any>;
+  recommended_action: Record<string, any>;
+  icon?: string | null;
+  color?: string | null;
+  is_active: boolean;
+}
+
+export interface DetectedSignal {
+  id: string;
+  signal_id: string;
+  signal?: SignalDefinition | null;
+  company_id?: string | null;
+  company_name?: string | null;
+  person_id?: string | null;
+  person_name?: string | null;
+  opportunity_id?: string | null;
+  opportunity_title?: string | null;
+  engagement_id?: string | null;
+  engagement_title?: string | null;
+  activity_id?: string | null;
+  status: DetectedSignalStatus;
+  severity: SignalSeverity;
+  score?: number | null;
+  title: string;
+  summary?: string | null;
+  metadata?: Record<string, any>;
+  actioned_at?: string | null;
+  resolution_notes?: string | null;
+  detected_at: string;
+  expires_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SignalCatalogResponse {
+  data: SignalDefinition[];
+  summary: {
+    total_signals: number;
+    by_category: Record<string, number>;
+    by_target_entity: Record<string, number>;
+    by_severity: Record<string, number>;
+  };
+}
+
+export interface DetectedSignalStatsResponse {
+  total_active: number;
+  by_severity: Record<string, number>;
+  by_category: Record<string, number>;
+  by_signal: Record<string, number>;
+  by_status: Record<string, number>;
+}
+
+export interface SignalEvaluationResult {
+  status: string;
+  evaluated_at: string;
+  total_active_signals: number;
+  new_signals_detected: number;
+  refreshed_signals: number;
+  by_signal: Record<string, number>;
+}
+
+export default function SignalsPage() {
+  const [activeTab, setActiveTab] = useState<'triage' | 'catalog'>('triage');
+  const [catalog, setCatalog] = useState<SignalDefinition[]>([]);
+  const [signals, setSignals] = useState<DetectedSignal[]>([]);
+  const [stats, setStats] = useState<DetectedSignalStatsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evaluationBanner, setEvaluationBanner] = useState<string | null>(null);
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
+  // Filters for Triage feed
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('active');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
+  const [signalTypeFilter, setSignalTypeFilter] = useState<string>('all');
+
+  // Modal state for Action / Dismiss notes
+  const [modalSignal, setModalSignal] = useState<DetectedSignal | null>(null);
+  const [modalActionType, setModalActionType] = useState<'actioned' | 'dismissed' | null>(null);
+  const [resolutionNotes, setResolutionNotes] = useState('');
+
+  // Load initial data
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [catRes, sigRes, statRes] = await Promise.allSettled([
+        apiFetch<SignalCatalogResponse>('/api/v1/signals/catalog'),
+        apiFetch<ApiResponse<DetectedSignal[]>>('/api/v1/signals/detected?page_size=100'),
+        apiFetch<DetectedSignalStatsResponse>('/api/v1/signals/detected/stats'),
+      ]);
+
+      if (catRes.status === 'fulfilled' && catRes.value?.data) {
+        setCatalog(catRes.value.data);
+      }
+      if (sigRes.status === 'fulfilled' && sigRes.value?.data) {
+        setSignals(sigRes.value.data);
+      }
+      if (statRes.status === 'fulfilled' && statRes.value) {
+        setStats(statRes.value);
+      }
+    } catch (err) {
+      console.error('Failed to fetch signal radar data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Trigger evaluation
+  const handleRunEvaluation = async () => {
+    try {
+      setEvaluating(true);
+      setEvaluationBanner(null);
+      const res = await apiFetch<SignalEvaluationResult>('/api/v1/signals/evaluate', {
+        method: 'POST',
+      });
+      if (res) {
+        setEvaluationBanner(
+          `Radar sweep completed: ${res.new_signals_detected} new signals flagged, ${res.refreshed_signals} refreshed. Total active: ${res.total_active_signals}.`
+        );
+        await loadData();
+      }
+    } catch (err: any) {
+      setEvaluationBanner(`Evaluation failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  // State transitions
+  const handleAcknowledge = async (signalId: string) => {
+    try {
+      setActionInProgress(signalId);
+      await apiFetch(`/api/v1/signals/detected/${signalId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'acknowledged' }),
+      });
+      await loadData();
+    } catch (err) {
+      console.error('Failed to acknowledge signal:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleOpenActionModal = (signal: DetectedSignal, action: 'actioned' | 'dismissed') => {
+    setModalSignal(signal);
+    setModalActionType(action);
+    setResolutionNotes('');
+  };
+
+  const handleSaveModalAction = async () => {
+    if (!modalSignal || !modalActionType) return;
+    try {
+      setActionInProgress(modalSignal.id);
+      await apiFetch(`/api/v1/signals/detected/${modalSignal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: modalActionType,
+          resolution_notes: resolutionNotes.trim() || undefined,
+        }),
+      });
+      setModalSignal(null);
+      setModalActionType(null);
+      setResolutionNotes('');
+      await loadData();
+    } catch (err) {
+      console.error('Failed to update signal:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  // Filtered detected signals
+  const filteredSignals = useMemo(() => {
+    return signals.filter((s) => {
+      // Status filter
+      if (statusFilter !== 'all' && s.status !== statusFilter) {
+        return false;
+      }
+      // Category filter
+      const sCategory = s.signal?.category?.toLowerCase() || '';
+      if (categoryFilter !== 'all' && sCategory !== categoryFilter) {
+        return false;
+      }
+      // Severity filter
+      if (severityFilter !== 'all' && s.severity !== severityFilter) {
+        return false;
+      }
+      // Signal Type filter
+      if (signalTypeFilter !== 'all' && s.signal_id !== signalTypeFilter) {
+        return false;
+      }
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesTitle = s.title.toLowerCase().includes(q);
+        const matchesSummary = s.summary?.toLowerCase().includes(q) ?? false;
+        const matchesCompany = s.company_name?.toLowerCase().includes(q) ?? false;
+        const matchesPerson = s.person_name?.toLowerCase().includes(q) ?? false;
+        const matchesOpp = s.opportunity_title?.toLowerCase().includes(q) ?? false;
+        const matchesEng = s.engagement_title?.toLowerCase().includes(q) ?? false;
+        if (
+          !matchesTitle &&
+          !matchesSummary &&
+          !matchesCompany &&
+          !matchesPerson &&
+          !matchesOpp &&
+          !matchesEng
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [signals, statusFilter, categoryFilter, severityFilter, signalTypeFilter, searchQuery]);
+
+  // Badge stylings
+  const getSeverityBadge = (severity: SignalSeverity) => {
+    switch (severity) {
+      case 'critical':
+        return 'bg-rose-100 text-rose-800 border-rose-200 font-semibold';
+      case 'high':
+        return 'bg-amber-100 text-amber-800 border-amber-200 font-medium';
+      case 'medium':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'low':
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
+  const getCategoryBadge = (category: SignalCategory | string) => {
+    switch (category) {
+      case 'opportunity':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      case 'risk':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'hybrid':
+      default:
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+    }
+  };
+
+  const getStatusBadge = (status: DetectedSignalStatus) => {
+    switch (status) {
+      case 'active':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'acknowledged':
+        return 'bg-sky-50 text-sky-700 border-sky-200';
+      case 'actioned':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'dismissed':
+        return 'bg-slate-100 text-slate-600 border-slate-200';
+      default:
+        return 'bg-slate-50 text-slate-700 border-slate-200';
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Top Header Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-6 sm:p-8 text-white shadow-lg border border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold tracking-wider uppercase border border-emerald-500/30">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Intelligence Radar
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+              Opportunity & Risk Signals Radar
+            </h1>
+            <p className="text-sm sm:text-base text-slate-300 max-w-3xl leading-relaxed">
+              Automated multi-entity detection engine scanning dormant accounts, unanswered client
+              messages, contract renewal cliffs, executive departures, market funding, and competitor
+              displacements.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <button
+              onClick={handleRunEvaluation}
+              disabled={evaluating}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-900 font-semibold text-sm rounded-xl shadow-md transition duration-150 disabled:opacity-50 cursor-pointer"
+            >
+              {evaluating ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-slate-900"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Evaluating DB...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  Run Signal Detection
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Optional Feedback Alert Banner */}
+      {evaluationBanner && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-sm flex items-center justify-between shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-600 font-bold">✓</span>
+            <span>{evaluationBanner}</span>
+          </div>
+          <button
+            onClick={() => setEvaluationBanner(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs uppercase ml-4"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* KPI Stats Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Total Active Signals
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">
+              {stats?.total_active ?? signals.filter((s) => s.status === 'active').length}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">Requiring commercial attention</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-xl text-emerald-600">
+            📡
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Critical & High Risks
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-rose-600 mt-1">
+              {(stats?.by_severity?.critical ?? 0) + (stats?.by_severity?.high ?? 0)}
+            </p>
+            <p className="text-xs text-rose-500 mt-1">Urgent churn & dormant risks</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-xl text-rose-600">
+            ⚠️
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Active Opportunities
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-emerald-600 mt-1">
+              {stats?.by_category?.opportunity ?? 0}
+            </p>
+            <p className="text-xs text-emerald-600 mt-1">Hiring, funding & expansions</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-xl text-emerald-600">
+            🚀
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Resolved & Actioned
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-indigo-600 mt-1">
+              {(stats?.by_status?.actioned ?? 0) + (stats?.by_status?.acknowledged ?? 0)}
+            </p>
+            <p className="text-xs text-indigo-500 mt-1">Triaged by team</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xl text-indigo-600">
+            🎯
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs Navigation */}
+      <div className="border-b border-slate-200">
+        <nav className="flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('triage')}
+            className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
+              activeTab === 'triage'
+                ? 'border-emerald-500 text-emerald-600 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <span>Triage Feed & Live Alerts</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+              {filteredSignals.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('catalog')}
+            className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
+              activeTab === 'catalog'
+                ? 'border-emerald-500 text-emerald-600 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <span>Signal Dimension Catalog</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+              {catalog.length || 6}
+            </span>
+          </button>
+        </nav>
+      </div>
+
+      {/* TAB 1: TRIAGE FEED */}
+      {activeTab === 'triage' && (
+        <div className="space-y-6">
+          {/* Filter Toolbar */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Search signals by entity, title, or summary..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-slate-900"
+              />
+              <svg
+                className="w-4 h-4 text-slate-400 absolute left-3 top-2.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+
+            {/* Quick Filter Selectors */}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="active">Status: Active Only</option>
+                <option value="acknowledged">Status: Acknowledged</option>
+                <option value="actioned">Status: Actioned</option>
+                <option value="dismissed">Status: Dismissed</option>
+                <option value="all">Status: All Statuses</option>
+              </select>
+
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="all">Category: All</option>
+                <option value="opportunity">Opportunity</option>
+                <option value="risk">Risk</option>
+                <option value="hybrid">Hybrid</option>
+              </select>
+
+              <select
+                value={severityFilter}
+                onChange={(e) => setSeverityFilter(e.target.value)}
+                className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="all">Severity: All</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+
+              <select
+                value={signalTypeFilter}
+                onChange={(e) => setSignalTypeFilter(e.target.value)}
+                className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="all">Signal: All Types</option>
+                <option value="dormant_strategic_accounts">Dormant Strategic Accounts</option>
+                <option value="unanswered_conversations">Unanswered Conversations</option>
+                <option value="expiring_contracts">Expiring Contracts</option>
+                <option value="leadership_changes">Leadership Changes</option>
+                <option value="hiring_or_funding_events">Hiring or Funding Events</option>
+                <option value="competitor_signals">Competitor Signals</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Feed List */}
+          {loading ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-500">
+              <svg
+                className="animate-spin h-6 w-6 text-emerald-500 mx-auto mb-3"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              Scanning signal state across entities...
+            </div>
+          ) : filteredSignals.length === 0 ? (
+            <div className="bg-white rounded-xl border border-dashed border-slate-300 p-12 text-center">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-xl">
+                ✓
+              </div>
+              <h3 className="text-base font-medium text-slate-800">No signals matching filter</h3>
+              <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+                No detected signals match your current status or filter criteria. Click &quot;Run
+                Signal Detection&quot; to perform a fresh sweep.
+              </p>
+              <button
+                onClick={handleRunEvaluation}
+                className="mt-4 px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition"
+              >
+                Run Detection Sweep Now
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredSignals.map((sig) => (
+                <div
+                  key={sig.id}
+                  className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col md:flex-row gap-5 justify-between"
+                >
+                  <div className="space-y-3 flex-1">
+                    {/* Top Pills Row */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`text-xs px-2.5 py-0.5 rounded-full border ${getSeverityBadge(
+                          sig.severity
+                        )}`}
+                      >
+                        {sig.severity.toUpperCase()}
+                      </span>
+                      {sig.signal?.category && (
+                        <span
+                          className={`text-xs px-2.5 py-0.5 rounded-full border ${getCategoryBadge(
+                            sig.signal.category
+                          )}`}
+                        >
+                          {sig.signal.category}
+                        </span>
+                      )}
+                      <span
+                        className={`text-xs px-2.5 py-0.5 rounded-full border ${getStatusBadge(
+                          sig.status
+                        )}`}
+                      >
+                        {sig.status}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        Detected {new Date(sig.detected_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    {/* Title and Summary */}
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                        <span>{sig.signal?.icon || '⚡'}</span>
+                        <span>{sig.title}</span>
+                      </h3>
+                      {sig.summary && (
+                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">{sig.summary}</p>
+                      )}
+                    </div>
+
+                    {/* M:N Entity Tags Connection */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                      {sig.company_name && (
+                        <Link
+                          href={`/companies?search=${encodeURIComponent(sig.company_name)}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition font-medium"
+                        >
+                          <span>🏢</span>
+                          <span>{sig.company_name}</span>
+                        </Link>
+                      )}
+                      {sig.person_name && (
+                        <Link
+                          href={`/persons?search=${encodeURIComponent(sig.person_name)}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium"
+                        >
+                          <span>👤</span>
+                          <span>{sig.person_name}</span>
+                        </Link>
+                      )}
+                      {sig.opportunity_title && (
+                        <Link
+                          href={`/opportunities?search=${encodeURIComponent(
+                            sig.opportunity_title
+                          )}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition font-medium"
+                        >
+                          <span>💼</span>
+                          <span>{sig.opportunity_title}</span>
+                        </Link>
+                      )}
+                      {sig.engagement_title && (
+                        <Link
+                          href="/engagements"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition font-medium"
+                        >
+                          <span>📋</span>
+                          <span>{sig.engagement_title}</span>
+                        </Link>
+                      )}
+                      {sig.activity_id && (
+                        <Link
+                          href="/activities"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 transition"
+                        >
+                          <span>⚡ Evidence Touchpoint</span>
+                        </Link>
+                      )}
+                    </div>
+
+                    {/* Recommended Playbook Callout */}
+                    {sig.signal?.recommended_action?.title && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 space-y-1">
+                        <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                          <span>💡 Playbook:</span>
+                          <span>{sig.signal.recommended_action.title}</span>
+                        </div>
+                        {sig.signal.recommended_action.description && (
+                          <p className="text-slate-600">
+                            {sig.signal.recommended_action.description}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Resolution Notes (if completed) */}
+                    {sig.resolution_notes && (
+                      <div className="text-xs bg-emerald-50 border border-emerald-100 rounded-md p-2 text-emerald-800">
+                        <span className="font-semibold">Resolution Notes: </span>
+                        <span>{sig.resolution_notes}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Triage Action Column */}
+                  <div className="flex md:flex-col items-end justify-center gap-2 shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-5">
+                    {sig.status === 'active' && (
+                      <>
+                        <button
+                          onClick={() => handleAcknowledge(sig.id)}
+                          disabled={actionInProgress === sig.id}
+                          className="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-semibold transition cursor-pointer"
+                        >
+                          Acknowledge
+                        </button>
+                        <button
+                          onClick={() => handleOpenActionModal(sig, 'actioned')}
+                          disabled={actionInProgress === sig.id}
+                          className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
+                        >
+                          Take Action
+                        </button>
+                        <button
+                          onClick={() => handleOpenActionModal(sig, 'dismissed')}
+                          disabled={actionInProgress === sig.id}
+                          className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-medium transition cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                      </>
+                    )}
+
+                    {sig.status === 'acknowledged' && (
+                      <>
+                        <button
+                          onClick={() => handleOpenActionModal(sig, 'actioned')}
+                          disabled={actionInProgress === sig.id}
+                          className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
+                        >
+                          Take Action
+                        </button>
+                        <button
+                          onClick={() => handleOpenActionModal(sig, 'dismissed')}
+                          disabled={actionInProgress === sig.id}
+                          className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-medium transition cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                      </>
+                    )}
+
+                    {(sig.status === 'actioned' || sig.status === 'dismissed') && (
+                      <span className="text-xs font-medium text-slate-400 italic">
+                        Archived as {sig.status}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: SIGNAL DIMENSION CATALOG */}
+      {activeTab === 'catalog' && (
+        <div className="space-y-6">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-600 flex items-center justify-between">
+            <p>
+              The <strong>Signal Catalog</strong> acts as the central dimension table defining business
+              interpretations, detection mechanisms, and actionable playbooks across CDB entities.
+            </p>
+            <span className="text-xs font-semibold px-2.5 py-1 bg-white border border-slate-200 rounded-md text-slate-700">
+              6 Core Signals Active
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {catalog.map((def) => (
+              <div
+                key={def.id}
+                className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 flex flex-col justify-between hover:border-slate-300 transition"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl">{def.icon || '⚡'}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full border ${getSeverityBadge(
+                          def.severity
+                        )}`}
+                      >
+                        {def.severity}
+                      </span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full border ${getCategoryBadge(
+                          def.category
+                        )}`}
+                      >
+                        {def.category}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">{def.name}</h3>
+                    <p className="text-xs font-mono text-slate-400 mt-0.5">{def.id}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs text-slate-500 font-medium flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700">
+                        Target: {def.target_entity}
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700">
+                        {def.detection_mechanism.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <p className="text-xs font-semibold text-slate-800 uppercase tracking-wider mb-1">
+                        Business Interpretation
+                      </p>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {def.business_interpretation}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 space-y-2">
+                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-2.5 text-xs text-emerald-900 space-y-1">
+                    <p className="font-semibold flex items-center gap-1">
+                      <span>🎯</span>
+                      <span>Playbook: {def.recommended_action?.title || 'Next Action'}</span>
+                    </p>
+                    {def.recommended_action?.description && (
+                      <p className="text-emerald-800 text-xs">
+                        {def.recommended_action.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {def.parameters && Object.keys(def.parameters).length > 0 && (
+                    <div className="text-[11px] text-slate-400 font-mono">
+                      Params: {JSON.stringify(def.parameters)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Action / Dismiss Notes Modal */}
+      {modalSignal && modalActionType && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-900">
+                {modalActionType === 'actioned' ? 'Record Taken Action' : 'Dismiss Signal Alert'}
+              </h3>
+              <button
+                onClick={() => {
+                  setModalSignal(null);
+                  setModalActionType(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">
+                Signal:{' '}
+                <strong className="text-slate-800 font-semibold">{modalSignal.title}</strong>
+              </p>
+              <label className="block text-xs font-semibold text-slate-700">
+                {modalActionType === 'actioned'
+                  ? 'Resolution Notes / Commercial Next Step'
+                  : 'Reason for Dismissal'}
+              </label>
+              <textarea
+                rows={3}
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+                placeholder={
+                  modalActionType === 'actioned'
+                    ? 'e.g., Scheduled executive check-in for next Tuesday via email...'
+                    : 'e.g., False positive, contact already communicated via WhatsApp.'
+                }
+                className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-slate-900"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setModalSignal(null);
+                  setModalActionType(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveModalAction}
+                disabled={actionInProgress === modalSignal.id}
+                className={`px-4 py-2 text-xs font-semibold text-white rounded-lg transition shadow-sm cursor-pointer ${
+                  modalActionType === 'actioned'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-slate-800 hover:bg-slate-900'
+                }`}
+              >
+                {modalActionType === 'actioned' ? 'Mark as Actioned' : 'Dismiss Signal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

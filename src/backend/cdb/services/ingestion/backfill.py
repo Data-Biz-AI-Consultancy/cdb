@@ -472,7 +472,11 @@ async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dic
             if not matched_company_id:
                 for c in companies:
                     cname = (c.name or "").strip().lower()
-                    if cname and len(cname) >= 4 and cname not in ["data", "tech", "team", "consulting"]:
+                    if (
+                        cname
+                        and len(cname) >= 4
+                        and cname not in ["data", "tech", "team", "consulting"]
+                    ):
                         pattern = rf"\b{re.escape(cname)}\b"
                         if re.search(pattern, search_corpus):
                             matched_company_id = c.id
@@ -500,10 +504,15 @@ async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dic
                 if clean_title and existing_act.title != clean_title:
                     existing_act.title = clean_title
                     updated = True
-                if note.content and (not existing_act.summary or len(note.content) > len(existing_act.summary)):
+                if note.content and (
+                    not existing_act.summary or len(note.content) > len(existing_act.summary)
+                ):
                     existing_act.summary = note.content
                     updated = True
-                if note.content and (not existing_act.raw_content or len(note.content) > len(existing_act.raw_content)):
+                if note.content and (
+                    not existing_act.raw_content
+                    or len(note.content) > len(existing_act.raw_content)
+                ):
                     existing_act.raw_content = note.content
                     updated = True
                 if updated:

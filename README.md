@@ -64,8 +64,11 @@ Pipeline & Engagements (CRM Lifecycle)       │
     ├── Opportunities ───────────────────────┤
     │   (deals, pipeline & proposals)        │
     │                                        │
-    └── Engagements ─────────────────────────┘
-        (active jobs & client delivery)
+    ├── Engagements ─────────────────────────┤
+    │   (active jobs & client delivery)      │
+    │                                        │
+    └── Signals Radar ───────────────────────┘
+        (opportunity & risk detection triage)
 ```
 
 ---
@@ -102,6 +105,13 @@ Pipeline & Engagements (CRM Lifecycle)       │
 * **Deterministic Auto-Merge**: High-confidence exact matches (e.g. matching LinkedIn URL or verified primary email) auto-merge instantly.
 * **Interactive Review Queue**: Ambiguous pairs surface in the UI for side-by-side comparison, allowing one-click **Accept Merge** or **Keep Separate**.
 
+### 6. Opportunity & Risk Signal Catalog & Detection Engine (`signals` & `detected_signals`)
+* **Standard Business Event Ontology**: Formal catalog stored in a dedicated PostgreSQL dimension table (`signals`) tracking 6 high-impact commercial events.
+* **Dual-Sided Classifications**: Covers revenue expansion opportunities (`hiring_funding_event`, `expiring_contract`, `leadership_change`) and relationship churn risks (`dormant_strategic_account`, `unanswered_conversation`, `competitor_signal`).
+* **Intelligent Stateful Tagging (`detected_signals`)**: Bridge/fact table linking active signal events directly to Companies, Persons, Opportunities, Engagements, and triggering Activity evidence.
+* **Automated Detection Engine**: Idempotent scanner detecting dormant accounts, expiring contracts, dropped conversation threads, leadership transitions, and competitor threats. Runs via on-demand API/UI sweeps as well as scheduled background execution via Celery Beat (every 6 hours).
+* **Triage Lifecycle & Playbooks**: Manage signal states (`active` ➔ `acknowledged` ➔ `actioned` / `dismissed`) with resolution notes and audit logging via `/api/v1/signals/detected`.
+* **Signals Radar & Triage Web UI (`/signals`)**: Live interactive dashboard featuring active radar KPI stats, one-click detection sweep trigger, multi-entity linking tags, triage action buttons (`Acknowledge`, `Take Action`, `Dismiss`), and visual catalog exploration.
 
 ---
 
@@ -384,9 +394,10 @@ All core technical specifications are colocated directly alongside their respect
 
 | Document | Location | Purpose |
 |----------|----------|---------|
-| **Database Schema** | [`src/backend/db/README.md`](src/backend/db/README.md) | Authoritative PostgreSQL 16 schema reference (all 14 tables, triggers, indexes) |
+| **Database Schema** | [`src/backend/db/README.md`](src/backend/db/README.md) | Authoritative PostgreSQL 16 schema reference (core, junction, dimension tables, triggers, indexes) |
 | **API Specification** | [`src/backend/cdb/api/README.md`](src/backend/cdb/api/README.md) | REST API contracts, endpoints, error envelopes, and authentication |
 | **Entity Resolution Engine** | [`src/backend/cdb/services/entity_resolution/README.md`](src/backend/cdb/services/entity_resolution/README.md) | Normalization rules, matching signal hierarchy, and merge precedence |
+| **Opportunity & Risk Signal Catalog** | [`src/backend/cdb/services/signals/README.md`](src/backend/cdb/services/signals/README.md) | Commercial opportunity and churn risk taxonomy, business interpretations, and playbooks |
 | **Backend Architecture** | [`src/backend/README.md`](src/backend/README.md) | Clean Architecture layer structure, services, models, and workers |
 | **Frontend Architecture** | [`src/frontend/README.md`](src/frontend/README.md) | Next.js 15 App Router structure, categorized navigation, and state patterns |
 | **Scripts & DB Utilities** | [`scripts/README.md`](scripts/README.md) | Production-to-dev clone script and database operations |

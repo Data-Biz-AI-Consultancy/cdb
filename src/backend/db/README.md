@@ -116,6 +116,37 @@ erDiagram
         varchar role
     }
 
+    signals {
+        varchar id PK
+        varchar name
+        varchar category
+        varchar target_entity
+        varchar severity
+        varchar detection_mechanism
+        text business_interpretation
+        jsonb parameters
+        jsonb recommended_action
+        boolean is_active
+    }
+
+    detected_signals {
+        uuid id PK
+        varchar signal_id FK
+        uuid company_id FK
+        uuid person_id FK
+        uuid opportunity_id FK
+        uuid engagement_id FK
+        uuid activity_id FK
+        varchar status
+        varchar severity
+        numeric score
+        varchar title
+        text summary
+        jsonb metadata
+        timestamptz detected_at
+        timestamptz actioned_at
+    }
+
     intake_linkedin_connections {
         uuid id PK
         varchar connection_id
@@ -172,6 +203,14 @@ erDiagram
     opportunities                ||--o{ opportunity_companies         : "involves"
     persons                      ||--o{ opportunity_persons           : "linked via"
     companies                    ||--o{ opportunity_companies         : "linked via"
+
+    %% Signals relationships
+    signals                      ||--o{ detected_signals              : "classifies"
+    companies                    ||--o{ detected_signals              : "tagged on"
+    persons                      ||--o{ detected_signals              : "tagged on"
+    opportunities                ||--o{ detected_signals              : "tagged on"
+    engagements                  ||--o{ detected_signals              : "tagged on"
+    activities                   ||--o{ detected_signals              : "evidenced by"
 
     %% Intake → master resolution
     intake_linkedin_connections  }o--o| persons                       : "resolves to"
@@ -610,6 +649,78 @@ CREATE TABLE engagement_persons (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (engagement_id, person_id)
 );
+```
+
+### `signals`
+
+Dimension table cataloging opportunity and risk business event definitions, classification rules, trigger parameters, and recommended action playbooks.
+
+```sql
+CREATE TABLE signals (
+    id                      VARCHAR(50) PRIMARY KEY,              -- slug / code e.g. 'dormant_strategic_account'
+    name                    VARCHAR(100) NOT NULL,
+    category                VARCHAR(50) NOT NULL,                 -- 'opportunity' | 'risk' | 'hybrid'
+    target_entity           VARCHAR(50) NOT NULL,                 -- 'company' | 'person' | 'opportunity' | 'engagement'
+    severity                VARCHAR(50) NOT NULL DEFAULT 'medium',-- 'critical' | 'high' | 'medium' | 'low'
+    detection_mechanism     VARCHAR(50) NOT NULL DEFAULT 'deterministic_rule',
+                            -- 'deterministic_rule' | 'temporal_cadence' | 'text_pattern' | 'enrichment_feed'
+    description             TEXT,
+    business_interpretation TEXT NOT NULL,
+    parameters              JSONB NOT NULL DEFAULT '{}',          -- threshold days, keywords, qualifying conditions
+    recommended_action      JSONB NOT NULL DEFAULT '{}',          -- playbook, action_type, title, instructions
+    icon                    VARCHAR(50),                          -- e.g. '💤', '⏳', '📅', '🔄', '🚀', '⚔️'
+    color                   VARCHAR(50),                          -- e.g. 'amber', 'red', 'orange', 'blue', 'emerald', 'purple'
+    is_active               BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_signals_category      ON signals (category);
+CREATE INDEX idx_signals_target_entity ON signals (target_entity);
+CREATE INDEX idx_signals_is_active     ON signals (is_active);
+```
+
+### `detected_signals`
+
+Fact / bridge table linking detected signal events to core business entities (`companies`, `persons`, `opportunities`, `engagements`) and triggering evidence (`activities`).
+
+```sql
+CREATE TABLE detected_signals (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    signal_id        VARCHAR(50) NOT NULL REFERENCES signals(id) ON DELETE RESTRICT,
+    company_id       UUID REFERENCES companies(id) ON DELETE CASCADE,
+    person_id        UUID REFERENCES persons(id) ON DELETE CASCADE,
+    opportunity_id   UUID REFERENCES opportunities(id) ON DELETE CASCADE,
+    engagement_id    UUID REFERENCES engagements(id) ON DELETE CASCADE,
+    activity_id      UUID REFERENCES activities(id) ON DELETE SET NULL, -- triggering evidence touchpoint
+    status           VARCHAR(32) NOT NULL DEFAULT 'active', -- 'active' | 'acknowledged' | 'actioned' | 'dismissed' | 'resolved'
+    severity         VARCHAR(50) NOT NULL DEFAULT 'medium', -- 'critical' | 'high' | 'medium' | 'low'
+    score            NUMERIC(5, 2),                         -- confidence / urgency score (0-100)
+    title            VARCHAR(512) NOT NULL,
+    summary          TEXT,
+    metadata         JSONB NOT NULL DEFAULT '{}',           -- e.g. {"days_inactive": 72, "matched_phrase": "Series A"}
+    actioned_at      TIMESTAMPTZ,
+    actioned_by_id   UUID REFERENCES users(id) ON DELETE SET NULL,
+    resolution_notes TEXT,
+    detected_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at       TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT ck_detected_signals_target_required CHECK (
+        company_id IS NOT NULL OR person_id IS NOT NULL OR opportunity_id IS NOT NULL OR engagement_id IS NOT NULL
+    )
+);
+
+CREATE INDEX idx_detected_signals_signal_id      ON detected_signals (signal_id);
+CREATE INDEX idx_detected_signals_status         ON detected_signals (status);
+CREATE INDEX idx_detected_signals_severity       ON detected_signals (severity);
+CREATE INDEX idx_detected_signals_company_id     ON detected_signals (company_id);
+CREATE INDEX idx_detected_signals_person_id      ON detected_signals (person_id);
+CREATE INDEX idx_detected_signals_opportunity_id ON detected_signals (opportunity_id);
+CREATE INDEX idx_detected_signals_engagement_id  ON detected_signals (engagement_id);
+CREATE INDEX idx_detected_signals_activity_id    ON detected_signals (activity_id);
+CREATE INDEX idx_detected_signals_detected_at    ON detected_signals (detected_at);
 ```
 
 ---

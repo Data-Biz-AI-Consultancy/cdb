@@ -6,6 +6,7 @@ celery_app = Celery(
     "cdb_worker",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
+    include=["cdb.workers.tasks"],
 )
 
 celery_app.conf.update(
@@ -25,6 +26,10 @@ celery_app.conf.update(
             "schedule": settings.NOTION_SYNC_HOURS_INTERVAL * 3600,
             "args": ("auto",),
         },
+        "evaluate-signals-periodic": {
+            "task": "cdb.workers.tasks.evaluate_signals_background",
+            "schedule": settings.SIGNALS_EVALUATION_HOURS_INTERVAL * 3600,
+        },
     },
 )
 
@@ -32,3 +37,7 @@ celery_app.conf.update(
 @celery_app.task(name="health_check_task")
 def health_check_task() -> str:
     return "celery worker healthy"
+
+
+# Import tasks to ensure all task definitions are registered on this app instance
+import cdb.workers.tasks  # noqa: E402, F401

@@ -96,6 +96,9 @@ class Settings(BaseSettings):
         "3a36e98d4ef88084a1aec60052a3cb80",  # FaDi meeting notes
     ]
 
+    # Opportunity & Risk Signals Periodic Detection
+    SIGNALS_EVALUATION_HOURS_INTERVAL: int = 6
+
     # Optional Jager Database URL (for legacy data healing/migration)
     JAGER_DATABASE_URL: str | None = None
 
@@ -133,6 +136,7 @@ class Settings(BaseSettings):
             if v.startswith("["):
                 try:
                     import json
+
                     parsed = json.loads(v)
                     if isinstance(parsed, list):
                         return [str(x).strip() for x in parsed if str(x).strip()]

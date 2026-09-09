@@ -328,7 +328,9 @@ async def test_connectors_api_endpoints(client: AsyncClient):
     assert "configured" in data
 
     # Sync endpoint with mocked service
-    with patch("cdb.api.v1.connectors.LinkedInConnectorService.sync", new_callable=AsyncMock) as mock_sync:
+    with patch(
+        "cdb.api.v1.connectors.LinkedInConnectorService.sync", new_callable=AsyncMock
+    ) as mock_sync:
         mock_sync.return_value = {
             "status": "success",
             "messages_fetched": 10,
@@ -345,4 +347,3 @@ async def test_connectors_api_endpoints(client: AsyncClient):
         sync_data = resp.json()
         assert sync_data["status"] == "success"
         assert sync_data["conversations_ingested"] == 2
-

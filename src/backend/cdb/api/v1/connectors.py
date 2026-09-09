@@ -131,4 +131,3 @@ async def sync_notion_direct(
 
     service = NotionConnectorService()
     return await service.sync(db, source=source)
-
