@@ -1,3 +1,14 @@
+# [1.29.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.28.0...v1.29.0) (2026-09-10)
+
+
+### Features
+
+* add multi-criteria sorting functionality to the signals dashboard ([1abf251](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/1abf251a36e90d2840e28224bc030a7f003d026d))
+* add signal categorization logic and render reusable signal cards in the UI ([96a9a84](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/96a9a84499410da247818189544565ba31a9d498))
+* add signal detail page and update signal list UI with navigation links and compact styling ([39daaf3](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/39daaf32ed0843e0d4d5ac4094266de6f7593a6a))
+* implement dynamic signal type filtering, normalized slug matching, and a reset filters feature for the signals page ([ff1f918](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ff1f918ece400a8c20c9dd7d0da56c402ffe2da4))
+* implement signal confidence scoring, uncertainty tracking, and evidence payload generation for detection services ([bba68f7](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/bba68f7b288c54c4433298257e06af33061a4d73))
+
 # [1.28.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.27.0...v1.28.0) (2026-09-09)
 
 
