@@ -1329,6 +1329,13 @@ List detected signal event instances (paginated) with multi-dimensional filterin
 }
 ```
 
+### `GET /signals/detected/{signal_instance_id}`
+
+Retrieve full investigation details, structured supporting evidence, conflict analysis, and attached entities for a specific detected signal.
+
+**Response 200:** Complete `DetectedSignalResponse` object (identical to item shape in list response).
+**Response 404:** `NOT_FOUND` if signal instance does not exist.
+
 ### `PATCH /signals/detected/{signal_instance_id}`
 
 Update the lifecycle status and resolution notes of a detected signal.

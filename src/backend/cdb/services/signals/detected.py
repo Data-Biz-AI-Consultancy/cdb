@@ -196,6 +196,30 @@ async def get_detected_signal_stats(db: AsyncSession) -> DetectedSignalStatsResp
     )
 
 
+async def get_detected_signal(
+    db: AsyncSession,
+    signal_instance_id: uuid.UUID,
+) -> DetectedSignalResponse | None:
+    """
+    Retrieves a single detected signal by ID with eager-loaded relations.
+    """
+    stmt = (
+        select(DetectedSignal)
+        .where(DetectedSignal.id == signal_instance_id)
+        .options(
+            selectinload(DetectedSignal.signal),
+            selectinload(DetectedSignal.company),
+            selectinload(DetectedSignal.person),
+            selectinload(DetectedSignal.opportunity),
+            selectinload(DetectedSignal.engagement),
+        )
+    )
+    sig = (await db.execute(stmt)).scalar_one_or_none()
+    if not sig:
+        return None
+    return _to_detected_response(sig)
+
+
 async def update_detected_signal(
     db: AsyncSession,
     signal_instance_id: uuid.UUID,

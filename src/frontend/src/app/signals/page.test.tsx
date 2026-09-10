@@ -175,7 +175,7 @@ describe('SignalsPage Component', () => {
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
       expect(screen.getByText(/90% Confidence/)).toBeInTheDocument();
       expect(screen.getByText(/Opposing Signal Polarity Detected/)).toBeInTheDocument();
-      expect(screen.getByText(/No touchpoints recorded for 120 days on Acme Corp/)).toBeInTheDocument();
+      expect(screen.getAllByText(/View Details/)[0]).toBeInTheDocument();
       expect(screen.getAllByText('Acknowledge')[0]).toBeInTheDocument();
       expect(screen.getAllByText('Take Action')[0]).toBeInTheDocument();
       expect(screen.getAllByText('Dismiss')[0]).toBeInTheDocument();

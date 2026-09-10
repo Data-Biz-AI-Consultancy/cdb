@@ -201,6 +201,29 @@ async def list_detected_signals(
     )
 
 
+@router.get(
+    "/detected/{signal_instance_id}",
+    response_model=DetectedSignalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_detected_signal(
+    signal_instance_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> DetectedSignalResponse:
+    """
+    Retrieves the full details, evidence payload, conflict analysis, and entity associations
+    for a specific detected signal.
+    """
+    signal = await detected_signal_service.get_detected_signal(db, signal_instance_id)
+    if not signal:
+        raise NotFoundError(
+            message=f"Detected signal with id '{signal_instance_id}' not found",
+            details={"id": str(signal_instance_id)},
+        )
+    return signal
+
+
 @router.patch(
     "/detected/{signal_instance_id}",
     response_model=DetectedSignalResponse,

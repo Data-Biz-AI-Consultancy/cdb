@@ -464,15 +464,33 @@ async def test_api_signals_triage_flow(
     assert dismiss_res.status_code == 200
     assert dismiss_res.json()["status"] == "dismissed"
 
-    # 7. Patch non-existent signal returns 404
+    # 7. Get single detected signal by ID
+    get_res = await client.get(
+        f"/api/v1/signals/detected/{sig_id}",
+        headers=auth_headers,
+    )
+    assert get_res.status_code == 200
+    get_data = get_res.json()
+    assert get_data["id"] == sig_id
+    assert get_data["signal_id"] == list_body["data"][0]["signal_id"]
+    assert get_data["status"] == "dismissed"
+
+    # 8. Patch & Get non-existent signal returns 404
     fake_id = str(uuid.uuid4())
-    fake_res = await client.patch(
+    fake_patch = await client.patch(
         f"/api/v1/signals/detected/{fake_id}",
         headers=auth_headers,
         json={"status": "dismissed"},
     )
-    assert fake_res.status_code == 404
-    assert fake_res.json()["error"]["code"] == "NOT_FOUND"
+    assert fake_patch.status_code == 404
+    assert fake_patch.json()["error"]["code"] == "NOT_FOUND"
+
+    fake_get = await client.get(
+        f"/api/v1/signals/detected/{fake_id}",
+        headers=auth_headers,
+    )
+    assert fake_get.status_code == 404
+    assert fake_get.json()["error"]["code"] == "NOT_FOUND"
 
 
 @pytest.mark.asyncio
@@ -480,6 +498,7 @@ async def test_detected_signal_service_direct_filters_and_updates(db_session: As
     """Directly test detected_signals service methods: stats, multi-filter querying, and state updates."""
     from cdb.schemas.signals import DetectedSignalStatus, DetectedSignalUpdate
     from cdb.services.signals.detected import (
+        get_detected_signal,
         get_detected_signal_stats,
         list_detected_signals,
         update_detected_signal,
@@ -561,6 +580,16 @@ async def test_detected_signal_service_direct_filters_and_updates(db_session: As
     assert act_res is not None
     assert act_res.status == DetectedSignalStatus.ACTIONED
     assert act_res.actioned_at is not None
+
+    # Test get_detected_signal directly
+    single_sig = await get_detected_signal(db_session, target_sig.id)
+    assert single_sig is not None
+    assert single_sig.id == target_sig.id
+    assert single_sig.signal_id == "expiring_contract"
+    assert single_sig.company_name == "Direct Service Corp"
+
+    none_sig = await get_detected_signal(db_session, uuid.uuid4())
+    assert none_sig is None
 
     # Test update nonexistent signal returns None
     none_res = await update_detected_signal(

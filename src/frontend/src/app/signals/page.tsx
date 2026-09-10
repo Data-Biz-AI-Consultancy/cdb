@@ -747,17 +747,17 @@ export default function SignalsPage() {
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {filteredSignals.map((sig) => (
                 <div
                   key={sig.id}
-                  className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col md:flex-row gap-5 justify-between"
+                  className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
-                  <div className="space-y-3 flex-1">
-                    {/* Top Pills Row */}
+                  <div className="space-y-2 flex-1 min-w-0">
+                    {/* Top Status & Indicator Badges */}
                     <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full border ${getSeverityBadge(
+                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${getSeverityBadge(
                           sig.severity
                         )}`}
                       >
@@ -781,7 +781,7 @@ export default function SignalsPage() {
                       </span>
                       {sig.confidence_score !== undefined && sig.confidence_score !== null && (
                         <span
-                          className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${
+                          className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
                             (sig.confidence_score >= 0.8 || sig.confidence_tier === 'high')
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                               : (sig.confidence_score >= 0.5 || sig.confidence_tier === 'medium')
@@ -793,85 +793,44 @@ export default function SignalsPage() {
                         </span>
                       )}
                       {sig.has_conflict && (
-                        <span className="text-xs px-2.5 py-0.5 rounded-full border bg-rose-100 text-rose-800 border-rose-300 font-semibold flex items-center gap-1">
+                        <span className="text-xs px-2.5 py-0.5 rounded-full border bg-rose-50 text-rose-700 border-rose-200 font-semibold flex items-center gap-1">
                           <span>⚠️</span>
-                          <span>Conflicting Signals</span>
+                          <span>Opposing Signal Polarity Detected</span>
                         </span>
                       )}
                       {sig.is_uncertain && (
-                        <span className="text-xs px-2.5 py-0.5 rounded-full border bg-amber-100 text-amber-800 border-amber-300 font-semibold flex items-center gap-1">
+                        <span className="text-xs px-2.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200 font-semibold flex items-center gap-1">
                           <span>🔍</span>
-                          <span>Needs Verification</span>
+                          <span>Classification Uncertainty — Verification Recommended</span>
                         </span>
                       )}
                       <span className="text-xs text-slate-400">
-                        Detected {new Date(sig.detected_at).toLocaleDateString()}
+                        {new Date(sig.detected_at).toLocaleDateString()}
                       </span>
                     </div>
 
-                    {/* Title and Summary */}
+                    {/* Title and Short Summary */}
                     <div>
-                      <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                        <span>{sig.signal?.icon || '⚡'}</span>
-                        <span>{sig.title}</span>
-                      </h3>
+                      <Link
+                        href={`/signals/${sig.id}`}
+                        className="text-base font-semibold text-slate-900 hover:text-emerald-600 transition flex items-center gap-2 group"
+                      >
+                        <span className="text-lg">{sig.signal?.icon || '⚡'}</span>
+                        <span className="group-hover:underline">{sig.title}</span>
+                      </Link>
                       {sig.summary && (
-                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">{sig.summary}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                          {sig.summary}
+                        </p>
                       )}
                     </div>
 
-                    {/* Conflict Alert Banner */}
-                    {sig.has_conflict && sig.conflict_summary && (
-                      <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-xs text-rose-900 space-y-1">
-                        <div className="font-semibold flex items-center gap-1.5 text-rose-800">
-                          <span>⚠️</span>
-                          <span>Opposing Signal Polarity Detected ({sig.conflict_scope || 'entity'} level)</span>
-                        </div>
-                        <p className="text-rose-700 leading-relaxed">{sig.conflict_summary}</p>
-                      </div>
-                    )}
-
-                    {/* Classification Uncertainty Callout */}
-                    {sig.is_uncertain && sig.uncertainty_reasons && sig.uncertainty_reasons.length > 0 && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 space-y-1">
-                        <div className="font-semibold flex items-center gap-1.5 text-amber-800">
-                          <span>🔍</span>
-                          <span>Classification Uncertainty — Verification Recommended</span>
-                        </div>
-                        <ul className="list-disc list-inside text-amber-700 space-y-0.5">
-                          {sig.uncertainty_reasons.map((r, idx) => (
-                            <li key={idx}>{r}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Supporting Evidence Contract */}
-                    {sig.evidence && (
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 space-y-1.5">
-                        <div className="flex items-center justify-between text-slate-500 font-medium">
-                          <span className="flex items-center gap-1">
-                            <span>📋</span>
-                            <span>Supporting Evidence ({String(sig.evidence.evidence_type || 'interaction').replace(/_/g, ' ')})</span>
-                          </span>
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-slate-200/70 text-slate-600 capitalize">
-                            {sig.evidence.verification_status || 'verified'}
-                          </span>
-                        </div>
-                        {sig.evidence.excerpt && (
-                          <p className="font-mono text-[11px] bg-white border border-slate-200 rounded px-2.5 py-1.5 text-slate-800">
-                            &ldquo;{sig.evidence.excerpt}&rdquo;
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* M:N Entity Tags Connection */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                    {/* Compact Entity Link Tags */}
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
                       {sig.company_name && (
                         <Link
                           href={`/companies?search=${encodeURIComponent(sig.company_name)}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition font-medium"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition font-medium"
                         >
                           <span>🏢</span>
                           <span>{sig.company_name}</span>
@@ -880,7 +839,7 @@ export default function SignalsPage() {
                       {sig.person_name && (
                         <Link
                           href={`/persons?search=${encodeURIComponent(sig.person_name)}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium"
                         >
                           <span>👤</span>
                           <span>{sig.person_name}</span>
@@ -888,107 +847,85 @@ export default function SignalsPage() {
                       )}
                       {sig.opportunity_title && (
                         <Link
-                          href={`/opportunities?search=${encodeURIComponent(
-                            sig.opportunity_title
-                          )}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition font-medium"
+                          href={`/opportunities?search=${encodeURIComponent(sig.opportunity_title)}`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition font-medium"
                         >
                           <span>💼</span>
-                          <span>{sig.opportunity_title}</span>
+                          <span className="truncate max-w-[160px]">{sig.opportunity_title}</span>
                         </Link>
                       )}
                       {sig.engagement_title && (
                         <Link
                           href="/engagements"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition font-medium"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition font-medium"
                         >
                           <span>📋</span>
-                          <span>{sig.engagement_title}</span>
-                        </Link>
-                      )}
-                      {sig.activity_id && (
-                        <Link
-                          href="/activities"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 transition"
-                        >
-                          <span>⚡ Evidence Touchpoint</span>
+                          <span className="truncate max-w-[160px]">{sig.engagement_title}</span>
                         </Link>
                       )}
                     </div>
-
-                    {/* Recommended Playbook Callout */}
-                    {sig.signal?.recommended_action?.title && (
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 space-y-1">
-                        <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                          <span>💡 Playbook:</span>
-                          <span>{sig.signal.recommended_action.title}</span>
-                        </div>
-                        {sig.signal.recommended_action.description && (
-                          <p className="text-slate-600">
-                            {sig.signal.recommended_action.description}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Resolution Notes (if completed) */}
-                    {sig.resolution_notes && (
-                      <div className="text-xs bg-emerald-50 border border-emerald-100 rounded-md p-2 text-emerald-800">
-                        <span className="font-semibold">Resolution Notes: </span>
-                        <span>{sig.resolution_notes}</span>
-                      </div>
-                    )}
                   </div>
 
-                  {/* Triage Action Column */}
-                  <div className="flex md:flex-col items-end justify-center gap-2 shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-5">
+                  {/* Actions Column */}
+                  <div className="flex items-center md:flex-col md:items-end justify-end gap-2 shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-4">
+                    <Link
+                      href={`/signals/${sig.id}`}
+                      className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-sm whitespace-nowrap"
+                    >
+                      <span>View Details</span>
+                      <span>→</span>
+                    </Link>
+
                     {sig.status === 'active' && (
-                      <>
+                      <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => handleAcknowledge(sig.id)}
                           disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-semibold transition cursor-pointer"
+                          className="px-2.5 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+                          title="Mark as Acknowledged"
                         >
                           Acknowledge
                         </button>
                         <button
                           onClick={() => handleOpenActionModal(sig, 'actioned')}
                           disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
+                          className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+                          title="Record Action"
                         >
                           Take Action
                         </button>
                         <button
                           onClick={() => handleOpenActionModal(sig, 'dismissed')}
                           disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-medium transition cursor-pointer"
+                          className="px-2 py-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs transition cursor-pointer"
+                          title="Dismiss Signal"
                         >
                           Dismiss
                         </button>
-                      </>
+                      </div>
                     )}
 
                     {sig.status === 'acknowledged' && (
-                      <>
+                      <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => handleOpenActionModal(sig, 'actioned')}
                           disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
+                          className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
                         >
                           Take Action
                         </button>
                         <button
                           onClick={() => handleOpenActionModal(sig, 'dismissed')}
                           disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-medium transition cursor-pointer"
+                          className="px-2 py-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs transition cursor-pointer"
                         >
                           Dismiss
                         </button>
-                      </>
+                      </div>
                     )}
 
                     {(sig.status === 'actioned' || sig.status === 'dismissed') && (
-                      <span className="text-xs font-medium text-slate-400 italic">
+                      <span className="text-[11px] font-medium text-slate-400 italic">
                         Archived as {sig.status}
                       </span>
                     )}
