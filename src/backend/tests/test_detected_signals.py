@@ -598,3 +598,78 @@ async def test_detected_signal_service_direct_filters_and_updates(db_session: As
         DetectedSignalUpdate(status=DetectedSignalStatus.DISMISSED),
     )
     assert none_res is None
+
+
+@pytest.mark.asyncio
+async def test_api_detected_signals_crud(
+    client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession
+):
+    """Test HTTP API routes for detected signals (list, get, patch, stats, 404s)."""
+    await ensure_signals_dimension(db_session)
+    now = datetime.datetime.now(datetime.UTC)
+
+    # Seed an entity and detect a signal
+    company = Company(name="API Test Corp", domain="apitest.com")
+    db_session.add(company)
+    await db_session.flush()
+
+    activity = Activity(
+        company_id=company.id,
+        type="news",
+        source="crunchbase",
+        occurred_at=now - datetime.timedelta(days=2),
+        title="Series B Funding",
+        raw_content="API Test Corp secured 25M Series B funding",
+    )
+    db_session.add(activity)
+    await db_session.commit()
+
+    eval_res = await evaluate_all_signals(db_session)
+    assert eval_res["status"] == "success"
+
+    # 1. GET /api/v1/signals/detected (list)
+    list_res = await client.get("/api/v1/signals/detected", headers=auth_headers)
+    assert list_res.status_code == 200
+    list_data = list_res.json()
+    assert "data" in list_data
+    assert len(list_data["data"]) >= 1
+    sig_id = list_data["data"][0]["id"]
+
+    # 2. GET /api/v1/signals/detected/{id} (found)
+    detail_res = await client.get(f"/api/v1/signals/detected/{sig_id}", headers=auth_headers)
+    assert detail_res.status_code == 200
+    detail_data = detail_res.json()
+    assert detail_data["id"] == sig_id
+    assert "title" in detail_data
+    assert "severity" in detail_data
+
+    # 3. GET /api/v1/signals/detected/{id} (404)
+    fake_id = str(uuid.uuid4())
+    not_found_res = await client.get(f"/api/v1/signals/detected/{fake_id}", headers=auth_headers)
+    assert not_found_res.status_code == 404
+
+    # 4. PATCH /api/v1/signals/detected/{id} (success)
+    patch_res = await client.patch(
+        f"/api/v1/signals/detected/{sig_id}",
+        headers=auth_headers,
+        json={"status": "actioned", "resolution_notes": "Outreach planned by AE"},
+    )
+    assert patch_res.status_code == 200
+    patched_data = patch_res.json()
+    assert patched_data["status"] == "actioned"
+    assert patched_data["resolution_notes"] == "Outreach planned by AE"
+
+    # 5. PATCH /api/v1/signals/detected/{id} (404)
+    patch_404 = await client.patch(
+        f"/api/v1/signals/detected/{fake_id}",
+        headers=auth_headers,
+        json={"status": "dismissed"},
+    )
+    assert patch_404.status_code == 404
+
+    # 6. GET /api/v1/signals/detected/stats
+    stats_res = await client.get("/api/v1/signals/detected/stats", headers=auth_headers)
+    assert stats_res.status_code == 200
+    stats_data = stats_res.json()
+    assert "total_active" in stats_data
+    assert "by_severity" in stats_data
