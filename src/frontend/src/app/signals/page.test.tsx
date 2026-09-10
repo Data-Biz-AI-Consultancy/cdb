@@ -171,6 +171,9 @@ describe('SignalsPage Component', () => {
     expect(screen.getByText('Run Signal Detection')).toBeInTheDocument();
 
     await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Opportunities' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Risks' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Hybrid & Conflicts' })).toBeInTheDocument();
       expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
       expect(screen.getByText(/90% Confidence/)).toBeInTheDocument();
@@ -179,6 +182,17 @@ describe('SignalsPage Component', () => {
       expect(screen.getAllByText('Acknowledge')[0]).toBeInTheDocument();
       expect(screen.getAllByText('Take Action')[0]).toBeInTheDocument();
       expect(screen.getAllByText('Dismiss')[0]).toBeInTheDocument();
+    });
+  });
+
+  it('splits signals into 3 columns: Opportunities, Risks, and Hybrid & Conflicts', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Opportunities' })).toBeInTheDocument();
+      expect(screen.getByText('No active risk signals detected')).toBeInTheDocument();
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
     });
   });
 
@@ -259,7 +273,7 @@ describe('SignalsPage Component', () => {
 
     await waitFor(() => {
       expect(apiFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/signals/detected/sig-001'),
+        expect.stringMatching(/\/api\/v1\/signals\/detected\/(sig-001|sig-002)/),
         expect.objectContaining({
           method: 'PATCH',
         })

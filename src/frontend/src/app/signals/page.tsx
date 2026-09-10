@@ -303,6 +303,33 @@ export default function SignalsPage() {
     });
   }, [signals, activeTab, statusFilter, categoryFilter, severityFilter, signalTypeFilter, searchQuery]);
 
+  const opportunitySignals = useMemo(() => {
+    return filteredSignals.filter(
+      (s) =>
+        !s.has_conflict &&
+        (s.signal?.category?.toLowerCase() === 'opportunity' ||
+          (s as any).category?.toLowerCase() === 'opportunity')
+    );
+  }, [filteredSignals]);
+
+  const riskSignals = useMemo(() => {
+    return filteredSignals.filter(
+      (s) =>
+        !s.has_conflict &&
+        (s.signal?.category?.toLowerCase() === 'risk' ||
+          (s as any).category?.toLowerCase() === 'risk')
+    );
+  }, [filteredSignals]);
+
+  const hybridSignals = useMemo(() => {
+    return filteredSignals.filter(
+      (s) =>
+        s.has_conflict ||
+        s.signal?.category?.toLowerCase() === 'hybrid' ||
+        (s as any).category?.toLowerCase() === 'hybrid'
+    );
+  }, [filteredSignals]);
+
   // Badge stylings
   const getSeverityBadge = (severity: SignalSeverity) => {
     switch (severity) {
@@ -343,6 +370,200 @@ export default function SignalsPage() {
       default:
         return 'bg-slate-50 text-slate-700 border-slate-200';
     }
+  };
+
+  const renderSignalCard = (sig: DetectedSignal, columnVariant: 'opportunity' | 'risk' | 'hybrid') => {
+    const borderAccent =
+      columnVariant === 'opportunity'
+        ? 'border-l-4 border-l-emerald-500'
+        : columnVariant === 'risk'
+        ? 'border-l-4 border-l-rose-500'
+        : 'border-l-4 border-l-amber-500';
+
+    return (
+      <div
+        key={sig.id}
+        className={`bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition p-4 flex flex-col justify-between gap-3 ${borderAccent}`}
+      >
+        <div className="space-y-2 min-w-0">
+          {/* Top Status & Indicator Badges */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${getSeverityBadge(
+                sig.severity
+              )}`}
+            >
+              {sig.severity.toUpperCase()}
+            </span>
+            {sig.signal?.category && (
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full border ${getCategoryBadge(
+                  sig.signal.category
+                )}`}
+              >
+                {sig.signal.category}
+              </span>
+            )}
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full border ${getStatusBadge(
+                sig.status
+              )}`}
+            >
+              {sig.status}
+            </span>
+            {sig.confidence_score !== undefined && sig.confidence_score !== null && (
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${
+                  sig.confidence_score >= 0.8 || sig.confidence_tier === 'high'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                    : sig.confidence_score >= 0.5 || sig.confidence_tier === 'medium'
+                    ? 'bg-amber-50 text-amber-700 border-amber-300'
+                    : 'bg-rose-50 text-rose-700 border-rose-300'
+                }`}
+              >
+                🎯 {Math.round(sig.confidence_score * 100)}% Confidence
+              </span>
+            )}
+            {sig.has_conflict && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full border bg-rose-50 text-rose-700 border-rose-200 font-semibold flex items-center gap-1">
+                <span>⚠️</span>
+                <span>Opposing Signal Polarity Detected</span>
+              </span>
+            )}
+            {sig.is_uncertain && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200 font-semibold flex items-center gap-1">
+                <span>🔍</span>
+                <span>Classification Uncertainty — Verification Recommended</span>
+              </span>
+            )}
+            <span className="text-[11px] text-slate-400">
+              {new Date(sig.detected_at).toLocaleDateString()}
+            </span>
+          </div>
+
+          {/* Title and Short Summary */}
+          <div>
+            <Link
+              href={`/signals/${sig.id}`}
+              className="text-sm sm:text-base font-semibold text-slate-900 hover:text-emerald-600 transition flex items-center gap-1.5 group"
+            >
+              <span className="text-base">{sig.signal?.icon || '⚡'}</span>
+              <span className="group-hover:underline">{sig.title}</span>
+            </Link>
+            {sig.summary && (
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                {sig.summary}
+              </p>
+            )}
+          </div>
+
+          {/* Compact Entity Link Tags */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
+            {sig.company_name && (
+              <Link
+                href={`/companies?search=${encodeURIComponent(sig.company_name)}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition font-medium text-[11px]"
+              >
+                <span>🏢</span>
+                <span className="truncate max-w-[140px]">{sig.company_name}</span>
+              </Link>
+            )}
+            {sig.person_name && (
+              <Link
+                href={`/persons?search=${encodeURIComponent(sig.person_name)}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium text-[11px]"
+              >
+                <span>👤</span>
+                <span className="truncate max-w-[140px]">{sig.person_name}</span>
+              </Link>
+            )}
+            {sig.opportunity_title && (
+              <Link
+                href={`/opportunities?search=${encodeURIComponent(sig.opportunity_title)}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition font-medium text-[11px]"
+              >
+                <span>💼</span>
+                <span className="truncate max-w-[140px]">{sig.opportunity_title}</span>
+              </Link>
+            )}
+            {sig.engagement_title && (
+              <Link
+                href="/engagements"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition font-medium text-[11px]"
+              >
+                <span>📋</span>
+                <span className="truncate max-w-[140px]">{sig.engagement_title}</span>
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Card Actions Footer */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 mt-1">
+          <Link
+            href={`/signals/${sig.id}`}
+            className="px-2.5 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-sm whitespace-nowrap"
+          >
+            <span>View Details</span>
+            <span>→</span>
+          </Link>
+
+          {sig.status === 'active' && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleAcknowledge(sig.id)}
+                disabled={actionInProgress === sig.id}
+                className="px-2 py-1 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+                title="Mark as Acknowledged"
+              >
+                Acknowledge
+              </button>
+              <button
+                onClick={() => handleOpenActionModal(sig, 'actioned')}
+                disabled={actionInProgress === sig.id}
+                className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+                title="Record Action"
+              >
+                Take Action
+              </button>
+              <button
+                onClick={() => handleOpenActionModal(sig, 'dismissed')}
+                disabled={actionInProgress === sig.id}
+                className="px-1.5 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs transition cursor-pointer"
+                title="Dismiss Signal"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {sig.status === 'acknowledged' && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleOpenActionModal(sig, 'actioned')}
+                disabled={actionInProgress === sig.id}
+                className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+              >
+                Take Action
+              </button>
+              <button
+                onClick={() => handleOpenActionModal(sig, 'dismissed')}
+                disabled={actionInProgress === sig.id}
+                className="px-1.5 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs transition cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {(sig.status === 'actioned' || sig.status === 'dismissed') && (
+            <span className="text-[11px] font-medium text-slate-400 italic">
+              Archived as {sig.status}
+            </span>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -747,191 +968,90 @@ export default function SignalsPage() {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredSignals.map((sig) => (
-                <div
-                  key={sig.id}
-                  className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-2 flex-1 min-w-0">
-                    {/* Top Status & Indicator Badges */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${getSeverityBadge(
-                          sig.severity
-                        )}`}
-                      >
-                        {sig.severity.toUpperCase()}
-                      </span>
-                      {sig.signal?.category && (
-                        <span
-                          className={`text-xs px-2.5 py-0.5 rounded-full border ${getCategoryBadge(
-                            sig.signal.category
-                          )}`}
-                        >
-                          {sig.signal.category}
-                        </span>
-                      )}
-                      <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full border ${getStatusBadge(
-                          sig.status
-                        )}`}
-                      >
-                        {sig.status}
-                      </span>
-                      {sig.confidence_score !== undefined && sig.confidence_score !== null && (
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                            (sig.confidence_score >= 0.8 || sig.confidence_tier === 'high')
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                              : (sig.confidence_score >= 0.5 || sig.confidence_tier === 'medium')
-                              ? 'bg-amber-50 text-amber-700 border-amber-300'
-                              : 'bg-rose-50 text-rose-700 border-rose-300'
-                          }`}
-                        >
-                          🎯 {Math.round(sig.confidence_score * 100)}% Confidence
-                        </span>
-                      )}
-                      {sig.has_conflict && (
-                        <span className="text-xs px-2.5 py-0.5 rounded-full border bg-rose-50 text-rose-700 border-rose-200 font-semibold flex items-center gap-1">
-                          <span>⚠️</span>
-                          <span>Opposing Signal Polarity Detected</span>
-                        </span>
-                      )}
-                      {sig.is_uncertain && (
-                        <span className="text-xs px-2.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200 font-semibold flex items-center gap-1">
-                          <span>🔍</span>
-                          <span>Classification Uncertainty — Verification Recommended</span>
-                        </span>
-                      )}
-                      <span className="text-xs text-slate-400">
-                        {new Date(sig.detected_at).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    {/* Title and Short Summary */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              {/* Column 1: Opportunities */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🟢</span>
                     <div>
-                      <Link
-                        href={`/signals/${sig.id}`}
-                        className="text-base font-semibold text-slate-900 hover:text-emerald-600 transition flex items-center gap-2 group"
-                      >
-                        <span className="text-lg">{sig.signal?.icon || '⚡'}</span>
-                        <span className="group-hover:underline">{sig.title}</span>
-                      </Link>
-                      {sig.summary && (
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
-                          {sig.summary}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Compact Entity Link Tags */}
-                    <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
-                      {sig.company_name && (
-                        <Link
-                          href={`/companies?search=${encodeURIComponent(sig.company_name)}`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition font-medium"
-                        >
-                          <span>🏢</span>
-                          <span>{sig.company_name}</span>
-                        </Link>
-                      )}
-                      {sig.person_name && (
-                        <Link
-                          href={`/persons?search=${encodeURIComponent(sig.person_name)}`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium"
-                        >
-                          <span>👤</span>
-                          <span>{sig.person_name}</span>
-                        </Link>
-                      )}
-                      {sig.opportunity_title && (
-                        <Link
-                          href={`/opportunities?search=${encodeURIComponent(sig.opportunity_title)}`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition font-medium"
-                        >
-                          <span>💼</span>
-                          <span className="truncate max-w-[160px]">{sig.opportunity_title}</span>
-                        </Link>
-                      )}
-                      {sig.engagement_title && (
-                        <Link
-                          href="/engagements"
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition font-medium"
-                        >
-                          <span>📋</span>
-                          <span className="truncate max-w-[160px]">{sig.engagement_title}</span>
-                        </Link>
-                      )}
+                      <h2 className="text-sm font-bold text-emerald-900">Opportunities</h2>
+                      <p className="text-[11px] text-emerald-700 font-medium">
+                        Upside, Expansion & Inbound Intent
+                      </p>
                     </div>
                   </div>
-
-                  {/* Actions Column */}
-                  <div className="flex items-center md:flex-col md:items-end justify-end gap-2 shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-4">
-                    <Link
-                      href={`/signals/${sig.id}`}
-                      className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-sm whitespace-nowrap"
-                    >
-                      <span>View Details</span>
-                      <span>→</span>
-                    </Link>
-
-                    {sig.status === 'active' && (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleAcknowledge(sig.id)}
-                          disabled={actionInProgress === sig.id}
-                          className="px-2.5 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
-                          title="Mark as Acknowledged"
-                        >
-                          Acknowledge
-                        </button>
-                        <button
-                          onClick={() => handleOpenActionModal(sig, 'actioned')}
-                          disabled={actionInProgress === sig.id}
-                          className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
-                          title="Record Action"
-                        >
-                          Take Action
-                        </button>
-                        <button
-                          onClick={() => handleOpenActionModal(sig, 'dismissed')}
-                          disabled={actionInProgress === sig.id}
-                          className="px-2 py-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs transition cursor-pointer"
-                          title="Dismiss Signal"
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    )}
-
-                    {sig.status === 'acknowledged' && (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleOpenActionModal(sig, 'actioned')}
-                          disabled={actionInProgress === sig.id}
-                          className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
-                        >
-                          Take Action
-                        </button>
-                        <button
-                          onClick={() => handleOpenActionModal(sig, 'dismissed')}
-                          disabled={actionInProgress === sig.id}
-                          className="px-2 py-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs transition cursor-pointer"
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    )}
-
-                    {(sig.status === 'actioned' || sig.status === 'dismissed') && (
-                      <span className="text-[11px] font-medium text-slate-400 italic">
-                        Archived as {sig.status}
-                      </span>
-                    )}
-                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-200 text-emerald-900 border border-emerald-300">
+                    {opportunitySignals.length}
+                  </span>
                 </div>
-              ))}
+
+                {opportunitySignals.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    No active opportunity signals
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {opportunitySignals.map((sig) => renderSignalCard(sig, 'opportunity'))}
+                  </div>
+                )}
+              </div>
+
+              {/* Column 2: Risks */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🔴</span>
+                    <div>
+                      <h2 className="text-sm font-bold text-rose-900">Risks</h2>
+                      <p className="text-[11px] text-rose-700 font-medium">
+                        Loss Prevention & Churn Threats
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-200 text-rose-900 border border-rose-300">
+                    {riskSignals.length}
+                  </span>
+                </div>
+
+                {riskSignals.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    No active risk signals detected
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {riskSignals.map((sig) => renderSignalCard(sig, 'risk'))}
+                  </div>
+                )}
+              </div>
+
+              {/* Column 3: Hybrid & Conflicts */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🟡</span>
+                    <div>
+                      <h2 className="text-sm font-bold text-amber-900">Hybrid & Conflicts</h2>
+                      <p className="text-[11px] text-amber-700 font-medium">
+                        Opposing Polarities & Ambiguity
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                    {hybridSignals.length}
+                  </span>
+                </div>
+
+                {hybridSignals.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    No conflicting or hybrid signals detected
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {hybridSignals.map((sig) => renderSignalCard(sig, 'hybrid'))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
