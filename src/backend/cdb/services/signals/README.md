@@ -273,10 +273,77 @@ erDiagram
   - `dismissed`: Flagged as not relevant or false positive.
   - `resolved`: Naturally cleared or resolved.
 
+---
+
+## Opportunity & Risk Classification Rules
+
+CDB applies deterministic, rule-based classification to guarantee that all detected signals are consistent, fully explainable, and actionable for client advisory teams.
+
+### 1. Polarity & Qualification Criteria
+
+| Signal ID | Category | Polarity | Target Entity | Qualification Criteria |
+| :--- | :--- | :--- | :--- | :--- |
+| `dormant_strategic_account` | `risk` | `RISK` | Company | Company has signed engagement or won deal, but zero activity in $> 60$ days. |
+| `unanswered_conversation` | `risk` | `RISK` | Person | Contact sent an inbound message $> 3$ days ago with no outbound response. |
+| `expiring_contract` | `hybrid` | Dynamic (`RISK` or `OPPORTUNITY`) | Engagement | Active signed contract expiring $\le 60$ days. Polarity is `RISK` if $\le 30$ days (urgency cliff), or `OPPORTUNITY` if $> 30$ days (renewal/upsell window). |
+| `leadership_change` | `hybrid` | Dynamic (`RISK` or `OPPORTUNITY`) | Person | Polarity is `RISK` if past champion left client account (`is_current = False`), or `OPPORTUNITY` if new executive affiliated or moved to a prospect. |
+| `hiring_funding_event` | `opportunity` | `OPPORTUNITY` | Company | Activity notes contain funding or hiring expansion patterns within 90 days. |
+| `competitor_signal` | `risk` | `RISK` | Opportunity | Deal notes contain competitor evaluation, RFP bake-off, or pricing challenge. |
+
+### 2. Severity Matrix
+
+Severity is derived from business urgency and SLA risk:
+- **`critical`**: Imminent deal loss or severe SLA breach (e.g. unanswered message $> 7$ days, dormant strategic account $> 90$ days).
+- **`high`**: Significant commercial impact requiring prompt intervention (contract expiring $\le 30$ days, competitor in deal, champion departure, dormant account $> 60$ days).
+- **`medium`**: Standard commercial opportunity or advisory window (funding/hiring event, contract renewal window $31-60$ days, new executive joining).
+- **`low`**: Informational or weak signal.
+
+### 3. Confidence Thresholding & Uncertainty
+
+Every detected signal receives a deterministic confidence score ($0.00$ to $1.00$) based on data freshness, evidence completeness, and entity resolution quality:
+- **High Confidence ($\ge 0.80$)**: Strong, complete evidence (e.g. verified timestamps, verified contact/company links, clear text snippets). Presented as definitive.
+- **Medium Confidence ($0.50 - 0.79$)**: Actionable signal with moderate corroboration (e.g. older activity, indirect affiliation).
+- **Low Confidence / Uncertain ($< 0.50$)**: Signals lacking direct contact attribution, fuzzy text matches, or stale evidence. Flagged with `is_uncertain = True` and surfaced in the **Needs Verification** triage tab with explicit `uncertainty_reasons`.
+
+### 4. Supporting Evidence Contract
+
+All signals store a structured supporting evidence payload in `metadata["evidence"]`:
+```json
+{
+  "type": "activity_text | touchpoint_cadence | contract_end_date | career_history",
+  "summary": "Plain English explanation of the signal trigger",
+  "timestamp": "2026-09-01T10:00:00Z",
+  "source_entity_type": "activity | person | engagement | company",
+  "source_entity_id": "<uuid>",
+  "excerpt": "Matched snippet, message quote, or metric value",
+  "context": {
+    "days_inactive": 75,
+    "last_activity_date": "2026-06-15"
+  }
+}
+```
+
+### 5. Multi-Entity Conflict Detection
+
+When contradictory signals co-occur, presenting either in isolation leads to incorrect advisory outreach (e.g. reaching out to salvage a "dormant" account that just announced a new funding round).
+
+The classification engine scans active signals across **3 entity scopes**:
+1. **Company Scope**: Opposing polarities on the same client organization (e.g. `dormant_strategic_account` [RISK] vs. `hiring_funding_event` [OPPORTUNITY]).
+2. **Opportunity Scope**: Opposing polarities on the same pipeline deal (e.g. `expiring_contract` renewal [OPPORTUNITY] vs. `competitor_signal` RFP displacement [RISK]).
+3. **Person Scope**: Opposing polarities on the same individual (e.g. `unanswered_conversation` [RISK] vs. `leadership_change` promotion/re-engagement [OPPORTUNITY]).
+
+When detected:
+- Both signals are flagged with `has_conflict = True`.
+- `conflicting_signal_ids` references the opposing signal IDs.
+- `conflict_summary` explains the commercial tension.
+- Signals are grouped under the **⚠️ Conflicting Signals** tab in the Triage Feed for coordinated review.
+
+---
+
 ### Detection & Triage Endpoints
-* `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities and returns execution statistics.
-* `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`).
-* `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, and signal type.
+* `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities, detects conflicts, and returns execution statistics.
+* `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`, `is_uncertain`, `has_conflict`).
+* `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, signal type, plus `total_conflicting` and `total_uncertain`.
 * `PATCH /api/v1/signals/detected/{id}`: Update signal state (`acknowledged`, `actioned`, `dismissed`) with resolution notes.
 
 ### Automated Background Execution (Celery Beat)

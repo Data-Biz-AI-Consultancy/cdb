@@ -47,6 +47,15 @@ export interface DetectedSignal {
   status: DetectedSignalStatus;
   severity: SignalSeverity;
   score?: number | null;
+  confidence_score?: number | null;
+  confidence_tier?: 'high' | 'medium' | 'low' | string | null;
+  is_uncertain?: boolean;
+  uncertainty_reasons?: string[];
+  has_conflict?: boolean;
+  conflicting_signal_ids?: string[];
+  conflict_summary?: string | null;
+  conflict_scope?: string | null;
+  evidence?: Record<string, any> | null;
   title: string;
   summary?: string | null;
   metadata?: Record<string, any>;
@@ -70,6 +79,8 @@ export interface SignalCatalogResponse {
 
 export interface DetectedSignalStatsResponse {
   total_active: number;
+  total_conflicting?: number;
+  total_uncertain?: number;
   by_severity: Record<string, number>;
   by_category: Record<string, number>;
   by_signal: Record<string, number>;
@@ -80,13 +91,29 @@ export interface SignalEvaluationResult {
   status: string;
   evaluated_at: string;
   total_active_signals: number;
+  total_conflicting?: number;
+  total_uncertain?: number;
   new_signals_detected: number;
   refreshed_signals: number;
   by_signal: Record<string, number>;
 }
 
+const normalizeSlug = (slug?: string | null): string => {
+  if (!slug) return '';
+  return slug
+    .toLowerCase()
+    .trim()
+    .replace(/_accounts$/, '_account')
+    .replace(/_conversations$/, '_conversation')
+    .replace(/_contracts$/, '_contract')
+    .replace(/_changes$/, '_change')
+    .replace(/_events$/, '_event')
+    .replace(/_signals$/, '_signal')
+    .replace(/_or_funding_/, '_funding_');
+};
+
 export default function SignalsPage() {
-  const [activeTab, setActiveTab] = useState<'triage' | 'catalog'>('triage');
+  const [activeTab, setActiveTab] = useState<'triage' | 'conflicts' | 'uncertain' | 'catalog'>('triage');
   const [catalog, setCatalog] = useState<SignalDefinition[]>([]);
   const [signals, setSignals] = useState<DetectedSignal[]>([]);
   const [stats, setStats] = useState<DetectedSignalStatsResponse | null>(null);
@@ -95,12 +122,23 @@ export default function SignalsPage() {
   const [evaluationBanner, setEvaluationBanner] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
-  // Filters for Triage feed
+  // Filters state
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('active');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [signalTypeFilter, setSignalTypeFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('newest');
+
+  // Dynamic catalog options based on active category filter
+  const availableCatalog = useMemo(() => {
+    if (categoryFilter === 'all') return catalog;
+    return catalog.filter(
+      (def) =>
+        def.category?.toLowerCase() === categoryFilter.toLowerCase() ||
+        def.category?.toLowerCase() === 'hybrid'
+    );
+  }, [catalog, categoryFilter]);
 
   // Modal state for Action / Dismiss notes
   const [modalSignal, setModalSignal] = useState<DetectedSignal | null>(null);
@@ -204,9 +242,17 @@ export default function SignalsPage() {
     }
   };
 
-  // Filtered detected signals
+  // Filtered and sorted detected signals
   const filteredSignals = useMemo(() => {
-    return signals.filter((s) => {
+    const list = signals.filter((s) => {
+      // Dedicated tab filters
+      if (activeTab === 'conflicts' && !s.has_conflict) {
+        return false;
+      }
+      if (activeTab === 'uncertain' && !s.is_uncertain) {
+        return false;
+      }
+
       // Status filter
       if (statusFilter !== 'all' && s.status !== statusFilter) {
         return false;
@@ -221,8 +267,18 @@ export default function SignalsPage() {
         return false;
       }
       // Signal Type filter
-      if (signalTypeFilter !== 'all' && s.signal_id !== signalTypeFilter) {
-        return false;
+      if (signalTypeFilter !== 'all') {
+        const targetSlug = normalizeSlug(signalTypeFilter);
+        const sigSlug = normalizeSlug(s.signal_id);
+        const defSlug = normalizeSlug(s.signal?.id);
+        if (
+          s.signal_id !== signalTypeFilter &&
+          s.signal?.id !== signalTypeFilter &&
+          sigSlug !== targetSlug &&
+          defSlug !== targetSlug
+        ) {
+          return false;
+        }
       }
       // Search query
       if (searchQuery.trim()) {
@@ -246,7 +302,72 @@ export default function SignalsPage() {
       }
       return true;
     });
-  }, [signals, statusFilter, categoryFilter, severityFilter, signalTypeFilter, searchQuery]);
+
+    const severityWeight: Record<string, number> = {
+      critical: 4,
+      high: 3,
+      medium: 2,
+      low: 1,
+    };
+
+    const sorted = [...list];
+    if (sortBy === 'newest') {
+      sorted.sort((a, b) => new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime());
+    } else if (sortBy === 'oldest') {
+      sorted.sort((a, b) => new Date(a.detected_at).getTime() - new Date(b.detected_at).getTime());
+    } else if (sortBy === 'severity') {
+      sorted.sort((a, b) => {
+        const diff = (severityWeight[b.severity] || 0) - (severityWeight[a.severity] || 0);
+        if (diff !== 0) return diff;
+        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
+      });
+    } else if (sortBy === 'confidence_desc') {
+      sorted.sort((a, b) => {
+        const scoreA = a.confidence_score ?? 0;
+        const scoreB = b.confidence_score ?? 0;
+        const diff = scoreB - scoreA;
+        if (diff !== 0) return diff;
+        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
+      });
+    } else if (sortBy === 'confidence_asc') {
+      sorted.sort((a, b) => {
+        const scoreA = a.confidence_score ?? 0;
+        const scoreB = b.confidence_score ?? 0;
+        const diff = scoreA - scoreB;
+        if (diff !== 0) return diff;
+        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
+      });
+    }
+
+    return sorted;
+  }, [signals, activeTab, statusFilter, categoryFilter, severityFilter, signalTypeFilter, searchQuery, sortBy]);
+
+  const opportunitySignals = useMemo(() => {
+    return filteredSignals.filter(
+      (s) =>
+        !s.has_conflict &&
+        (s.signal?.category?.toLowerCase() === 'opportunity' ||
+          (s as any).category?.toLowerCase() === 'opportunity')
+    );
+  }, [filteredSignals]);
+
+  const riskSignals = useMemo(() => {
+    return filteredSignals.filter(
+      (s) =>
+        !s.has_conflict &&
+        (s.signal?.category?.toLowerCase() === 'risk' ||
+          (s as any).category?.toLowerCase() === 'risk')
+    );
+  }, [filteredSignals]);
+
+  const hybridSignals = useMemo(() => {
+    return filteredSignals.filter(
+      (s) =>
+        s.has_conflict ||
+        s.signal?.category?.toLowerCase() === 'hybrid' ||
+        (s as any).category?.toLowerCase() === 'hybrid'
+    );
+  }, [filteredSignals]);
 
   // Badge stylings
   const getSeverityBadge = (severity: SignalSeverity) => {
@@ -288,6 +409,200 @@ export default function SignalsPage() {
       default:
         return 'bg-slate-50 text-slate-700 border-slate-200';
     }
+  };
+
+  const renderSignalCard = (sig: DetectedSignal, columnVariant: 'opportunity' | 'risk' | 'hybrid') => {
+    const borderAccent =
+      columnVariant === 'opportunity'
+        ? 'border-l-4 border-l-emerald-500'
+        : columnVariant === 'risk'
+        ? 'border-l-4 border-l-rose-500'
+        : 'border-l-4 border-l-amber-500';
+
+    return (
+      <div
+        key={sig.id}
+        className={`bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition p-4 flex flex-col justify-between gap-3 ${borderAccent}`}
+      >
+        <div className="space-y-2 min-w-0">
+          {/* Top Status & Indicator Badges */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${getSeverityBadge(
+                sig.severity
+              )}`}
+            >
+              {sig.severity.toUpperCase()}
+            </span>
+            {sig.signal?.category && (
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full border ${getCategoryBadge(
+                  sig.signal.category
+                )}`}
+              >
+                {sig.signal.category}
+              </span>
+            )}
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full border ${getStatusBadge(
+                sig.status
+              )}`}
+            >
+              {sig.status}
+            </span>
+            {sig.confidence_score !== undefined && sig.confidence_score !== null && (
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${
+                  sig.confidence_score >= 0.8 || sig.confidence_tier === 'high'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                    : sig.confidence_score >= 0.5 || sig.confidence_tier === 'medium'
+                    ? 'bg-amber-50 text-amber-700 border-amber-300'
+                    : 'bg-rose-50 text-rose-700 border-rose-300'
+                }`}
+              >
+                🎯 {Math.round(sig.confidence_score * 100)}% Confidence
+              </span>
+            )}
+            {sig.has_conflict && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full border bg-rose-50 text-rose-700 border-rose-200 font-semibold flex items-center gap-1">
+                <span>⚠️</span>
+                <span>Opposing Signal Polarity Detected</span>
+              </span>
+            )}
+            {sig.is_uncertain && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200 font-semibold flex items-center gap-1">
+                <span>🔍</span>
+                <span>Classification Uncertainty — Verification Recommended</span>
+              </span>
+            )}
+            <span className="text-[11px] text-slate-400">
+              {new Date(sig.detected_at).toLocaleDateString()}
+            </span>
+          </div>
+
+          {/* Title and Short Summary */}
+          <div>
+            <Link
+              href={`/signals/${sig.id}`}
+              className="text-sm sm:text-base font-semibold text-slate-900 hover:text-emerald-600 transition flex items-center gap-1.5 group"
+            >
+              <span className="text-base">{sig.signal?.icon || '⚡'}</span>
+              <span className="group-hover:underline">{sig.title}</span>
+            </Link>
+            {sig.summary && (
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                {sig.summary}
+              </p>
+            )}
+          </div>
+
+          {/* Compact Entity Link Tags */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
+            {sig.company_name && (
+              <Link
+                href={`/companies?search=${encodeURIComponent(sig.company_name)}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition font-medium text-[11px]"
+              >
+                <span>🏢</span>
+                <span className="truncate max-w-[140px]">{sig.company_name}</span>
+              </Link>
+            )}
+            {sig.person_name && (
+              <Link
+                href={`/persons?search=${encodeURIComponent(sig.person_name)}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium text-[11px]"
+              >
+                <span>👤</span>
+                <span className="truncate max-w-[140px]">{sig.person_name}</span>
+              </Link>
+            )}
+            {sig.opportunity_title && (
+              <Link
+                href={`/opportunities?search=${encodeURIComponent(sig.opportunity_title)}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition font-medium text-[11px]"
+              >
+                <span>💼</span>
+                <span className="truncate max-w-[140px]">{sig.opportunity_title}</span>
+              </Link>
+            )}
+            {sig.engagement_title && (
+              <Link
+                href="/engagements"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition font-medium text-[11px]"
+              >
+                <span>📋</span>
+                <span className="truncate max-w-[140px]">{sig.engagement_title}</span>
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Card Actions Footer */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 mt-1">
+          <Link
+            href={`/signals/${sig.id}`}
+            className="px-2.5 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-sm whitespace-nowrap"
+          >
+            <span>View Details</span>
+            <span>→</span>
+          </Link>
+
+          {sig.status === 'active' && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleAcknowledge(sig.id)}
+                disabled={actionInProgress === sig.id}
+                className="px-2 py-1 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+                title="Mark as Acknowledged"
+              >
+                Acknowledge
+              </button>
+              <button
+                onClick={() => handleOpenActionModal(sig, 'actioned')}
+                disabled={actionInProgress === sig.id}
+                className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+                title="Record Action"
+              >
+                Take Action
+              </button>
+              <button
+                onClick={() => handleOpenActionModal(sig, 'dismissed')}
+                disabled={actionInProgress === sig.id}
+                className="px-1.5 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs transition cursor-pointer"
+                title="Dismiss Signal"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {sig.status === 'acknowledged' && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleOpenActionModal(sig, 'actioned')}
+                disabled={actionInProgress === sig.id}
+                className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+              >
+                Take Action
+              </button>
+              <button
+                onClick={() => handleOpenActionModal(sig, 'dismissed')}
+                disabled={actionInProgress === sig.id}
+                className="px-1.5 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs transition cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {(sig.status === 'actioned' || sig.status === 'dismissed') && (
+            <span className="text-[11px] font-medium text-slate-400 italic">
+              Archived as {sig.status}
+            </span>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -380,7 +695,7 @@ export default function SignalsPage() {
       )}
 
       {/* KPI Stats Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -391,8 +706,38 @@ export default function SignalsPage() {
             </p>
             <p className="text-xs text-slate-400 mt-1">Requiring commercial attention</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-xl text-emerald-600">
+          <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-xl text-slate-700">
             📡
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Conflicting Signals
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-rose-600 mt-1">
+              {stats?.total_conflicting ?? signals.filter((s) => s.has_conflict).length}
+            </p>
+            <p className="text-xs text-rose-500 mt-1">Opposing polarities</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-xl text-rose-600">
+            ⚠️
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Needs Verification
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-amber-600 mt-1">
+              {stats?.total_uncertain ?? signals.filter((s) => s.is_uncertain).length}
+            </p>
+            <p className="text-xs text-amber-500 mt-1">Low confidence / ambiguous</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-xl text-amber-600">
+            🔍
           </div>
         </div>
 
@@ -406,8 +751,8 @@ export default function SignalsPage() {
             </p>
             <p className="text-xs text-rose-500 mt-1">Urgent churn & dormant risks</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-xl text-rose-600">
-            ⚠️
+          <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-xl text-rose-600">
+            🔥
           </div>
         </div>
 
@@ -421,30 +766,15 @@ export default function SignalsPage() {
             </p>
             <p className="text-xs text-emerald-600 mt-1">Hiring, funding & expansions</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-xl text-emerald-600">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-xl text-emerald-600">
             🚀
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Resolved & Actioned
-            </p>
-            <p className="text-2xl sm:text-3xl font-bold text-indigo-600 mt-1">
-              {(stats?.by_status?.actioned ?? 0) + (stats?.by_status?.acknowledged ?? 0)}
-            </p>
-            <p className="text-xs text-indigo-500 mt-1">Triaged by team</p>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xl text-indigo-600">
-            🎯
           </div>
         </div>
       </div>
 
       {/* Tabs Navigation */}
       <div className="border-b border-slate-200">
-        <nav className="flex space-x-8" aria-label="Tabs">
+        <nav className="flex flex-wrap gap-4 sm:gap-8" aria-label="Tabs">
           <button
             onClick={() => setActiveTab('triage')}
             className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
@@ -453,9 +783,37 @@ export default function SignalsPage() {
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             }`}
           >
-            <span>Triage Feed & Live Alerts</span>
+            <span>All Active Signals</span>
             <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-              {filteredSignals.length}
+              {signals.filter((s) => s.status === 'active').length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('conflicts')}
+            className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
+              activeTab === 'conflicts'
+                ? 'border-rose-500 text-rose-600 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <span>⚠️ Conflicting Signals</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">
+              {signals.filter((s) => s.has_conflict).length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('uncertain')}
+            className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
+              activeTab === 'uncertain'
+                ? 'border-amber-500 text-amber-600 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <span>🔍 Needs Verification</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+              {signals.filter((s) => s.is_uncertain).length}
             </span>
           </button>
 
@@ -463,7 +821,7 @@ export default function SignalsPage() {
             onClick={() => setActiveTab('catalog')}
             className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
               activeTab === 'catalog'
-                ? 'border-emerald-500 text-emerald-600 font-semibold'
+                ? 'border-indigo-500 text-indigo-600 font-semibold'
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             }`}
           >
@@ -475,8 +833,8 @@ export default function SignalsPage() {
         </nav>
       </div>
 
-      {/* TAB 1: TRIAGE FEED */}
-      {activeTab === 'triage' && (
+      {/* TAB: TRIAGE FEED (All, Conflicting, or Needs Verification) */}
+      {activeTab !== 'catalog' && (
         <div className="space-y-6">
           {/* Filter Toolbar */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
@@ -520,7 +878,24 @@ export default function SignalsPage() {
 
               <select
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
+                onChange={(e) => {
+                  const newCat = e.target.value;
+                  setCategoryFilter(newCat);
+                  if (newCat !== 'all' && signalTypeFilter !== 'all') {
+                    const matched = catalog.find(
+                      (c) =>
+                        c.id === signalTypeFilter ||
+                        normalizeSlug(c.id) === normalizeSlug(signalTypeFilter)
+                    );
+                    if (
+                      matched &&
+                      matched.category?.toLowerCase() !== newCat.toLowerCase() &&
+                      matched.category?.toLowerCase() !== 'hybrid'
+                    ) {
+                      setSignalTypeFilter('all');
+                    }
+                  }
+                }}
                 className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="all">Category: All</option>
@@ -542,18 +917,66 @@ export default function SignalsPage() {
               </select>
 
               <select
+                id="signal-type-filter"
+                aria-label="Filter by Signal Type"
                 value={signalTypeFilter}
                 onChange={(e) => setSignalTypeFilter(e.target.value)}
                 className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="all">Signal: All Types</option>
-                <option value="dormant_strategic_accounts">Dormant Strategic Accounts</option>
-                <option value="unanswered_conversations">Unanswered Conversations</option>
-                <option value="expiring_contracts">Expiring Contracts</option>
-                <option value="leadership_changes">Leadership Changes</option>
-                <option value="hiring_or_funding_events">Hiring or Funding Events</option>
-                <option value="competitor_signals">Competitor Signals</option>
+                {availableCatalog && availableCatalog.length > 0 ? (
+                  availableCatalog.map((def) => (
+                    <option key={def.id} value={def.id}>
+                      {def.name}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="dormant_strategic_account">Dormant Strategic Account</option>
+                    <option value="unanswered_conversation">Unanswered Conversation</option>
+                    <option value="expiring_contract">Expiring Contract</option>
+                    <option value="leadership_change">Leadership Change</option>
+                    <option value="hiring_funding_event">Hiring or Funding Event</option>
+                    <option value="competitor_signal">Competitor Signal</option>
+                  </>
+                )}
               </select>
+
+              <select
+                id="sort-by-filter"
+                aria-label="Sort Signals"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="newest">Sort: Newest First (Default)</option>
+                <option value="oldest">Sort: Oldest First</option>
+                <option value="severity">Sort: Highest Severity</option>
+                <option value="confidence_desc">Sort: Highest Confidence</option>
+                <option value="confidence_asc">Sort: Lowest Confidence</option>
+              </select>
+
+              {(statusFilter !== 'active' ||
+                categoryFilter !== 'all' ||
+                severityFilter !== 'all' ||
+                signalTypeFilter !== 'all' ||
+                sortBy !== 'newest' ||
+                searchQuery.trim().length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('active');
+                    setCategoryFilter('all');
+                    setSeverityFilter('all');
+                    setSignalTypeFilter('all');
+                    setSortBy('newest');
+                    setSearchQuery('');
+                  }}
+                  className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-dashed border-slate-300 transition-colors"
+                >
+                  Reset filters
+                </button>
+              )}
             </div>
           </div>
 
@@ -600,183 +1023,90 @@ export default function SignalsPage() {
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {filteredSignals.map((sig) => (
-                <div
-                  key={sig.id}
-                  className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col md:flex-row gap-5 justify-between"
-                >
-                  <div className="space-y-3 flex-1">
-                    {/* Top Pills Row */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full border ${getSeverityBadge(
-                          sig.severity
-                        )}`}
-                      >
-                        {sig.severity.toUpperCase()}
-                      </span>
-                      {sig.signal?.category && (
-                        <span
-                          className={`text-xs px-2.5 py-0.5 rounded-full border ${getCategoryBadge(
-                            sig.signal.category
-                          )}`}
-                        >
-                          {sig.signal.category}
-                        </span>
-                      )}
-                      <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full border ${getStatusBadge(
-                          sig.status
-                        )}`}
-                      >
-                        {sig.status}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        Detected {new Date(sig.detected_at).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    {/* Title and Summary */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              {/* Column 1: Opportunities */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🟢</span>
                     <div>
-                      <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                        <span>{sig.signal?.icon || '⚡'}</span>
-                        <span>{sig.title}</span>
-                      </h3>
-                      {sig.summary && (
-                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">{sig.summary}</p>
-                      )}
+                      <h2 className="text-sm font-bold text-emerald-900">Opportunities</h2>
+                      <p className="text-[11px] text-emerald-700 font-medium">
+                        Upside, Expansion & Inbound Intent
+                      </p>
                     </div>
-
-                    {/* M:N Entity Tags Connection */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                      {sig.company_name && (
-                        <Link
-                          href={`/companies?search=${encodeURIComponent(sig.company_name)}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition font-medium"
-                        >
-                          <span>🏢</span>
-                          <span>{sig.company_name}</span>
-                        </Link>
-                      )}
-                      {sig.person_name && (
-                        <Link
-                          href={`/persons?search=${encodeURIComponent(sig.person_name)}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium"
-                        >
-                          <span>👤</span>
-                          <span>{sig.person_name}</span>
-                        </Link>
-                      )}
-                      {sig.opportunity_title && (
-                        <Link
-                          href={`/opportunities?search=${encodeURIComponent(
-                            sig.opportunity_title
-                          )}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition font-medium"
-                        >
-                          <span>💼</span>
-                          <span>{sig.opportunity_title}</span>
-                        </Link>
-                      )}
-                      {sig.engagement_title && (
-                        <Link
-                          href="/engagements"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition font-medium"
-                        >
-                          <span>📋</span>
-                          <span>{sig.engagement_title}</span>
-                        </Link>
-                      )}
-                      {sig.activity_id && (
-                        <Link
-                          href="/activities"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 transition"
-                        >
-                          <span>⚡ Evidence Touchpoint</span>
-                        </Link>
-                      )}
-                    </div>
-
-                    {/* Recommended Playbook Callout */}
-                    {sig.signal?.recommended_action?.title && (
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 space-y-1">
-                        <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                          <span>💡 Playbook:</span>
-                          <span>{sig.signal.recommended_action.title}</span>
-                        </div>
-                        {sig.signal.recommended_action.description && (
-                          <p className="text-slate-600">
-                            {sig.signal.recommended_action.description}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Resolution Notes (if completed) */}
-                    {sig.resolution_notes && (
-                      <div className="text-xs bg-emerald-50 border border-emerald-100 rounded-md p-2 text-emerald-800">
-                        <span className="font-semibold">Resolution Notes: </span>
-                        <span>{sig.resolution_notes}</span>
-                      </div>
-                    )}
                   </div>
-
-                  {/* Triage Action Column */}
-                  <div className="flex md:flex-col items-end justify-center gap-2 shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-5">
-                    {sig.status === 'active' && (
-                      <>
-                        <button
-                          onClick={() => handleAcknowledge(sig.id)}
-                          disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-semibold transition cursor-pointer"
-                        >
-                          Acknowledge
-                        </button>
-                        <button
-                          onClick={() => handleOpenActionModal(sig, 'actioned')}
-                          disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
-                        >
-                          Take Action
-                        </button>
-                        <button
-                          onClick={() => handleOpenActionModal(sig, 'dismissed')}
-                          disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-medium transition cursor-pointer"
-                        >
-                          Dismiss
-                        </button>
-                      </>
-                    )}
-
-                    {sig.status === 'acknowledged' && (
-                      <>
-                        <button
-                          onClick={() => handleOpenActionModal(sig, 'actioned')}
-                          disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
-                        >
-                          Take Action
-                        </button>
-                        <button
-                          onClick={() => handleOpenActionModal(sig, 'dismissed')}
-                          disabled={actionInProgress === sig.id}
-                          className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-medium transition cursor-pointer"
-                        >
-                          Dismiss
-                        </button>
-                      </>
-                    )}
-
-                    {(sig.status === 'actioned' || sig.status === 'dismissed') && (
-                      <span className="text-xs font-medium text-slate-400 italic">
-                        Archived as {sig.status}
-                      </span>
-                    )}
-                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-200 text-emerald-900 border border-emerald-300">
+                    {opportunitySignals.length}
+                  </span>
                 </div>
-              ))}
+
+                {opportunitySignals.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    No active opportunity signals
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {opportunitySignals.map((sig) => renderSignalCard(sig, 'opportunity'))}
+                  </div>
+                )}
+              </div>
+
+              {/* Column 2: Risks */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🔴</span>
+                    <div>
+                      <h2 className="text-sm font-bold text-rose-900">Risks</h2>
+                      <p className="text-[11px] text-rose-700 font-medium">
+                        Loss Prevention & Churn Threats
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-200 text-rose-900 border border-rose-300">
+                    {riskSignals.length}
+                  </span>
+                </div>
+
+                {riskSignals.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    No active risk signals detected
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {riskSignals.map((sig) => renderSignalCard(sig, 'risk'))}
+                  </div>
+                )}
+              </div>
+
+              {/* Column 3: Hybrid & Conflicts */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🟡</span>
+                    <div>
+                      <h2 className="text-sm font-bold text-amber-900">Hybrid & Conflicts</h2>
+                      <p className="text-[11px] text-amber-700 font-medium">
+                        Opposing Polarities & Ambiguity
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                    {hybridSignals.length}
+                  </span>
+                </div>
+
+                {hybridSignals.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    No conflicting or hybrid signals detected
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {hybridSignals.map((sig) => renderSignalCard(sig, 'hybrid'))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
