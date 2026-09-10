@@ -12,7 +12,7 @@ import {
 export default function SignalDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }> | { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const [signalId, setSignalId] = useState<string>('');
 
