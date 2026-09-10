@@ -128,6 +128,7 @@ export default function SignalsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [signalTypeFilter, setSignalTypeFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('newest');
 
   // Dynamic catalog options based on active category filter
   const availableCatalog = useMemo(() => {
@@ -241,9 +242,9 @@ export default function SignalsPage() {
     }
   };
 
-  // Filtered detected signals
+  // Filtered and sorted detected signals
   const filteredSignals = useMemo(() => {
-    return signals.filter((s) => {
+    const list = signals.filter((s) => {
       // Dedicated tab filters
       if (activeTab === 'conflicts' && !s.has_conflict) {
         return false;
@@ -301,7 +302,45 @@ export default function SignalsPage() {
       }
       return true;
     });
-  }, [signals, activeTab, statusFilter, categoryFilter, severityFilter, signalTypeFilter, searchQuery]);
+
+    const severityWeight: Record<string, number> = {
+      critical: 4,
+      high: 3,
+      medium: 2,
+      low: 1,
+    };
+
+    const sorted = [...list];
+    if (sortBy === 'newest') {
+      sorted.sort((a, b) => new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime());
+    } else if (sortBy === 'oldest') {
+      sorted.sort((a, b) => new Date(a.detected_at).getTime() - new Date(b.detected_at).getTime());
+    } else if (sortBy === 'severity') {
+      sorted.sort((a, b) => {
+        const diff = (severityWeight[b.severity] || 0) - (severityWeight[a.severity] || 0);
+        if (diff !== 0) return diff;
+        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
+      });
+    } else if (sortBy === 'confidence_desc') {
+      sorted.sort((a, b) => {
+        const scoreA = a.confidence_score ?? 0;
+        const scoreB = b.confidence_score ?? 0;
+        const diff = scoreB - scoreA;
+        if (diff !== 0) return diff;
+        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
+      });
+    } else if (sortBy === 'confidence_asc') {
+      sorted.sort((a, b) => {
+        const scoreA = a.confidence_score ?? 0;
+        const scoreB = b.confidence_score ?? 0;
+        const diff = scoreA - scoreB;
+        if (diff !== 0) return diff;
+        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
+      });
+    }
+
+    return sorted;
+  }, [signals, activeTab, statusFilter, categoryFilter, severityFilter, signalTypeFilter, searchQuery, sortBy]);
 
   const opportunitySignals = useMemo(() => {
     return filteredSignals.filter(
@@ -903,10 +942,25 @@ export default function SignalsPage() {
                 )}
               </select>
 
+              <select
+                id="sort-by-filter"
+                aria-label="Sort Signals"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="newest">Sort: Newest First (Default)</option>
+                <option value="oldest">Sort: Oldest First</option>
+                <option value="severity">Sort: Highest Severity</option>
+                <option value="confidence_desc">Sort: Highest Confidence</option>
+                <option value="confidence_asc">Sort: Lowest Confidence</option>
+              </select>
+
               {(statusFilter !== 'active' ||
                 categoryFilter !== 'all' ||
                 severityFilter !== 'all' ||
                 signalTypeFilter !== 'all' ||
+                sortBy !== 'newest' ||
                 searchQuery.trim().length > 0) && (
                 <button
                   type="button"
@@ -915,6 +969,7 @@ export default function SignalsPage() {
                     setCategoryFilter('all');
                     setSeverityFilter('all');
                     setSignalTypeFilter('all');
+                    setSortBy('newest');
                     setSearchQuery('');
                   }}
                   className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-dashed border-slate-300 transition-colors"

@@ -330,5 +330,36 @@ describe('SignalsPage Component', () => {
       expect(screen.queryByText('Reset filters')).not.toBeInTheDocument();
     });
   });
+
+  it('displays the default sorting option and supports changing sorting options', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+    });
+
+    const sortSelect = screen.getByLabelText('Sort Signals') as HTMLSelectElement;
+    expect(sortSelect).toBeInTheDocument();
+    expect(sortSelect.value).toBe('newest');
+    expect(screen.getByText('Sort: Newest First (Default)')).toBeInTheDocument();
+
+    // Switch to Highest Severity
+    fireEvent.change(sortSelect, { target: { value: 'severity' } });
+    expect(sortSelect.value).toBe('severity');
+
+    // Switch to Highest Confidence
+    fireEvent.change(sortSelect, { target: { value: 'confidence_desc' } });
+    expect(sortSelect.value).toBe('confidence_desc');
+
+    // Switch to Oldest First
+    fireEvent.change(sortSelect, { target: { value: 'oldest' } });
+    expect(sortSelect.value).toBe('oldest');
+
+    // Reset filters restores default sort
+    const resetBtn = screen.getByText('Reset filters');
+    fireEvent.click(resetBtn);
+    expect(sortSelect.value).toBe('newest');
+  });
 });
 
