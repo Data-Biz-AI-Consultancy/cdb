@@ -38,7 +38,7 @@ export default function CompaniesPage() {
     setTimeout(() => setSuccessMessage(null), 4000);
   };
 
-  const loadCompanies = async () => {
+  const loadCompanies = async (searchOverride?: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -47,7 +47,8 @@ export default function CompaniesPage() {
       params.set('page_size', String(pageSize));
       params.set('sort', sortBy);
       params.set('order', sortBy === 'name' ? 'asc' : 'desc');
-      if (search.trim()) params.set('q', search.trim());
+      const queryToUse = searchOverride !== undefined ? searchOverride : search;
+      if (queryToUse.trim()) params.set('q', queryToUse.trim());
       if (industryFilter.trim()) params.set('industry', industryFilter.trim());
       if (countryFilter.trim()) params.set('country', countryFilter.trim().toUpperCase());
 
@@ -74,7 +75,16 @@ export default function CompaniesPage() {
   };
 
   useEffect(() => {
-    loadCompanies();
+    let currentSearch = search;
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlQ = urlParams.get('q') || urlParams.get('search');
+      if (urlQ && !search) {
+        currentSearch = urlQ;
+        setSearch(urlQ);
+      }
+    }
+    loadCompanies(currentSearch);
   }, [page, pageSize, sortBy, industryFilter, countryFilter]);
 
   const handleSearch = (e: React.FormEvent) => {

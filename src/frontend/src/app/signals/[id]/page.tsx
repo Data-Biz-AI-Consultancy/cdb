@@ -443,7 +443,7 @@ export default function SignalDetailPage({
             </div>
 
             <div className="space-y-3 text-xs">
-              {signal.company_name ? (
+              {signal.company_name || signal.company_id ? (
                 <div className="flex items-center justify-between p-3 bg-blue-50/60 border border-blue-100 rounded-lg">
                   <div className="flex items-center gap-2.5">
                     <span className="text-lg">🏢</span>
@@ -452,35 +452,62 @@ export default function SignalDetailPage({
                         Client Company
                       </span>
                       <span className="font-semibold text-blue-950 text-sm">
-                        {signal.company_name}
+                        {signal.company_name || 'Associated Company'}
                       </span>
                     </div>
                   </div>
                   <Link
-                    href={`/companies?search=${encodeURIComponent(signal.company_name)}`}
-                    className="px-2.5 py-1 bg-white text-blue-700 border border-blue-200 rounded font-medium hover:bg-blue-50 transition"
+                    href={
+                      signal.company_id
+                        ? `/companies/${signal.company_id}`
+                        : `/companies?q=${encodeURIComponent(signal.company_name || '')}`
+                    }
+                    className="px-2.5 py-1 bg-white text-blue-700 border border-blue-200 rounded font-medium hover:bg-blue-50 transition shrink-0"
                   >
                     View Company →
                   </Link>
                 </div>
               ) : null}
 
-              {signal.person_name ? (
-                <div className="flex items-center justify-between p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-lg">👤</span>
-                    <div>
+              {signal.person_name || signal.person_id ? (
+                <div className="flex items-center justify-between p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-lg shrink-0">👤</span>
+                    <div className="min-w-0">
                       <span className="text-[11px] text-emerald-600 font-medium block uppercase tracking-wide">
-                        Contact Person
+                        Contact Person {signal.person_name?.includes(',') ? '(Multi-Contact)' : ''}
                       </span>
-                      <span className="font-semibold text-emerald-950 text-sm">
-                        {signal.person_name}
-                      </span>
+                      {signal.person_name?.includes(',') ? (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          {signal.person_name.split(',').map((name, idx) => {
+                            const trimmed = name.trim();
+                            if (!trimmed) return null;
+                            return (
+                              <Link
+                                key={idx}
+                                href={`/persons?q=${encodeURIComponent(trimmed)}`}
+                                className="inline-flex items-center px-2 py-0.5 bg-white border border-emerald-200 rounded text-xs font-semibold text-emerald-900 hover:bg-emerald-100 hover:border-emerald-300 transition"
+                                title={`Search for ${trimmed}`}
+                              >
+                                {trimmed}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="font-semibold text-emerald-950 text-sm truncate block">
+                          {signal.person_name || 'Associated Person'}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <Link
-                    href={`/persons?search=${encodeURIComponent(signal.person_name)}`}
-                    className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition"
+                    href={
+                      signal.person_id
+                        ? `/persons/${signal.person_id}`
+                        : `/persons?q=${encodeURIComponent(signal.person_name || '')}`
+                    }
+                    className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition shrink-0"
                   >
                     View Person →
                   </Link>

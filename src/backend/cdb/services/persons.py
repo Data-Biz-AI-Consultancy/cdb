@@ -108,14 +108,35 @@ async def list_persons(
         stmt = stmt.where(Person.deleted_at.is_(None))
 
     if q:
-        search_pattern = f"%{q}%"
-        stmt = stmt.where(
-            or_(
-                Person.first_name.ilike(search_pattern),
-                Person.last_name.ilike(search_pattern),
-                Person.primary_email.ilike(search_pattern),
-            )
-        )
+        q_clean = q.strip()
+        search_pattern = f"%{q_clean}%"
+        conditions = [
+            Person.first_name.ilike(search_pattern),
+            Person.last_name.ilike(search_pattern),
+            func.concat(
+                func.coalesce(Person.first_name, ""),
+                " ",
+                func.coalesce(Person.last_name, ""),
+            ).ilike(search_pattern),
+            Person.primary_email.ilike(search_pattern),
+        ]
+        if "," in q_clean:
+            for part in q_clean.split(","):
+                part_clean = part.strip()
+                if part_clean:
+                    p_pat = f"%{part_clean}%"
+                    conditions.extend(
+                        [
+                            Person.first_name.ilike(p_pat),
+                            Person.last_name.ilike(p_pat),
+                            func.concat(
+                                func.coalesce(Person.first_name, ""),
+                                " ",
+                                func.coalesce(Person.last_name, ""),
+                            ).ilike(p_pat),
+                        ]
+                    )
+        stmt = stmt.where(or_(*conditions))
 
     if source:
         stmt = stmt.where(Person.sources.any(source))

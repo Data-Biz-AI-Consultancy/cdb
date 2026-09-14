@@ -111,11 +111,42 @@ describe('SignalDetailPage', () => {
     expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
     expect(screen.getByText('Cloud Transformation Retainer')).toBeInTheDocument();
 
+    const viewPersonLink = screen.getByRole('link', { name: /View Person/i });
+    expect(viewPersonLink).toHaveAttribute('href', '/persons/pers-888');
+
+    const viewCompanyLink = screen.getByRole('link', { name: /View Company/i });
+    expect(viewCompanyLink).toHaveAttribute('href', '/companies/comp-999');
+
     // Playbook
     expect(screen.getByText('Schedule Executive Check-In or QBR')).toBeInTheDocument();
     expect(
       screen.getByText('Reach out to past client sponsors with a relevant industry benchmark.')
     ).toBeInTheDocument();
+  });
+
+  it('handles multi-person contact names with individual search links and direct person link', async () => {
+    const multiPersonSignal = {
+      ...mockSignalDetail,
+      person_id: 'pers-multi-123',
+      person_name: 'Louis Guitton, Jodi Barrow',
+    };
+    (apiFetch as any).mockResolvedValue(multiPersonSignal);
+
+    render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Louis Guitton')).toBeInTheDocument();
+      expect(screen.getByText('Jodi Barrow')).toBeInTheDocument();
+    });
+
+    const louisLink = screen.getByRole('link', { name: 'Louis Guitton' });
+    expect(louisLink).toHaveAttribute('href', '/persons?q=Louis%20Guitton');
+
+    const jodiLink = screen.getByRole('link', { name: 'Jodi Barrow' });
+    expect(jodiLink).toHaveAttribute('href', '/persons?q=Jodi%20Barrow');
+
+    const viewPersonBtn = screen.getByRole('link', { name: /View Person/i });
+    expect(viewPersonBtn).toHaveAttribute('href', '/persons/pers-multi-123');
   });
 
   it('allows acknowledging signal and updates status', async () => {

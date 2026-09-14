@@ -242,3 +242,30 @@ def test_celery_evaluate_signals_task_execution():
         res = evaluate_signals_background()
         assert res == mock_result
         mock_eval.assert_called_once()
+
+
+async def test_person_search_multi_contact_and_concat(db_session: AsyncSession):
+    """Verify person search supports full name concatenation and multi-token comma searches."""
+    from cdb.models.person import Person
+    from cdb.services import persons as person_service
+
+    p1 = Person(first_name="Louis", last_name="Guitton")
+    p2 = Person(first_name="Jodi", last_name="Barrow")
+    p3 = Person(first_name="Louis", last_name="Guitton,Jodi Barrow")
+    db_session.add_all([p1, p2, p3])
+    await db_session.commit()
+
+    # Search combined comma query
+    items, pagination = await person_service.list_persons(
+        db_session, q="Louis Guitton, Jodi Barrow"
+    )
+    found_ids = {p.id for p in items}
+    assert p1.id in found_ids
+    assert p2.id in found_ids
+    assert p3.id in found_ids
+
+    # Search full concatenated name
+    items_louis, _ = await person_service.list_persons(db_session, q="Louis Guitton")
+    found_louis = {p.id for p in items_louis}
+    assert p1.id in found_louis
+    assert p3.id in found_louis

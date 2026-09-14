@@ -1364,14 +1364,25 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
                 <dt className="text-xs text-slate-500 font-semibold uppercase tracking-wider">LinkedIn Profile</dt>
                 <dd className="mt-0.5">
                   {person.linkedin_url ? (
-                    <a
-                      href={person.linkedin_url.startsWith('http') ? person.linkedin_url : `https://${person.linkedin_url}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 hover:underline text-xs break-all"
-                    >
-                      {person.linkedin_url}
-                    </a>
+                    <div className="flex flex-col gap-1 mt-0.5">
+                      {person.linkedin_url.split(',').map((url: string, i: number) => {
+                        const trimmed = url.trim();
+                        if (!trimmed) return null;
+                        const href = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+                        return (
+                          <a
+                            key={i}
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:underline text-xs break-all inline-flex items-center gap-1"
+                          >
+                            <span>🔗</span>
+                            <span>{trimmed}</span>
+                          </a>
+                        );
+                      })}
+                    </div>
                   ) : (
                     <span className="text-slate-400">—</span>
                   )}

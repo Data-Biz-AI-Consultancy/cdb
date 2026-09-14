@@ -500,7 +500,11 @@ export default function SignalsPage() {
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
             {sig.company_name && (
               <Link
-                href={`/companies?search=${encodeURIComponent(sig.company_name)}`}
+                href={
+                  sig.company_id
+                    ? `/companies/${sig.company_id}`
+                    : `/companies?q=${encodeURIComponent(sig.company_name)}`
+                }
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition font-medium text-[11px]"
               >
                 <span>🏢</span>
@@ -509,7 +513,11 @@ export default function SignalsPage() {
             )}
             {sig.person_name && (
               <Link
-                href={`/persons?search=${encodeURIComponent(sig.person_name)}`}
+                href={
+                  sig.person_id
+                    ? `/persons/${sig.person_id}`
+                    : `/persons?q=${encodeURIComponent(sig.person_name)}`
+                }
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium text-[11px]"
               >
                 <span>👤</span>
