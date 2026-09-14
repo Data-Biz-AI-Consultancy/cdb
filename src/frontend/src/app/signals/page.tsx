@@ -31,6 +31,13 @@ export interface SignalDefinition {
   is_active: boolean;
 }
 
+export interface ConnectedPerson {
+  id: string;
+  name: string;
+  email?: string | null;
+  role?: string | null;
+}
+
 export interface DetectedSignal {
   id: string;
   signal_id: string;
@@ -39,6 +46,7 @@ export interface DetectedSignal {
   company_name?: string | null;
   person_id?: string | null;
   person_name?: string | null;
+  connected_persons?: ConnectedPerson[];
   opportunity_id?: string | null;
   opportunity_title?: string | null;
   engagement_id?: string | null;
@@ -286,7 +294,9 @@ export default function SignalsPage() {
         const matchesTitle = s.title.toLowerCase().includes(q);
         const matchesSummary = s.summary?.toLowerCase().includes(q) ?? false;
         const matchesCompany = s.company_name?.toLowerCase().includes(q) ?? false;
-        const matchesPerson = s.person_name?.toLowerCase().includes(q) ?? false;
+        const matchesPerson =
+          (s.person_name?.toLowerCase().includes(q) ?? false) ||
+          (s.connected_persons?.some((p) => p.name?.toLowerCase().includes(q)) ?? false);
         const matchesOpp = s.opportunity_title?.toLowerCase().includes(q) ?? false;
         const matchesEng = s.engagement_title?.toLowerCase().includes(q) ?? false;
         if (
@@ -511,7 +521,19 @@ export default function SignalsPage() {
                 <span className="truncate max-w-[140px]">{sig.company_name}</span>
               </Link>
             )}
-            {sig.person_name && (
+            {sig.connected_persons && sig.connected_persons.length > 0 ? (
+              sig.connected_persons.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/persons/${p.id}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium text-[11px]"
+                  title={p.role ? `${p.name} (${p.role})` : p.name}
+                >
+                  <span>👤</span>
+                  <span className="truncate max-w-[140px]">{p.name}</span>
+                </Link>
+              ))
+            ) : sig.person_name ? (
               <Link
                 href={
                   sig.person_id
@@ -523,7 +545,7 @@ export default function SignalsPage() {
                 <span>👤</span>
                 <span className="truncate max-w-[140px]">{sig.person_name}</span>
               </Link>
-            )}
+            ) : null}
             {sig.opportunity_title && (
               <Link
                 href={`/opportunities?search=${encodeURIComponent(sig.opportunity_title)}`}

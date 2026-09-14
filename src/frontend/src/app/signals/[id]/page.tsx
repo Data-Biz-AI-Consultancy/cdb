@@ -469,7 +469,46 @@ export default function SignalDetailPage({
                 </div>
               ) : null}
 
-              {signal.person_name || signal.person_id ? (
+              {signal.connected_persons && signal.connected_persons.length > 0 ? (
+                <div className="space-y-2">
+                  <span className="text-[11px] text-emerald-600 font-medium block uppercase tracking-wide">
+                    Connected People ({signal.connected_persons.length})
+                  </span>
+                  {signal.connected_persons.map((person) => (
+                    <div
+                      key={person.id}
+                      className="flex items-center justify-between p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-lg shrink-0">👤</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-emerald-950 text-sm truncate">
+                              {person.name}
+                            </span>
+                            {person.role && (
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                {person.role}
+                              </span>
+                            )}
+                          </div>
+                          {person.email && (
+                            <span className="text-[11px] text-slate-500 block truncate">
+                              {person.email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/persons/${person.id}`}
+                        className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition shrink-0"
+                      >
+                        View Person →
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              ) : signal.person_name || signal.person_id ? (
                 <div className="flex items-center justify-between p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="text-lg shrink-0">👤</span>

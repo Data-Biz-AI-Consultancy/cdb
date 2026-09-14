@@ -1305,6 +1305,21 @@ List detected signal event instances (paginated) with multi-dimensional filterin
   "id": "e2a4a350-4d40-4100-a6fe-b7d6b38c201a",
   "signal_id": "dormant_strategic_account",
   "company_id": "c30164e2-6fd5-4c07-ba71-6ba3b2a26514",
+  "person_id": "082fbb5d-458c-4236-acfa-1ff25e218412",
+  "connected_persons": [
+    {
+      "id": "082fbb5d-458c-4236-acfa-1ff25e218412",
+      "name": "Louis Guitton",
+      "email": "louis@example.com",
+      "role": "primary"
+    },
+    {
+      "id": "f0cd9f20-7aa4-4fad-bf88-75e3a64dab54",
+      "name": "Jodi Barrow",
+      "email": "jodi@example.com",
+      "role": "counterparty"
+    }
+  ],
   "status": "active",
   "severity": "high",
   "title": "Dormant Strategic Account: Acme Corp",

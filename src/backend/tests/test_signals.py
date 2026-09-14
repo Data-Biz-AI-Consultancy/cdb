@@ -269,3 +269,56 @@ async def test_person_search_multi_contact_and_concat(db_session: AsyncSession):
     found_louis = {p.id for p in items_louis}
     assert p1.id in found_louis
     assert p3.id in found_louis
+
+
+@pytest.mark.asyncio
+async def test_multi_person_signal_connectivity(
+    db_session: AsyncSession, client: AsyncClient, auth_headers: dict[str, str]
+):
+    """Verify that detected signals can link multiple natural persons and expose them via API and service."""
+    from cdb.models.person import Person
+    from cdb.services.signals.detected import get_detected_signal, list_detected_signals
+    from cdb.services.signals.detector import _upsert_detected_signal
+
+    p1 = Person(first_name="Louis", last_name="Guitton", primary_email="louis@example.com")
+    p2 = Person(first_name="Jodi", last_name="Barrow", primary_email="jodi@example.com")
+    db_session.add_all([p1, p2])
+    await db_session.commit()
+    await db_session.refresh(p1)
+    await db_session.refresh(p2)
+
+    sig, is_new = await _upsert_detected_signal(
+        db=db_session,
+        signal_id="unanswered_conversation",
+        title="Multi-Contact Inbound Thread",
+        severity="high",
+        summary="Conversation involving Louis and Jodi",
+        person_id=p1.id,
+        connected_person_ids=[p1.id, p2.id],
+    )
+    await db_session.commit()
+    assert is_new is True
+
+    # Check service layer
+    fetched = await get_detected_signal(db_session, sig.id)
+    assert fetched is not None
+    assert len(fetched.connected_persons) == 2
+    person_ids = {p.id for p in fetched.connected_persons}
+    assert p1.id in person_ids
+    assert p2.id in person_ids
+
+    # Check list service layer
+    items, _ = await list_detected_signals(db_session, signal_id="unanswered_conversation")
+    matching = next((s for s in items if s.id == sig.id), None)
+    assert matching is not None
+    assert len(matching.connected_persons) == 2
+
+    # Check API response
+    res = await client.get(f"/api/v1/signals/detected/{sig.id}", headers=auth_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "connected_persons" in data
+    assert len(data["connected_persons"]) == 2
+    api_ids = {p["id"] for p in data["connected_persons"]}
+    assert str(p1.id) in api_ids
+    assert str(p2.id) in api_ids

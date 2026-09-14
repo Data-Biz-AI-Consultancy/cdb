@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from cdb.models.base import utc_now
 from cdb.models.signal import DetectedSignal, Signal
 from cdb.models.user import User
+from cdb.schemas.person import PersonSummaryResponse
 from cdb.schemas.signals import (
     DetectedSignalResponse,
     DetectedSignalStatsResponse,
@@ -26,6 +27,47 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
     opp_title = sig.opportunity.title if sig.opportunity else None
     eng_title = sig.engagement.title if sig.engagement else None
 
+    connected_persons: list[PersonSummaryResponse] = []
+    if getattr(sig, "connected_persons", None):
+        for cp in sig.connected_persons:
+            connected_persons.append(
+                PersonSummaryResponse(
+                    id=cp.id,
+                    first_name=cp.first_name,
+                    last_name=cp.last_name,
+                    primary_email=cp.primary_email,
+                    primary_phone=cp.primary_phone,
+                    linkedin_url=cp.linkedin_url,
+                    city=cp.city,
+                    country=cp.country,
+                    sources=cp.sources,
+                    created_at=cp.created_at,
+                    updated_at=cp.updated_at,
+                )
+            )
+    elif sig.person:
+        connected_persons.append(
+            PersonSummaryResponse(
+                id=sig.person.id,
+                first_name=sig.person.first_name,
+                last_name=sig.person.last_name,
+                primary_email=sig.person.primary_email,
+                primary_phone=sig.person.primary_phone,
+                linkedin_url=sig.person.linkedin_url,
+                city=sig.person.city,
+                country=sig.person.country,
+                sources=sig.person.sources,
+                created_at=sig.person.created_at,
+                updated_at=sig.person.updated_at,
+            )
+        )
+
+    if not person_name and connected_persons:
+        person_name = ", ".join(
+            f"{p.first_name or ''} {p.last_name or ''}".strip() for p in connected_persons
+        )
+    primary_person_id = sig.person_id or (connected_persons[0].id if connected_persons else None)
+
     meta = sig.metadata_payload or {}
     raw_conf = meta.get("confidence_score")
     if raw_conf is not None:
@@ -41,8 +83,9 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         signal=SignalDefinition.model_validate(sig.signal) if sig.signal else None,
         company_id=sig.company_id,
         company_name=comp_name,
-        person_id=sig.person_id,
+        person_id=primary_person_id,
         person_name=person_name,
+        connected_persons=connected_persons,
         opportunity_id=sig.opportunity_id,
         opportunity_title=opp_title,
         engagement_id=sig.engagement_id,
@@ -98,6 +141,7 @@ async def list_detected_signals(
             selectinload(DetectedSignal.person),
             selectinload(DetectedSignal.opportunity),
             selectinload(DetectedSignal.engagement),
+            selectinload(DetectedSignal.connected_persons),
         )
         .order_by(DetectedSignal.detected_at.desc())
     )
@@ -212,6 +256,7 @@ async def get_detected_signal(
             selectinload(DetectedSignal.person),
             selectinload(DetectedSignal.opportunity),
             selectinload(DetectedSignal.engagement),
+            selectinload(DetectedSignal.connected_persons),
         )
     )
     sig = (await db.execute(stmt)).scalar_one_or_none()

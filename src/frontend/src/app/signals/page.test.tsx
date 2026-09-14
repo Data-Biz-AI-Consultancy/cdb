@@ -361,5 +361,55 @@ describe('SignalsPage Component', () => {
     fireEvent.click(resetBtn);
     expect(sortSelect.value).toBe('newest');
   });
+
+  it('renders multiple connected person pills and supports filtering by connected person name', async () => {
+    const multiPersonSignals = [
+      {
+        ...mockDetectedSignals[0],
+        id: 'sig-multi-persons',
+        title: 'Competitor Mention: Acme Corp',
+        connected_persons: [
+          { id: 'p-1', name: 'Louis Guitton', role: 'primary' },
+          { id: 'p-2', name: 'Jodi Barrow', role: 'counterparty' },
+        ],
+      },
+    ];
+
+    (apiFetch as any).mockImplementation((url: string) => {
+      if (url.includes('/signals/catalog')) return Promise.resolve({ data: mockCatalog });
+      if (url.includes('/signals/detected/stats')) return Promise.resolve(mockStats);
+      if (url.includes('/signals/detected')) return Promise.resolve({ data: multiPersonSignals });
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Louis Guitton')).toBeInTheDocument();
+      expect(screen.getByText('Jodi Barrow')).toBeInTheDocument();
+    });
+
+    const louisLink = screen.getByRole('link', { name: /Louis Guitton/i });
+    expect(louisLink).toHaveAttribute('href', '/persons/p-1');
+
+    const jodiLink = screen.getByRole('link', { name: /Jodi Barrow/i });
+    expect(jodiLink).toHaveAttribute('href', '/persons/p-2');
+
+    // Filter by searching for "Jodi"
+    const searchInput = screen.getByPlaceholderText(/Search signals by entity/i);
+    fireEvent.change(searchInput, { target: { value: 'Jodi' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Louis Guitton')).toBeInTheDocument();
+      expect(screen.getByText('Jodi Barrow')).toBeInTheDocument();
+    });
+
+    // Filter by searching for a name not in connected_persons
+    fireEvent.change(searchInput, { target: { value: 'Nonexistent Person' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Louis Guitton')).not.toBeInTheDocument();
+    });
+  });
 });
 

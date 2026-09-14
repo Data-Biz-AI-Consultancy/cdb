@@ -149,3 +149,43 @@ class DetectedSignal(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     engagement: Mapped["Engagement | None"] = relationship("Engagement", lazy="selectin")
     activity: Mapped["Activity | None"] = relationship("Activity", lazy="selectin")
     actioned_by: Mapped["User | None"] = relationship("User", lazy="selectin")
+    signal_persons: Mapped[list["DetectedSignalPerson"]] = relationship(
+        "DetectedSignalPerson",
+        back_populates="signal",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    connected_persons: Mapped[list["Person"]] = relationship(
+        "Person",
+        secondary="detected_signal_persons",
+        lazy="selectin",
+        viewonly=True,
+    )
+
+
+class DetectedSignalPerson(Base):
+    __tablename__ = "detected_signal_persons"
+
+    detected_signal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("detected_signals.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    person_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("persons.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+    role: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
+    )
+
+    # Relationships
+    signal: Mapped["DetectedSignal"] = relationship(
+        "DetectedSignal", back_populates="signal_persons"
+    )
+    person: Mapped["Person"] = relationship("Person", lazy="selectin")

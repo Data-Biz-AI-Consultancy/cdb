@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from cdb.schemas.person import PersonSummaryResponse
+
 
 class SignalCategory(StrEnum):
     OPPORTUNITY = "opportunity"
@@ -115,6 +117,7 @@ class DetectedSignalResponse(BaseModel):
     company_name: str | None = None
     person_id: uuid.UUID | None = None
     person_name: str | None = None
+    connected_persons: list[PersonSummaryResponse] = Field(default_factory=list)
     opportunity_id: uuid.UUID | None = None
     opportunity_title: str | None = None
     engagement_id: uuid.UUID | None = None

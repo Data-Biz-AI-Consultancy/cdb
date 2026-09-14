@@ -13,7 +13,7 @@ from cdb.models.engagement import Engagement
 from cdb.models.opportunity import Opportunity, OpportunityCompany
 from cdb.models.person import Person
 from cdb.models.relationship import PersonCompanyRelationship
-from cdb.models.signal import DetectedSignal
+from cdb.models.signal import DetectedSignal, DetectedSignalPerson
 from cdb.services.signals.catalog import ensure_signals_dimension
 from cdb.services.signals.classification import (
     assess_confidence,
@@ -128,6 +128,7 @@ async def _upsert_detected_signal(
     summary: str | None = None,
     company_id: Any | None = None,
     person_id: Any | None = None,
+    connected_person_ids: list[Any] | None = None,
     opportunity_id: Any | None = None,
     engagement_id: Any | None = None,
     activity_id: Any | None = None,
@@ -190,6 +191,10 @@ async def _upsert_detected_signal(
     existing = (await db.execute(stmt)).scalars().first()
     now = utc_now()
 
+    target_person_ids: list[Any] = [pid for pid in (connected_person_ids or []) if pid]
+    if person_id and person_id not in target_person_ids:
+        target_person_ids.insert(0, person_id)
+
     if existing:
         existing.title = title
         existing.summary = summary
@@ -205,26 +210,47 @@ async def _upsert_detected_signal(
         existing.updated_at = now
         if expires_at:
             existing.expires_at = expires_at
-        return existing, False
+        target_sig = existing
+        is_new = False
+    else:
+        new_sig = DetectedSignal(
+            signal_id=signal_id,
+            company_id=company_id,
+            person_id=person_id,
+            opportunity_id=opportunity_id,
+            engagement_id=engagement_id,
+            activity_id=activity_id,
+            status="active",
+            severity=severity,
+            score=score,
+            title=title,
+            summary=summary,
+            metadata_payload=metadata_payload or {},
+            detected_at=now,
+            expires_at=expires_at,
+        )
+        db.add(new_sig)
+        await db.flush()
+        target_sig = new_sig
+        is_new = True
 
-    new_sig = DetectedSignal(
-        signal_id=signal_id,
-        company_id=company_id,
-        person_id=person_id,
-        opportunity_id=opportunity_id,
-        engagement_id=engagement_id,
-        activity_id=activity_id,
-        status="active",
-        severity=severity,
-        score=score,
-        title=title,
-        summary=summary,
-        metadata_payload=metadata_payload or {},
-        detected_at=now,
-        expires_at=expires_at,
-    )
-    db.add(new_sig)
-    return new_sig, True
+    # Link all connected persons
+    for pid in target_person_ids:
+        link_stmt = select(DetectedSignalPerson).where(
+            DetectedSignalPerson.detected_signal_id == target_sig.id,
+            DetectedSignalPerson.person_id == pid,
+        )
+        existing_link = (await db.execute(link_stmt)).scalar_one_or_none()
+        if not existing_link:
+            db.add(
+                DetectedSignalPerson(
+                    detected_signal_id=target_sig.id,
+                    person_id=pid,
+                    role="primary" if pid == person_id else "participant",
+                )
+            )
+
+    return target_sig, is_new
 
 
 async def detect_dormant_strategic_accounts(
@@ -1079,12 +1105,21 @@ async def detect_competitor_signals(
             "evidence": evidence,
         }
 
+        connected_pids: list[Any] = []
+        if act.person_id:
+            connected_pids.append(act.person_id)
+        if act.attributes and isinstance(act.attributes, dict):
+            for extra_pid in act.attributes.get("participant_person_ids", []):
+                if extra_pid not in connected_pids:
+                    connected_pids.append(extra_pid)
+
         res = await _upsert_detected_signal(
             db,
             signal_id="competitor_signal",
             opportunity_id=opp_id,
             company_id=resolved_comp_id,
             person_id=act.person_id,
+            connected_person_ids=connected_pids,
             activity_id=act.id,
             title=title,
             summary=summary,

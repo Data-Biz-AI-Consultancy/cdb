@@ -243,19 +243,19 @@ async def backfill_linkedin_messages_into_activities(db: AsyncSession) -> dict[s
             if source_id in existing_sources_set:
                 continue
 
+            matched_persons: list[Person] = []
+            if msg.participant_names:
+                raw_parts = [p.strip() for p in msg.participant_names.split(",") if p.strip()]
+                for part in raw_parts:
+                    p_clean = part.lower()
+                    if p_clean in person_by_name:
+                        matched_persons.append(person_by_name[p_clean])
+
             person_id = msg.resolved_person_id
-            if not person_id and msg.participant_names:
-                clean_name = msg.participant_names.strip().lower()
-                matched_p = person_by_name.get(clean_name)
-                if not matched_p:
-                    for p_name, p_obj in person_by_name.items():
-                        if clean_name in p_name or p_name in clean_name:
-                            matched_p = p_obj
-                            break
-                if matched_p:
-                    person_id = matched_p.id
-                    msg.resolved_person_id = matched_p.id
-                    msg.status = "resolved"
+            if not person_id and matched_persons:
+                person_id = matched_persons[0].id
+                msg.resolved_person_id = person_id
+                msg.status = "resolved"
 
             if not person_id:
                 continue
@@ -282,6 +282,8 @@ async def backfill_linkedin_messages_into_activities(db: AsyncSession) -> dict[s
                 occurred_at = msg.ingested_at or datetime.datetime.now(datetime.UTC)
 
             signals = detect_message_metadata(msg.raw_content)
+            if matched_persons:
+                signals["participant_person_ids"] = [str(p.id) for p in matched_persons]
             title = f"LinkedIn Conversation with {msg.participant_names or 'Contact'} ({msg.message_count} messages)"
             summary_text = (
                 f"Intent: {signals.get('intent', 'General Networking')} | "

@@ -149,6 +149,42 @@ describe('SignalDetailPage', () => {
     expect(viewPersonBtn).toHaveAttribute('href', '/persons/pers-multi-123');
   });
 
+  it('renders multiple distinct connected persons with individual direct view person links', async () => {
+    const multiConnectedSignal = {
+      ...mockSignalDetail,
+      person_id: 'pers-louis-1',
+      person_name: 'Louis Guitton',
+      connected_persons: [
+        {
+          id: 'pers-louis-1',
+          name: 'Louis Guitton',
+          email: 'louis@example.com',
+          role: 'primary',
+        },
+        {
+          id: 'pers-jodi-2',
+          name: 'Jodi Barrow',
+          email: 'jodi@example.com',
+          role: 'counterparty',
+        },
+      ],
+    };
+    (apiFetch as any).mockResolvedValue(multiConnectedSignal);
+
+    render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Connected People (2)')).toBeInTheDocument();
+      expect(screen.getByText('Louis Guitton')).toBeInTheDocument();
+      expect(screen.getByText('Jodi Barrow')).toBeInTheDocument();
+    });
+
+    const viewPersonLinks = screen.getAllByRole('link', { name: /View Person/i });
+    expect(viewPersonLinks).toHaveLength(2);
+    expect(viewPersonLinks[0]).toHaveAttribute('href', '/persons/pers-louis-1');
+    expect(viewPersonLinks[1]).toHaveAttribute('href', '/persons/pers-jodi-2');
+  });
+
   it('allows acknowledging signal and updates status', async () => {
     (apiFetch as any).mockResolvedValueOnce(mockSignalDetail);
     (apiFetch as any).mockResolvedValueOnce({
