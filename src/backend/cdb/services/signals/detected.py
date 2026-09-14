@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from cdb.models.base import utc_now
-from cdb.models.signal import DetectedSignal, Signal
+from cdb.models.signal import DetectedSignal, DetectedSignalPerson, Signal
 from cdb.models.user import User
-from cdb.schemas.person import PersonSummaryResponse
 from cdb.schemas.signals import (
+    ConnectedPersonResponse,
     DetectedSignalResponse,
     DetectedSignalStatsResponse,
     DetectedSignalStatus,
@@ -23,49 +23,69 @@ from cdb.schemas.signals import (
 def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
     """Converts ORM DetectedSignal into rich response model."""
     comp_name = sig.company.name if sig.company else None
-    person_name = f"{sig.person.first_name} {sig.person.last_name}" if sig.person else None
     opp_title = sig.opportunity.title if sig.opportunity else None
     eng_title = sig.engagement.title if sig.engagement else None
 
-    connected_persons: list[PersonSummaryResponse] = []
-    if getattr(sig, "connected_persons", None):
+    connected_persons: list[ConnectedPersonResponse] = []
+    if getattr(sig, "signal_persons", None):
+        for sp in sig.signal_persons:
+            if sp.person:
+                p = sp.person
+                p_name = f"{p.first_name or ''} {p.last_name or ''}".strip() or "Unnamed Contact"
+                connected_persons.append(
+                    ConnectedPersonResponse(
+                        id=p.id,
+                        name=p_name,
+                        first_name=p.first_name,
+                        last_name=p.last_name,
+                        email=p.primary_email,
+                        primary_email=p.primary_email,
+                        role=sp.role,
+                        linkedin_url=p.linkedin_url,
+                    )
+                )
+    elif getattr(sig, "connected_persons", None):
         for cp in sig.connected_persons:
+            p_name = f"{cp.first_name or ''} {cp.last_name or ''}".strip() or "Unnamed Contact"
             connected_persons.append(
-                PersonSummaryResponse(
+                ConnectedPersonResponse(
                     id=cp.id,
+                    name=p_name,
                     first_name=cp.first_name,
                     last_name=cp.last_name,
+                    email=cp.primary_email,
                     primary_email=cp.primary_email,
-                    primary_phone=cp.primary_phone,
+                    role="participant",
                     linkedin_url=cp.linkedin_url,
-                    city=cp.city,
-                    country=cp.country,
-                    sources=cp.sources,
-                    created_at=cp.created_at,
-                    updated_at=cp.updated_at,
                 )
             )
     elif sig.person:
+        p_name = (
+            f"{sig.person.first_name or ''} {sig.person.last_name or ''}".strip()
+            or "Unnamed Contact"
+        )
         connected_persons.append(
-            PersonSummaryResponse(
+            ConnectedPersonResponse(
                 id=sig.person.id,
+                name=p_name,
                 first_name=sig.person.first_name,
                 last_name=sig.person.last_name,
+                email=sig.person.primary_email,
                 primary_email=sig.person.primary_email,
-                primary_phone=sig.person.primary_phone,
+                role="primary",
                 linkedin_url=sig.person.linkedin_url,
-                city=sig.person.city,
-                country=sig.person.country,
-                sources=sig.person.sources,
-                created_at=sig.person.created_at,
-                updated_at=sig.person.updated_at,
             )
         )
 
-    if not person_name and connected_persons:
-        person_name = ", ".join(
-            f"{p.first_name or ''} {p.last_name or ''}".strip() for p in connected_persons
-        )
+    if len(connected_persons) > 1:
+        person_name = ", ".join(p.name for p in connected_persons)
+    elif connected_persons:
+        person_name = connected_persons[0].name
+    elif sig.person:
+        person_name = f"{sig.person.first_name or ''} {sig.person.last_name or ''}".strip() or None
+    else:
+        person_name = None
+
     primary_person_id = sig.person_id or (connected_persons[0].id if connected_persons else None)
 
     meta = sig.metadata_payload or {}
@@ -141,6 +161,7 @@ async def list_detected_signals(
             selectinload(DetectedSignal.person),
             selectinload(DetectedSignal.opportunity),
             selectinload(DetectedSignal.engagement),
+            selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
             selectinload(DetectedSignal.connected_persons),
         )
         .order_by(DetectedSignal.detected_at.desc())
@@ -256,6 +277,7 @@ async def get_detected_signal(
             selectinload(DetectedSignal.person),
             selectinload(DetectedSignal.opportunity),
             selectinload(DetectedSignal.engagement),
+            selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
             selectinload(DetectedSignal.connected_persons),
         )
     )

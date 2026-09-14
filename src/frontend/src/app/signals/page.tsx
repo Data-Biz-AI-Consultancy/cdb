@@ -33,9 +33,13 @@ export interface SignalDefinition {
 
 export interface ConnectedPerson {
   id: string;
-  name: string;
+  name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
   email?: string | null;
+  primary_email?: string | null;
   role?: string | null;
+  linkedin_url?: string | null;
 }
 
 export interface DetectedSignal {
@@ -296,7 +300,10 @@ export default function SignalsPage() {
         const matchesCompany = s.company_name?.toLowerCase().includes(q) ?? false;
         const matchesPerson =
           (s.person_name?.toLowerCase().includes(q) ?? false) ||
-          (s.connected_persons?.some((p) => p.name?.toLowerCase().includes(q)) ?? false);
+          (s.connected_persons?.some((p) => {
+            const pName = p.name || [p.first_name, p.last_name].filter(Boolean).join(' ');
+            return pName.toLowerCase().includes(q);
+          }) ?? false);
         const matchesOpp = s.opportunity_title?.toLowerCase().includes(q) ?? false;
         const matchesEng = s.engagement_title?.toLowerCase().includes(q) ?? false;
         if (
@@ -522,17 +529,21 @@ export default function SignalsPage() {
               </Link>
             )}
             {sig.connected_persons && sig.connected_persons.length > 0 ? (
-              sig.connected_persons.map((p) => (
-                <Link
-                  key={p.id}
-                  href={`/persons/${p.id}`}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium text-[11px]"
-                  title={p.role ? `${p.name} (${p.role})` : p.name}
-                >
-                  <span>👤</span>
-                  <span className="truncate max-w-[140px]">{p.name}</span>
-                </Link>
-              ))
+              sig.connected_persons.map((p) => {
+                const pName =
+                  p.name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Contact';
+                return (
+                  <Link
+                    key={p.id}
+                    href={`/persons/${p.id}`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium text-[11px]"
+                    title={p.role ? `${pName} (${p.role})` : pName}
+                  >
+                    <span>👤</span>
+                    <span className="truncate max-w-[140px]">{pName}</span>
+                  </Link>
+                );
+              })
             ) : sig.person_name ? (
               <Link
                 href={
