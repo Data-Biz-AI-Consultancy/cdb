@@ -52,7 +52,7 @@ The application navigation is organized into 3 clear functional categories:
 
 1. **Directory**
    - **Persons** (`/persons`, `/persons/[id]`): Golden records of natural persons, contact intelligence, segment badges, engagement temperature, full history timeline (LinkedIn messages, Notion meeting notes, emails, calls), employment history, attached opportunities, attached leads, and the **`person_history` audit changelog** with field-level diffs and action dimensions.
-   - **Companies** (`/companies`): Company profiles, domain mappings, and linked employees.
+   - **Companies** (`/companies`, `/companies/[id]`): Company profiles, domain mappings, linked employees, firmographic profile data, key commercial KPIs, and integrated **Account Opportunity & Risk Signals** with active alert banners, evidence context, and recommended playbook actions.
    - **Review Queue** (`/review`): Side-by-side comparison for ambiguous Entity Resolution pairs.
 
 2. **Pipeline & Engagements**

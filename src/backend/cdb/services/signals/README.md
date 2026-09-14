@@ -257,12 +257,20 @@ erDiagram
 
 ### Detection Engine Rules (`detector.py`)
 
-1. **`dormant_strategic_account`**: Scans companies qualifying as strategic (signed engagement, won deal, or strategic tag) where `MAX(activity.occurred_at)` is older than 60 days (or no activity).
-2. **`unanswered_conversation`**: Scans inbound messages (LinkedIn, email, WhatsApp) where the external contact was the last sender > 3 days ago without an outbound response.
-3. **`expiring_contract`**: Scans active signed engagements where `expected_end_date` is within 60 days.
+1. **`dormant_strategic_account`**: Scans companies qualifying as strategic (signed engagement, won deal, or strategic tier/segment attributes) where `MAX(activity.occurred_at)` is older than 60 days (or no activity).
+2. **`unanswered_conversation`**: Scans inbound messages (LinkedIn, email, WhatsApp) where the external contact was the last sender > 3 days ago without an outbound response. Guarantees affected account attribution by resolving contact's current company via `PersonCompanyRelationship`.
+3. **`expiring_contract`**: Scans active signed engagements where `expected_end_date` is within 60 days ($\le 30\text{d}$ high risk, $31-60\text{d}$ renewal opportunity).
 4. **`leadership_change`**: Scans relationship ends in last 60 days (champion departures) and new executive relationships in last 60 days.
-5. **`hiring_funding_event`**: Scans activity texts in last 90 days matching funding round or technical hiring acceleration regex patterns.
-6. **`competitor_signal`**: Scans activity texts and opportunity notes for competitor evaluation or RFP bake-off mentions.
+5. **`hiring_funding_event`**: Scans both unstructured touchpoint activities (last 90 days matching capital/hiring keywords) and structured account enrichment data (`Company.attributes` for funding rounds, capital amounts, and headcount growth rates).
+6. **`competitor_signal`**: Scans activity texts and opportunity notes for competitor evaluation or RFP bake-off mentions, resolving affected account via `OpportunityCompany`, `Engagement`, or `Person`.
+
+### Guaranteed Affected Account Attribution & Resolution
+- All detected signals strictly guarantee affected account attribution (`company_id` and `company_name`):
+  - **Direct Company Signals**: (`dormant_strategic_account`, `hiring_funding_event`) directly associate `company_id`.
+  - **Person Signals**: (`unanswered_conversation`, `leadership_change`) resolve the contact's current organization via `PersonCompanyRelationship.is_current == True` (or most recent employment).
+  - **Engagement Signals**: (`expiring_contract`) resolve `engagement.company_id`.
+  - **Opportunity Signals**: (`competitor_signal`) resolve `opportunity_companies.company_id` or linked engagement/activity.
+- Supporting account context (`account_name`, `company_tier`, `company_segment`) is embedded directly in `metadata_payload` and `metadata_payload["evidence"]`.
 
 ### Idempotency & Lifecycle State Machine
 * **Idempotency**: Running `evaluate_all_signals` repeatedly does **not** duplicate active signals. Existing active signals for the same entity and signal code have their timestamps, severity, and metadata refreshed in place.

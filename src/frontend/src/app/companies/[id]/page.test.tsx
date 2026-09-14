@@ -155,6 +155,67 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     ],
   };
 
+  const mockSignals = {
+    data: [
+      {
+        id: 'sig-1',
+        signal_id: 'expiring_contract',
+        signal: {
+          id: 'expiring_contract',
+          name: 'Expiring Contract',
+          category: 'hybrid',
+          icon: '📅',
+          recommended_action: {
+            title: 'Initiate Contract Renewal & Scope Review',
+            description: 'Schedule a project renewal milestone meeting.',
+          },
+        },
+        title: 'Expiring Contract: AI Delivery Retainer (20d remaining)',
+        summary: 'Active delivery contract ends on 2026-10-04. Immediate renewal review required.',
+        severity: 'high',
+        status: 'active',
+        detected_at: '2026-09-14T10:00:00Z',
+        confidence_score: 0.95,
+        evidence: {
+          excerpt: 'Engagement expected end date is 2026-10-04',
+          key_metrics: {
+            days_left: 20,
+            rate_type: 'monthly_retainer',
+            currency: 'EUR',
+          },
+        },
+      },
+      {
+        id: 'sig-2',
+        signal_id: 'hiring_funding_event',
+        signal: {
+          id: 'hiring_funding_event',
+          name: 'Hiring or Funding Event',
+          category: 'opportunity',
+          icon: '🚀',
+          recommended_action: {
+            title: 'Pitch Rapid Delivery & Acceleration',
+            description: 'Offer team augmentation during growth phase.',
+          },
+        },
+        title: 'Funding Event: Acme AI Systems (Series B)',
+        summary: 'Enrichment data indicates Acme AI Systems secured Series B funding ($25M).',
+        severity: 'medium',
+        status: 'active',
+        detected_at: '2026-09-14T09:00:00Z',
+        confidence_score: 0.90,
+        evidence: {
+          excerpt: 'Company enrichment attribute indicates Series B ($25M)',
+          key_metrics: {
+            round: 'Series B',
+            amount: '$25M',
+            enrichment_source: 'company_attributes',
+          },
+        },
+      },
+    ],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     (api.apiFetch as any).mockImplementation((url: string) => {
@@ -175,6 +236,9 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
       }
       if (url.includes('/api/v1/persons')) {
         return Promise.resolve(mockPersons);
+      }
+      if (url.includes('/api/v1/signals/detected')) {
+        return Promise.resolve(mockSignals);
       }
       return Promise.resolve({ data: [] });
     });
@@ -321,5 +385,33 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     expect(screen.getByText('Edit Company Profile')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByText('Edit Company Profile')).not.toBeInTheDocument();
+  });
+
+  it('displays Active Signals Alert Banner and navigates to signals tab', async () => {
+    render(<CompanyDetailPage params={Promise.resolve({ id: 'comp-1111-2222-3333' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/2 Active Opportunity & Risk Signals Detected/i)).toBeInTheDocument();
+    });
+
+    // Click on Review Signals button in alert banner
+    const reviewBtn = screen.getByRole('button', { name: /Review Signals →/i });
+    fireEvent.click(reviewBtn);
+
+    // Verify Signals tab content rendered
+    await waitFor(() => {
+      expect(screen.getByText('Expiring Contract: AI Delivery Retainer (20d remaining)')).toBeInTheDocument();
+      expect(screen.getByText('Funding Event: Acme AI Systems (Series B)')).toBeInTheDocument();
+    });
+
+    // Check severity badges and supporting context
+    expect(screen.getByText('high')).toBeInTheDocument();
+    expect(screen.getByText('medium')).toBeInTheDocument();
+    expect(screen.getByText(/Engagement expected end date is 2026-10-04/i)).toBeInTheDocument();
+    expect(screen.getByText(/Company enrichment attribute indicates Series B/i)).toBeInTheDocument();
+
+    // Check recommended action playbooks
+    expect(screen.getByText('Initiate Contract Renewal & Scope Review')).toBeInTheDocument();
+    expect(screen.getByText('Pitch Rapid Delivery & Acceleration')).toBeInTheDocument();
   });
 });

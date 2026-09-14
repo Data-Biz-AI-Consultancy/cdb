@@ -1243,7 +1243,7 @@ Retrieve the full definition, trigger thresholds, and action playbook for a spec
 
 ### `POST /signals/evaluate`
 
-Triggers the automated Signal Detection Engine to scan all 6 catalog signals across all database entities. Idempotent on rerun.
+Triggers the automated Signal Detection Engine to scan the initial catalog across CDB activity, engagement, contract, and enrichment data. Guarantees affected account attribution (`company_id` and `company_name`) on every detected signal. Idempotent on rerun.
 
 **Response 200:**
 ```json
