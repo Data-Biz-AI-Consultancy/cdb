@@ -1,7 +1,7 @@
 import datetime
 import logging
-import re
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,7 @@ from cdb.models.lead import Lead
 from cdb.models.person import Person
 from cdb.models.relationship import PersonCompanyRelationship
 from cdb.services.entity_resolution.normalise import clean_company_name, generate_company_domain
+from cdb.services.ingestion.notion_resolver import NotionAttendeeIndex
 from cdb.services.ingestion.signals import detect_message_metadata
 
 logger = logging.getLogger(__name__)
@@ -350,18 +351,11 @@ async def backfill_linkedin_messages_into_activities(db: AsyncSession) -> dict[s
     }
 
 
-def clean_meeting_title(raw_title: str | None) -> str:
-    if not raw_title:
-        return "Notion Meeting Note"
-    # Strip ISO timestamp suffixes like 2026-08-27T16:28:00.000+02:00
-    cleaned = re.sub(r"\s*\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*$", "", raw_title).strip()
-    return cleaned or raw_title.strip()
-
-
 async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dict[str, Any]:
     """
     Backfills all intake_notion_meeting_notes into the activities table.
     Intelligently links meetings with attendee persons from attendees list, meeting title, URL, or transcripts.
+    Uses robust diacritics stripping, collision avoidance, and company affiliation resolution.
     """
     notes_stmt = select(IntakeNotionMeetingNote)
     notes = (await db.execute(notes_stmt)).scalars().all()
@@ -386,22 +380,20 @@ async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dic
             )
         )
     ).all()
-    person_companies: dict[Any, list[str]] = {}
-    person_company_ids: dict[Any, Any] = {}
+    person_companies: dict[UUID, list[str]] = {}
+    person_company_ids: dict[UUID, UUID] = {}
     for r, c in rels:
-        person_companies.setdefault(r.person_id, []).append((c.name or "").lower().strip())
+        c_norm = (c.name or "").lower().strip()
+        if c_norm:
+            person_companies.setdefault(r.person_id, []).append(c_norm)
         person_company_ids[r.person_id] = c.id
 
-    jimmy = next(
-        (
-            p
-            for p in persons
-            if (p.first_name or "").strip().lower() == "jimmy"
-            and (p.last_name or "").strip().lower() == "pang"
-        ),
-        None,
+    attendee_index = NotionAttendeeIndex(
+        persons=persons,
+        companies=companies,
+        person_companies=person_companies,
+        person_company_ids=person_company_ids,
     )
-    default_person_id = jimmy.id if jimmy else (persons[0].id if persons else None)
 
     created_meetings_count = 0
     updated_meetings_count = 0
@@ -411,80 +403,12 @@ async def backfill_notion_meeting_notes_into_activities(db: AsyncSession) -> dic
         chunk = notes[i : i + chunk_size]
         for note in chunk:
             source_id = f"notion:{note.page_id}"
-            clean_title = clean_meeting_title(note.title)
-
-            # Combined text to search for candidate attendees & company affiliation (including intro/transcript snippet)
-            content_snippet = (note.content or "")[:1000]
-            search_corpus = f"{note.attendees or ''} {note.title or ''} {note.url or ''} {content_snippet}".lower()
-
-            matched_person_id = None
-            matched_company_id = None
-            jimmy_person_id = None
-
-            # 1. First search full name matches (prioritizing non-host attendees)
-            for p in persons:
-                first = (p.first_name or "").strip().lower()
-                last = (p.last_name or "").strip().lower()
-                if first and last and len(first) >= 2 and len(last) >= 2:
-                    full_name = f"{first} {last}"
-                    if re.search(rf"\b{re.escape(full_name)}\b", search_corpus):
-                        if first == "jimmy" and last == "pang":
-                            jimmy_person_id = p.id
-                        else:
-                            matched_person_id = p.id
-                            break
-
-            # 2. If no full name match, search first_name + company affiliation match (e.g. "Bendik" + "MotherDuck")
-            if not matched_person_id:
-                for p in persons:
-                    first = (p.first_name or "").strip().lower()
-                    if first and len(first) >= 3 and first != "jimmy":
-                        if re.search(rf"\b{re.escape(first)}\b", search_corpus):
-                            p_comps = person_companies.get(p.id, [])
-                            if any(
-                                re.search(rf"\b{re.escape(comp)}\b", search_corpus)
-                                for comp in p_comps
-                                if len(comp) >= 3
-                            ):
-                                matched_person_id = p.id
-                                break
-
-            # 3. If still no match, search distinctive first name in title patterns (e.g. "Joe", "Yarek", "Lauren/Jimmy", "Daniel x Jimmy")
-            if not matched_person_id:
-                title_lower = (note.title or "").lower()
-                for p in persons:
-                    first = (p.first_name or "").strip().lower()
-                    if first and len(first) >= 3 and first != "jimmy":
-                        pattern = rf"\b{re.escape(first)}\b"
-                        if re.search(pattern, title_lower):
-                            matched_person_id = p.id
-                            break
-
-            # Fallback to host contact if mentioned and no external person matched
-            if not matched_person_id and jimmy_person_id:
-                matched_person_id = jimmy_person_id
-
-            # Link company from matched person if available
-            if matched_person_id and matched_person_id in person_company_ids:
-                matched_company_id = person_company_ids[matched_person_id]
-
-            # If company still not matched, check companies directly in title/corpus
-            if not matched_company_id:
-                for c in companies:
-                    cname = (c.name or "").strip().lower()
-                    if (
-                        cname
-                        and len(cname) >= 4
-                        and cname not in ["data", "tech", "team", "consulting"]
-                    ):
-                        pattern = rf"\b{re.escape(cname)}\b"
-                        if re.search(pattern, search_corpus):
-                            matched_company_id = c.id
-                            break
-
-            # Satisfy check constraint ck_activities_person_or_company_required
-            if not matched_person_id and not matched_company_id:
-                matched_person_id = default_person_id
+            matched_person_id, matched_company_id, clean_title = attendee_index.resolve_meeting(
+                title=note.title,
+                attendees=note.attendees,
+                url=note.url,
+                content=note.content,
+            )
 
             occurred_at = (
                 note.meeting_date or note.ingested_at or datetime.datetime.now(datetime.UTC)
