@@ -1,3 +1,22 @@
+# [1.30.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.29.0...v1.30.0) (2026-09-15)
+
+
+### Bug Fixes
+
+* refine signal person ID resolution and update UI fallback states ([b6f0a2d](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/b6f0a2d44d790e51806fb2fa5224decb6a91fb9a))
+
+
+### Features
+
+* add configurable lookback window and enhanced noise filtering to signal detection and APIs ([3360df1](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/3360df181cedf39a2f2072a082aa296938900244))
+* add ConnectedPersonResponse schema and update frontend signal components for detailed contact data ([da24da5](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/da24da5d229dc3854b6de7de045508f8fb33db1a))
+* add enhanced Notion meeting entity detection and signal-person linking capabilities ([b846056](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/b84605684a20406a711991ec603556616e89e37e))
+* add multi-person connectivity support for detected signals with new junction table ([4c3a0fb](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/4c3a0fb525d8c10d675d7c920c4a806c0a9f3406))
+* add retry and exponential backoff handling for Notion API rate limits ([453cf02](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/453cf025d2f5fc164e38df2c1e6d804543256121))
+* enhance company matching in notion resolver and expand hiring signal regex patterns ([c2b53a8](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/c2b53a8fd4b2d415a34478113ad70f0620667de9))
+* improve company resolution accuracy with tiered confidence and contextual body matching ([dab4e1b](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/dab4e1b8bb948870675707dd9b4a927aa8ef8cc4))
+* support direct entity ID routing and multi-contact search filtering ([98f1cf1](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/98f1cf130a38dd3e44a665725d7779f858a2f17a))
+
 # [1.29.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.28.0...v1.29.0) (2026-09-10)
 
 
