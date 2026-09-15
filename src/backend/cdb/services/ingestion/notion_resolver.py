@@ -275,7 +275,11 @@ class NotionAttendeeIndex:
             )
             if not fadi_comp:
                 fadi_comp = next(
-                    (c for c in self.companies if c.name and "peek & cloppenburg" in c.name.lower()),
+                    (
+                        c
+                        for c in self.companies
+                        if c.name and "peek & cloppenburg" in c.name.lower()
+                    ),
                     None,
                 )
             if fadi_comp:
@@ -283,8 +287,18 @@ class NotionAttendeeIndex:
                 matched_company_name = fadi_comp.name
 
         if not matched_company_id:
+            # 1. High confidence: match company name in Title, Attendees, or URL
+            for c in self.companies:
+                cname = normalise_text_tokens(c.name)
+                if cname and len(cname) >= 3 and cname not in COMPANY_STOPWORDS:
+                    if re.search(rf"\b{re.escape(cname)}\b", title_att_corpus):
+                        matched_company_id = c.id
+                        matched_company_name = c.name
+                        break
+
+        if not matched_company_id:
+            # 2. Medium confidence: match in body content ONLY with strong contextual indicators (e.g. 'at <Company>', 'with <Company>', '@ <Company>')
             # Strip out biographical self-introduction and past-work references like "ex-HelloFresh", "met at HelloFresh", "worked at Metro"
-            # so past employment doesn't hijack current meeting counterparty resolution
             sanitized_content = re.sub(
                 r"\b(?:ex\s*[-/]?|formerly\s+(?:at\s+)?|past\s+(?:at\s+)?|met\s+at\s+|worked\s+at\s+|prior\s+(?:at\s+)?|left\s+|alumni\s+of\s+)[a-zA-Z0-9_\-\. ]{1,30}\b",
                 " ",
@@ -294,9 +308,11 @@ class NotionAttendeeIndex:
             for c in self.companies:
                 cname = normalise_text_tokens(c.name)
                 if cname and len(cname) >= 3 and cname not in COMPANY_STOPWORDS:
-                    if re.search(rf"\b{re.escape(cname)}\b", title_att_corpus) or re.search(
-                        rf"\b{re.escape(cname)}\b", sanitized_content
-                    ):
+                    # Require company indicator like 'interview at/with', 'team at', 'client', '@', 'at'
+                    context_pattern = (
+                        rf"\b(?:at|with|@|for|client|partner|team)\s+{re.escape(cname)}\b"
+                    )
+                    if re.search(context_pattern, sanitized_content, re.IGNORECASE):
                         matched_company_id = c.id
                         matched_company_name = c.name
                         break
