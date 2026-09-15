@@ -25,12 +25,14 @@ from cdb.services.signals.classification import (
 # Commercial opportunity / gig regex for filtering unanswered conversations
 COMMERCIAL_OPPORTUNITY_REGEX = re.compile(
     r"\b("
-    r"proposal|sow|statement of work|contract|scope|scope of work|project scope|"
-    r"budget|pricing|rate card|hourly rate|daily rate|fixed price|retainer|"
-    r"deliverable|deliverables|consulting|advisory|"
-    r"pilot|pilot project|proof of concept|poc|kickoff|kick-off|contract renewal|"
+    r"proposal|sow|statement of work|scope of work|project scope|"
+    r"project budget|allocated budget|budget for (?:this|the project|consulting)|"
+    r"rate card|hourly rate|daily rate|fixed price|retainer|"
+    r"pilot project|proof of concept|poc|contract renewal|contract terms|sign(?:ing)? the contract|"
     r"hire you|hire us|work together|partner with us|collaborate on|"
     r"need your help|need help with|looking for an expert|looking for assistance|"
+    r"looking for (?:architectural\s+|data\s+|technical\s+)?consulting|architectural consulting|"
+    r"consulting on|inquiry regarding|"
     r"provide a quote|cost estimate|commercial terms|master service agreement|msa"
     r")\b",
     re.IGNORECASE,
@@ -572,6 +574,24 @@ async def detect_unanswered_conversations(
         )
         if newer_act > 0:
             continue
+
+        # Check if the latest message in this thread was already sent by the host/user
+        if act.raw_content:
+            lines = [
+                line_str.strip() for line_str in act.raw_content.splitlines() if line_str.strip()
+            ]
+            speaker_re = re.compile(r"^([A-Za-z0-9\s\.\-_]+?):\s*(.*)$")
+            last_speaker = None
+            for line in reversed(lines):
+                m = speaker_re.match(line)
+                if m:
+                    last_speaker = m.group(1).strip()
+                    break
+            if last_speaker:
+                ls_lower = last_speaker.lower()
+                if any(h in ls_lower for h in ["jimmy", "pang", "host", "databiz", "me"]):
+                    # Conversation was already replied to by host
+                    continue
 
         # Check conversation content for competitor context or commercial gig/project intent
         content = f"{act.title or ''} {act.summary or ''} {act.raw_content or ''}"
