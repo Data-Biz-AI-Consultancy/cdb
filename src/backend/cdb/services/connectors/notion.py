@@ -80,6 +80,74 @@ class NotionConnectorService:
             "Content-Type": "application/json",
         }
 
+    async def _request_with_retry(
+        self,
+        client: httpx.AsyncClient,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        max_retries: int = 5,
+    ) -> httpx.Response:
+        """
+        Executes an HTTP request with exponential backoff and Retry-After header support
+        to gracefully handle Notion API 429 rate limits and transient network drops.
+        """
+        resp: httpx.Response | None = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                if method.upper() == "POST":
+                    resp = await client.post(url, json=json, headers=headers)
+                else:
+                    resp = await client.get(url, params=params, headers=headers)
+
+                if resp.status_code == 429:
+                    if attempt == max_retries:
+                        logger.warning(
+                            "Notion API 429 rate limit reached for %s and exhausted all %d retries.",
+                            url,
+                            max_retries,
+                        )
+                        return resp
+
+                    retry_after_hdr = getattr(resp, "headers", {}).get("Retry-After")
+                    try:
+                        retry_after = float(retry_after_hdr) if retry_after_hdr else (1.5 * attempt)
+                    except ValueError:
+                        retry_after = 1.5 * attempt
+                    wait_time = max(retry_after, 1.0) + 0.25 * attempt
+                    logger.warning(
+                        "Notion API 429 rate limit reached for %s. Backing off for %.2fs (attempt %d/%d)",
+                        url,
+                        wait_time,
+                        attempt,
+                        max_retries,
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+
+                return resp
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError) as e:
+                if attempt == max_retries:
+                    raise
+                wait_time = 1.0 * attempt
+                logger.warning(
+                    "Transient connection error %s on %s. Retrying in %.2fs (attempt %d/%d)",
+                    e,
+                    url,
+                    wait_time,
+                    attempt,
+                    max_retries,
+                )
+                await asyncio.sleep(wait_time)
+
+        if resp is not None:
+            return resp
+        if method.upper() == "POST":
+            return await client.post(url, json=json, headers=headers)
+        return await client.get(url, params=params, headers=headers)
+
     async def fetch_database_pages(
         self,
         database_id: str,
@@ -110,7 +178,9 @@ class NotionConnectorService:
                 if filter_criteria:
                     payload["filter"] = filter_criteria
 
-                resp = await client.post(url, json=payload, headers=headers)
+                resp = await self._request_with_retry(
+                    client, "POST", url, headers=headers, json=payload
+                )
                 resp.raise_for_status()
                 data = resp.json()
 
@@ -133,10 +203,12 @@ class NotionConnectorService:
         client: httpx.AsyncClient | None = None,
         recursive: bool = True,
         max_depth: int = 5,
+        semaphore: asyncio.Semaphore | None = None,
     ) -> list[dict[str, Any]]:
         """
         Fetches child blocks for a given page or parent block using pagination.
-        If recursive=True and max_depth > 0, concurrently traverses blocks where has_children=True.
+        If recursive=True and max_depth > 0, concurrently traverses blocks where has_children=True
+        using a bounded concurrency semaphore to prevent exceeding Notion API rate limits.
         """
         formatted_id = format_uuid(page_id)
         url = f"{self.api_base_url}/blocks/{formatted_id}/children"
@@ -157,7 +229,9 @@ class NotionConnectorService:
                 if start_cursor:
                     params["start_cursor"] = start_cursor
 
-                resp = await client.get(url, params=params, headers=headers)
+                resp = await self._request_with_retry(
+                    client, "GET", url, headers=headers, params=params
+                )
                 if resp.status_code != 200:
                     logger.warning(
                         "Failed to fetch blocks for page/block %s: status %d",
@@ -176,18 +250,24 @@ class NotionConnectorService:
                     break
 
             if recursive and max_depth > 0 and blocks:
+                sem = semaphore or asyncio.Semaphore(3)
+
+                async def _fetch_child(child_id: str):
+                    async with sem:
+                        await asyncio.sleep(0.35)
+                        return await self.fetch_page_blocks(
+                            child_id,
+                            client=client,
+                            recursive=True,
+                            max_depth=max_depth - 1,
+                            semaphore=sem,
+                        )
+
                 tasks = []
                 child_indices = []
                 for idx, b in enumerate(blocks):
                     if b.get("has_children"):
-                        tasks.append(
-                            self.fetch_page_blocks(
-                                b["id"],
-                                client=client,
-                                recursive=True,
-                                max_depth=max_depth - 1,
-                            )
-                        )
+                        tasks.append(_fetch_child(b["id"]))
                         child_indices.append(idx)
                 if tasks:
                     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -419,6 +499,7 @@ class NotionConnectorService:
                         blocks = await self.fetch_page_blocks(page_id, client=client)
                     record = self.parse_meeting_note(page, blocks=blocks)
                     records.append(record)
+                    await asyncio.sleep(0.35)
 
             if not records:
                 return {

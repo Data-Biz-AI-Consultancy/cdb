@@ -871,3 +871,34 @@ async def test_backfill_notion_meeting_notes_diacritics_and_disambiguation(
     ).scalar_one()
     assert act_data.person_id != data_contact.id
     assert act_data.person_id == host_jimmy.id
+
+
+@pytest.mark.asyncio
+async def test_notion_api_429_retry_and_backoff():
+    """Verify _request_with_retry backs off and retries when Notion returns HTTP 429."""
+    service = NotionConnectorService(api_key="test-key")
+    mock_client = AsyncMock()
+
+    resp_429 = MagicMock(spec=Response)
+    resp_429.status_code = 429
+    resp_429.headers = {"Retry-After": "0.05"}
+
+    resp_200 = MagicMock(spec=Response)
+    resp_200.status_code = 200
+    resp_200.json.return_value = {"results": [{"id": "page-after-retry"}]}
+
+    mock_client.post.side_effect = [resp_429, resp_200]
+
+    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        res = await service._request_with_retry(
+            mock_client,
+            "POST",
+            "https://api.notion.com/v1/databases/test-db/query",
+            headers={"Authorization": "Bearer test-key"},
+            json={"page_size": 100},
+        )
+        assert res.status_code == 200
+        assert mock_client.post.call_count == 2
+        mock_sleep.assert_called_once()
+        wait_arg = mock_sleep.call_args[0][0]
+        assert wait_arg >= 1.0
