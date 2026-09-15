@@ -14,7 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cdb.models.base import utc_now
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.catalog import ensure_signals_dimension
-from cdb.services.signals.classification import detect_signal_conflicts
+from cdb.services.signals.classification import (
+    apply_conflict_metadata,
+    detect_signal_conflicts,
+)
+from cdb.services.signals.detected import retire_stale_detected_signals
 from cdb.services.signals.detectors import (
     detect_competitor_signals,
     detect_dormant_strategic_accounts,
@@ -54,55 +58,20 @@ async def evaluate_all_signals(db: AsyncSession, lookback_days: int = 90) -> dic
     all_pairs = dormant + unanswered + contracts + leadership + growth + competitors
     await db.flush()
 
-    # Automatically retire/dismiss active signals for managed catalog signals that were not
-    # detected in this run (e.g. outside the selected lookback window or criteria no longer met)
+    # Automatically retire/dismiss active signals that were not detected in this run
     detected_ids = {sig.id for sig, _ in all_pairs}
-    stale_stmt = select(DetectedSignal).where(
-        DetectedSignal.status == "active",
-        DetectedSignal.signal_id.in_(_MANAGED_SIGNAL_IDS),
-        DetectedSignal.id.not_in(detected_ids),
-    )
-    stale_signals = (await db.execute(stale_stmt)).scalars().all()
-    for stale_sig in stale_signals:
-        stale_sig.status = "dismissed"
-        meta = dict(stale_sig.metadata_payload or {})
-        meta["auto_retired"] = True
-        meta["retired_reason"] = (
-            f"Outside {lookback_days}d lookback window or criteria no longer met"
-        )
-        stale_sig.metadata_payload = meta
-        stale_sig.updated_at = now
-
+    await retire_stale_detected_signals(db, _MANAGED_SIGNAL_IDS, detected_ids, lookback_days, now)
     await db.flush()
 
     # Query all active/acknowledged signals to evaluate multi-entity conflicts
     active_signals_stmt = select(DetectedSignal).where(
         DetectedSignal.status.in_(["active", "acknowledged"])
     )
-    active_signals = (await db.execute(active_signals_stmt)).scalars().all()
+    active_signals = list((await db.execute(active_signals_stmt)).scalars().all())
 
-    # Detect conflicts across Company, Opportunity, and Person scopes
-    conflict_map = detect_signal_conflicts(list(active_signals))
-
-    total_conflicting = 0
-    total_uncertain = 0
-
-    for sig in active_signals:
-        sig_id_str = str(sig.id)
-        c_info = conflict_map.get(sig_id_str, {})
-        meta = dict(sig.metadata_payload or {})
-
-        meta["has_conflict"] = c_info.get("has_conflict", False)
-        meta["conflicting_signal_ids"] = c_info.get("conflicting_signal_ids", [])
-        meta["conflict_summary"] = c_info.get("conflict_summary")
-        meta["conflict_scope"] = c_info.get("conflict_scope")
-
-        if meta["has_conflict"]:
-            total_conflicting += 1
-        if meta.get("is_uncertain", False):
-            total_uncertain += 1
-
-        sig.metadata_payload = meta
+    # Detect and apply conflicts across Company, Opportunity, and Person scopes
+    conflict_map = detect_signal_conflicts(active_signals)
+    total_conflicting, total_uncertain = apply_conflict_metadata(active_signals, conflict_map)
 
     await db.commit()
 

@@ -42,6 +42,12 @@ async def resolve_engagement_opportunity(
     return eng.opportunity_id if eng else None
 
 
+async def fetch_active_companies(db: AsyncSession) -> list[Company]:
+    """Fetches all non-deleted companies from the database."""
+    stmt = select(Company).where(Company.deleted_at.is_(None))
+    return list((await db.execute(stmt)).scalars().all())
+
+
 async def get_strategic_companies(db: AsyncSession) -> list[Company]:
     """
     Fetches all companies qualifying as strategic:
@@ -65,9 +71,7 @@ async def get_strategic_companies(db: AsyncSession) -> list[Company]:
     strategic_set: dict[Any, Company] = {c.id: c for c in contract_companies}
 
     # Also include companies tagged with strategic attributes
-    all_companies = (
-        (await db.execute(select(Company).where(Company.deleted_at.is_(None)))).scalars().all()
-    )
+    all_companies = await fetch_active_companies(db)
     for c in all_companies:
         if c.id not in strategic_set and c.attributes:
             if (

@@ -8,7 +8,6 @@ import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.company import Company
@@ -22,6 +21,7 @@ from cdb.services.signals.utils import (
     _upsert_detected_signal,
     extract_funding_enrichment,
     extract_headcount_enrichment,
+    fetch_active_companies,
 )
 
 
@@ -79,8 +79,7 @@ async def detect_growth_from_enrichment(
     seen_companies: set[Any],
 ) -> list[tuple[DetectedSignal, bool]]:
     """Evaluates structured Company.attributes for funding rounds and headcount scaling."""
-    companies_stmt = select(Company).where(Company.deleted_at.is_(None))
-    all_companies = (await db.execute(companies_stmt)).scalars().all()
+    all_companies = await fetch_active_companies(db)
     results: list[tuple[DetectedSignal, bool]] = []
 
     for comp in all_companies:

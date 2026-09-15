@@ -133,3 +133,41 @@ def detect_signal_conflicts(
     check_group_conflicts(by_person, ConflictScope.PERSON)
 
     return results
+
+
+def apply_conflict_metadata(
+    signals: list[Any],
+    conflict_map: dict[str, dict[str, Any]],
+) -> tuple[int, int]:
+    """
+    Applies evaluated conflict metadata directly to the metadata_payload of signal instances.
+    Returns: (total_conflicting, total_uncertain)
+    """
+    total_conflicting = 0
+    total_uncertain = 0
+
+    for sig in signals:
+        sig_id_str = str(getattr(sig, "id", None) or id(sig))
+        c_info = conflict_map.get(sig_id_str, {})
+        meta = dict(getattr(sig, "metadata_payload", None) or {})
+
+        meta["has_conflict"] = c_info.get("has_conflict", False)
+        meta["conflicting_signal_ids"] = c_info.get("conflicting_signal_ids", [])
+        meta["conflict_summary"] = c_info.get("conflict_summary")
+        meta["conflict_scope"] = c_info.get("conflict_scope")
+
+        if meta["has_conflict"]:
+            total_conflicting += 1
+        if meta.get("is_uncertain", False):
+            total_uncertain += 1
+
+        sig.metadata_payload = meta
+
+    return total_conflicting, total_uncertain
+
+
+__all__ = [
+    "ConflictScope",
+    "detect_signal_conflicts",
+    "apply_conflict_metadata",
+]

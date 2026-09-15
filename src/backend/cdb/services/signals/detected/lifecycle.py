@@ -5,6 +5,7 @@ Lifecycle state machine updates and resolution handling for detected signals.
 """
 
 import uuid
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,4 +68,34 @@ async def update_detected_signal(
     return to_detected_response(sig)
 
 
-__all__ = ["update_detected_signal"]
+async def retire_stale_detected_signals(
+    db: AsyncSession,
+    managed_signal_ids: list[str],
+    active_detected_ids: set[Any],
+    lookback_days: int,
+    now: Any,
+) -> list[DetectedSignal]:
+    """
+    Retires (dismisses) active signals for managed catalog signals that were not
+    detected in the current run (e.g. aged out or qualification criteria no longer met).
+    """
+    stale_stmt = select(DetectedSignal).where(
+        DetectedSignal.status == "active",
+        DetectedSignal.signal_id.in_(managed_signal_ids),
+        DetectedSignal.id.not_in(active_detected_ids),
+    )
+    stale_signals = list((await db.execute(stale_stmt)).scalars().all())
+    for stale_sig in stale_signals:
+        stale_sig.status = "dismissed"
+        meta = dict(stale_sig.metadata_payload or {})
+        meta["auto_retired"] = True
+        meta["retired_reason"] = (
+            f"Outside {lookback_days}d lookback window or criteria no longer met"
+        )
+        stale_sig.metadata_payload = meta
+        stale_sig.updated_at = now
+
+    return stale_signals
+
+
+__all__ = ["update_detected_signal", "retire_stale_detected_signals"]

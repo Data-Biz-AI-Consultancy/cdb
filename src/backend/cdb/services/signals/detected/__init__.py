@@ -4,7 +4,10 @@ cdb.services.signals.detected
 Query, lifecycle management, response mapping, and person linking for detected signals.
 """
 
-from cdb.services.signals.detected.lifecycle import update_detected_signal
+from cdb.services.signals.detected.lifecycle import (
+    retire_stale_detected_signals,
+    update_detected_signal,
+)
 from cdb.services.signals.detected.linking import (
     link_person_to_detected_signal,
     unlink_person_from_detected_signal,
@@ -26,6 +29,7 @@ __all__ = [
     "get_detected_signal_stats",
     "get_detected_signal",
     "update_detected_signal",
+    "retire_stale_detected_signals",
     "link_person_to_detected_signal",
     "unlink_person_from_detected_signal",
 ]

@@ -14,6 +14,7 @@ Signal utility modules:
 
 from cdb.services.signals.utils.account import (
     _resolve_account_for_signal,
+    fetch_active_companies,
     get_company_display_name,
     get_person_display_name,
     get_strategic_companies,
@@ -62,6 +63,7 @@ __all__ = [
     "resolve_account_for_signal",
     "_resolve_account_for_signal",
     "resolve_engagement_opportunity",
+    "fetch_active_companies",
     "get_strategic_companies",
     "get_person_display_name",
     "get_company_display_name",

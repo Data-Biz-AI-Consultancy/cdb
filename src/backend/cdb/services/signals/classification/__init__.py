@@ -17,6 +17,7 @@ from cdb.services.signals.classification.confidence import (
 )
 from cdb.services.signals.classification.conflicts import (
     ConflictScope,
+    apply_conflict_metadata,
     detect_signal_conflicts,
 )
 from cdb.services.signals.classification.evidence import (
@@ -45,4 +46,5 @@ __all__ = [
     "assess_confidence",
     "resolve_signal_effective_polarity",
     "detect_signal_conflicts",
+    "apply_conflict_metadata",
 ]
