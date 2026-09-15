@@ -18,9 +18,12 @@ from cdb.services.signals.utils.account import (
     get_person_display_name,
     get_strategic_companies,
     resolve_account_for_signal,
+    resolve_engagement_opportunity,
 )
 from cdb.services.signals.utils.activity import (
     extract_activity_persons,
+    fetch_latest_company_activity,
+    fetch_recent_activities,
     get_activity_searchable_text,
     has_newer_outbound_activity,
     is_last_speaker_host,
@@ -28,6 +31,7 @@ from cdb.services.signals.utils.activity import (
 from cdb.services.signals.utils.dates import (
     days_between,
     ensure_utc,
+    format_days_remaining_label,
 )
 from cdb.services.signals.utils.enrichment import (
     enrich_company_context,
@@ -46,7 +50,10 @@ from cdb.services.signals.utils.upsert import (
 __all__ = [
     "days_between",
     "ensure_utc",
+    "format_days_remaining_label",
     "extract_activity_persons",
+    "fetch_recent_activities",
+    "fetch_latest_company_activity",
     "get_activity_searchable_text",
     "is_last_speaker_host",
     "has_newer_outbound_activity",
@@ -54,6 +61,7 @@ __all__ = [
     "extract_headcount_enrichment",
     "resolve_account_for_signal",
     "_resolve_account_for_signal",
+    "resolve_engagement_opportunity",
     "get_strategic_companies",
     "get_person_display_name",
     "get_company_display_name",

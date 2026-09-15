@@ -64,6 +64,34 @@ async def has_newer_outbound_activity(
     return count > 0
 
 
+async def fetch_recent_activities(
+    db: Any,
+    cutoff: datetime.datetime,
+    require_company: bool = False,
+) -> list[Activity]:
+    """Fetches activities occurred on or after cutoff, ordered by occurred_at desc."""
+    conditions = [Activity.occurred_at >= cutoff]
+    if require_company:
+        conditions.append(Activity.company_id.is_not(None))
+
+    stmt = select(Activity).where(*conditions).order_by(Activity.occurred_at.desc())
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def fetch_latest_company_activity(
+    db: Any,
+    company_id: Any,
+) -> Activity | None:
+    """Fetches the single most recent activity recorded for a company."""
+    stmt = (
+        select(Activity)
+        .where(Activity.company_id == company_id)
+        .order_by(Activity.occurred_at.desc())
+        .limit(1)
+    )
+    return (await db.execute(stmt)).scalars().first()
+
+
 def extract_activity_persons(
     act: Any,
     include_primary: bool = True,

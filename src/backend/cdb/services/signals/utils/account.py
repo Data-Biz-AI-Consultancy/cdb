@@ -31,6 +31,17 @@ def get_company_display_name(company: Company | None, default: str = "Company") 
     return company.name if company and company.name else default
 
 
+async def resolve_engagement_opportunity(
+    db: AsyncSession,
+    engagement_id: Any | None,
+) -> Any | None:
+    """Resolves the associated Opportunity ID for a given engagement ID."""
+    if not engagement_id:
+        return None
+    eng = await db.get(Engagement, engagement_id)
+    return eng.opportunity_id if eng else None
+
+
 async def get_strategic_companies(db: AsyncSession) -> list[Company]:
     """
     Fetches all companies qualifying as strategic:

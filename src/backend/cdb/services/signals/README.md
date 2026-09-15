@@ -268,20 +268,23 @@ The detection engine has been refactored from a single `detector.py` into focuse
 | `classification/conflicts.py` | Multi-entity conflict detection across Company, Opportunity, Person scopes (`detect_signal_conflicts`) |
 | `classification/__init__.py` | Classification package facade re-exporting all rules, metrics, and contracts |
 | `patterns.py` | Compiled regex constants (`COMMERCIAL_OPPORTUNITY_REGEX`, `FUNDING_REGEX`, `COMPETITOR_REGEX`, etc.) |
-| `utils/dates.py` | Date and timezone normalization utilities (`ensure_utc`) |
-| `utils/activity.py` | Activity parsing and participant extraction (`extract_activity_persons`) |
-| `utils/account.py` | Account resolution utilities (`resolve_account_for_signal`) traversing entity graphs |
+| `utils/dates.py` | Date and timezone normalization utilities (`ensure_utc`, `days_between`, `format_days_remaining_label`) |
+| `utils/activity.py` | Activity parsing, queries, and participant extraction (`fetch_recent_activities`, `fetch_latest_company_activity`, `extract_activity_persons`) |
+| `utils/account.py` | Account resolution utilities (`resolve_account_for_signal`, `resolve_engagement_opportunity`, `get_strategic_companies`) |
 | `utils/enrichment.py` | Context enrichment (`enrich_company_context`) and employee sanitization (`sanitize_target_persons`) |
 | `utils/matching.py` | Active signal lookup and query builder (`find_existing_active_signal`) |
 | `utils/persistence.py` | Signal record creation and update handling (`persist_signal_record`) |
 | `utils/linking.py` | Participant person link creation and role assignment (`link_signal_persons`) |
 | `utils/upsert.py` | Master persistence and deduplication coordinator (`upsert_detected_signal`) |
 | `utils/__init__.py` | Utility package exports with public and backward-compatible private aliases |
-| `detectors/dormant.py` | `detect_dormant_strategic_accounts` |
+| `detectors/dormant/signal.py` | Dormant account signal builder, inactivity evidence, and persistence |
+| `detectors/dormant/__init__.py` | Dormant strategic account detector facade (`detect_dormant_strategic_accounts`) |
 | `detectors/unanswered/query.py` | Candidate inbound conversation querying awaiting response |
 | `detectors/unanswered/signal.py` | Signal creation, evidence building, and persistence for unanswered threads |
 | `detectors/unanswered/__init__.py` | Unanswered conversation detector facade |
-| `detectors/contracts.py` | `detect_expiring_contracts` |
+| `detectors/contracts/query.py` | Signed engagement query within contract expiration SLA window |
+| `detectors/contracts/signal.py` | Expiring contract signal builder, milestone evidence, and persistence |
+| `detectors/contracts/__init__.py` | Expiring contract detector facade (`detect_expiring_contracts`) |
 | `detectors/leadership/signal.py` | Signal payload and metadata builder for leadership transitions |
 | `detectors/leadership/departures.py` | Champion departure detection from strategic accounts |
 | `detectors/leadership/arrivals.py` | Executive arrival/joiner detection across client/prospect accounts |

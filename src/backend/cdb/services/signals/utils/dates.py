@@ -22,3 +22,8 @@ def days_between(
         return default
     utc_dt = ensure_utc(dt)
     return (now - utc_dt).days
+
+
+def format_days_remaining_label(days: int) -> str:
+    """Formats a remaining day count into a readable label (e.g., '14d remaining' or '3d overdue')."""
+    return f"{days}d remaining" if days >= 0 else f"{-days}d overdue"
