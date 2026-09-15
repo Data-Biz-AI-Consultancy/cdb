@@ -9,11 +9,8 @@ Engagement, or Person entity traversal.
 import datetime
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cdb.models.activity import Activity
-from cdb.models.engagement import Engagement
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.detectors.competitors.constants import (
     _NAMED_CONSULTANCIES,
@@ -23,7 +20,9 @@ from cdb.services.signals.detectors.competitors.signal import create_competitor_
 from cdb.services.signals.patterns import COMPETITOR_REGEX
 from cdb.services.signals.utils import (
     _resolve_account_for_signal,
+    fetch_recent_activities,
     get_activity_searchable_text,
+    resolve_engagement_opportunity,
 )
 
 __all__ = [
@@ -42,11 +41,7 @@ async def detect_competitor_signals(
     Guarantees affected account resolution via Opportunity, Engagement, or Person.
     """
     cutoff = now - datetime.timedelta(days=lookback_days)
-
-    stmt = (
-        select(Activity).where(Activity.occurred_at >= cutoff).order_by(Activity.occurred_at.desc())
-    )
-    activities = (await db.execute(stmt)).scalars().all()
+    activities = await fetch_recent_activities(db, cutoff)
 
     results: list[tuple[DetectedSignal, bool]] = []
     seen_opps: set[Any] = set()
@@ -58,12 +53,7 @@ async def detect_competitor_signals(
             continue
 
         matched_phrase = comp_match.group(0)
-
-        # Check if activity has an opportunity via engagement
-        opp_id = None
-        if act.engagement_id:
-            eng = await db.get(Engagement, act.engagement_id)
-            opp_id = eng.opportunity_id if eng else None
+        opp_id = await resolve_engagement_opportunity(db, act.engagement_id)
 
         # Resolve affected company
         resolved_comp_id = await _resolve_account_for_signal(
