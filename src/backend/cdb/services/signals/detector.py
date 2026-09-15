@@ -255,7 +255,9 @@ async def _upsert_detected_signal(
         existing.severity = severity
         existing.score = score or existing.score
         existing.company_id = company_id or existing.company_id
-        existing.person_id = person_id or existing.person_id
+        # If person_id was resolved to None (e.g. internal host filtered out and no external counterparty),
+        # clear stale person_id rather than retaining legacy internal employee id
+        existing.person_id = person_id
         existing.opportunity_id = opportunity_id or existing.opportunity_id
         existing.engagement_id = engagement_id or existing.engagement_id
         existing.metadata_payload = metadata_payload or {}

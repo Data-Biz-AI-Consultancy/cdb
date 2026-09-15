@@ -95,7 +95,12 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
     else:
         person_name = None
 
-    primary_person_id = sig.person_id or (connected_persons[0].id if connected_persons else None)
+    if connected_persons:
+        primary_person_id = connected_persons[0].id
+    elif sig.person and not sig.person.is_internal:
+        primary_person_id = sig.person_id
+    else:
+        primary_person_id = None
 
     meta = sig.metadata_payload or {}
     raw_conf = meta.get("confidence_score")

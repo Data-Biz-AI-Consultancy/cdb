@@ -628,50 +628,37 @@ export default function SignalDetailPage({
                     );
                   })}
                 </div>
-              ) : signal.person_name || signal.person_id ? (
-                <div className="flex items-center justify-between p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg gap-3">
+              ) : (
+                <div className="flex items-center justify-between p-3 bg-slate-50/70 border border-slate-200 rounded-lg gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-lg shrink-0">👤</span>
+                    <span className="text-lg shrink-0 text-slate-400">👤</span>
                     <div className="min-w-0">
-                      <span className="text-[11px] text-emerald-600 font-medium block uppercase tracking-wide">
-                        Contact Person {signal.person_name?.includes(',') ? '(Multi-Contact)' : ''}
+                      <span className="text-[11px] text-slate-500 font-medium block uppercase tracking-wide">
+                        Contact Person
                       </span>
-                      {signal.person_name?.includes(',') ? (
-                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                          {signal.person_name.split(',').map((name, idx) => {
-                            const trimmed = name.trim();
-                            if (!trimmed) return null;
-                            return (
-                              <Link
-                                key={idx}
-                                href={`/persons?q=${encodeURIComponent(trimmed)}`}
-                                className="inline-flex items-center px-2 py-0.5 bg-white border border-emerald-200 rounded text-xs font-semibold text-emerald-900 hover:bg-emerald-100 hover:border-emerald-300 transition"
-                                title={`Search for ${trimmed}`}
-                              >
-                                {trimmed}
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <span className="font-semibold text-emerald-950 text-sm truncate block">
-                          {signal.person_name || 'Associated Person'}
+                      {signal.person_name ? (
+                        <span className="font-semibold text-slate-800 text-sm truncate block">
+                          {signal.person_name}
                         </span>
+                      ) : (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="font-medium text-slate-400 text-xs italic">
+                            None (Unable to identify counterparty contact)
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
-                  <Link
-                    href={
-                      signal.person_id
-                        ? `/persons/${signal.person_id}`
-                        : `/persons?q=${encodeURIComponent(signal.person_name || '')}`
-                    }
-                    className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition shrink-0"
-                  >
-                    View Person →
-                  </Link>
+                  {signal.person_id && signal.person_name && (
+                    <Link
+                      href={`/persons/${signal.person_id}`}
+                      className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition shrink-0 text-xs"
+                    >
+                      View Person →
+                    </Link>
+                  )}
                 </div>
-              ) : null}
+              )}
 
                 {/* Suggested Counterparty Contacts */}
                 {signal.suggested_persons && signal.suggested_persons.length > 0 && (
