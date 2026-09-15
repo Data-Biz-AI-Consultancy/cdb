@@ -267,6 +267,14 @@ The detection engine has been refactored from a single `detector.py` into focuse
 | `classification/polarity.py` | Signal polarity enums & dynamic resolution (`SignalPolarity`, `resolve_signal_effective_polarity`) |
 | `classification/conflicts.py` | Multi-entity conflict detection across Company, Opportunity, Person scopes (`detect_signal_conflicts`) |
 | `classification/__init__.py` | Classification package facade re-exporting all rules, metrics, and contracts |
+| `catalog/data.py` | Initial catalog static signal ontology definitions (`INITIAL_SIGNAL_CATALOG`) |
+| `catalog/service.py` | Catalog querying, dimension seeding (`ensure_signals_dimension`), and summary stats |
+| `catalog/__init__.py` | Catalog package facade re-exporting all catalog services and definitions |
+| `detected/mapper.py` | Response model serialization for detected signals (`to_detected_response`) |
+| `detected/query.py` | Multi-dimensional search filtering, pagination, and signal statistics |
+| `detected/lifecycle.py` | Status and resolution state machine updates (`update_detected_signal`) |
+| `detected/linking.py` | Connected participant person linking and unlinking operations |
+| `detected/__init__.py` | Detected signals package facade re-exporting query, lifecycle, and mapping operations |
 | `patterns.py` | Compiled regex constants (`COMMERCIAL_OPPORTUNITY_REGEX`, `FUNDING_REGEX`, `COMPETITOR_REGEX`, etc.) |
 | `utils/dates.py` | Date and timezone normalization utilities (`ensure_utc`, `days_between`, `format_days_remaining_label`) |
 | `utils/activity.py` | Activity parsing, queries, and participant extraction (`fetch_recent_activities`, `fetch_latest_company_activity`, `extract_activity_persons`) |
