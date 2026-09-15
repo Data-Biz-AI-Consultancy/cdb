@@ -98,3 +98,35 @@ async def test_notion_entity_detector_with_company_scoped_contacts():
     assert str(interviewer_id) in suggested_ids
     assert str(recruiter_id) in suggested_ids
     assert str(host_id) not in suggested_ids
+
+
+@pytest.mark.asyncio
+async def test_notion_company_resolution_ignores_past_bio_intros():
+    """Verify that biographical self-introductions (e.g. 'ex-HelloFresh') do not misresolve company."""
+    p_and_c = Company(id=uuid.uuid4(), name="Fashion Digital", domain="fashiondigital.de")
+    hellofresh = Company(id=uuid.uuid4(), name="HelloFresh", domain="hellofresh.com")
+
+    index = NotionAttendeeIndex(
+        persons=[],
+        companies=[p_and_c, hellofresh],
+        person_companies={},
+        person_company_ids={},
+    )
+
+    title = "Inbound Forecast sync with Sudheesh"
+    content = """
+    Jimmy introduction:
+    - Ex-HelloFresh Data Lead, working as freelance consultant now.
+    - Met Sudheesh to discuss forecasting architecture at Fashion Digital.
+    """
+
+    res = index.detect_meeting_entities(
+        title=title,
+        attendees="",
+        url="https://notion.so/3a36e98d4ef88084a1aec60052a3cb80",
+        content=content,
+    )
+
+    # Scoped database or explicit title context should resolve to Fashion Digital, NOT HelloFresh
+    assert res.company_id == p_and_c.id
+    assert res.company_id != hellofresh.id
