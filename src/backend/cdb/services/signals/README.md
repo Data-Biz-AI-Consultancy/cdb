@@ -255,7 +255,58 @@ erDiagram
     }
 ```
 
-### Detection Engine Rules (`detector.py`)
+### Detection Engine (`detectors/` package)
+
+The detection engine has been refactored from a single `detector.py` into focused sub-modules:
+
+| Module | Responsibility |
+| :--- | :--- |
+| `classification/rules.py` | Classification rule definitions & canonical catalog rules (`SIGNAL_CLASSIFICATION_RULES`) |
+| `classification/confidence.py` | Confidence scoring thresholds & heuristics (`assess_confidence`, `SignalConfidenceTier`) |
+| `classification/evidence.py` | Supporting evidence contracts & metadata builders (`build_evidence_payload`, `build_signal_meta`) |
+| `classification/polarity.py` | Signal polarity enums & dynamic resolution (`SignalPolarity`, `resolve_signal_effective_polarity`) |
+| `classification/conflicts.py` | Multi-entity conflict detection across Company, Opportunity, Person scopes (`detect_signal_conflicts`) |
+| `classification/__init__.py` | Classification package facade re-exporting all rules, metrics, and contracts |
+| `catalog/data.py` | Initial catalog static signal ontology definitions (`INITIAL_SIGNAL_CATALOG`) |
+| `catalog/service.py` | Catalog querying, dimension seeding (`ensure_signals_dimension`), and summary stats |
+| `catalog/__init__.py` | Catalog package facade re-exporting all catalog services and definitions |
+| `detected/mapper.py` | Response model serialization for detected signals (`to_detected_response`) |
+| `detected/query.py` | Multi-dimensional search filtering, pagination, and signal statistics |
+| `detected/lifecycle.py` | Status and resolution state machine updates (`update_detected_signal`) |
+| `detected/linking.py` | Connected participant person linking and unlinking operations |
+| `detected/__init__.py` | Detected signals package facade re-exporting query, lifecycle, and mapping operations |
+| `patterns.py` | Compiled regex constants (`COMMERCIAL_OPPORTUNITY_REGEX`, `FUNDING_REGEX`, `COMPETITOR_REGEX`, etc.) |
+| `utils/dates.py` | Date and timezone normalization utilities (`ensure_utc`, `days_between`, `format_days_remaining_label`) |
+| `utils/activity.py` | Activity parsing, queries, and participant extraction (`fetch_recent_activities`, `fetch_latest_company_activity`, `extract_activity_persons`) |
+| `utils/account.py` | Account resolution utilities (`resolve_account_for_signal`, `resolve_engagement_opportunity`, `get_strategic_companies`) |
+| `utils/enrichment.py` | Context enrichment (`enrich_company_context`) and employee sanitization (`sanitize_target_persons`) |
+| `utils/matching.py` | Active signal lookup and query builder (`find_existing_active_signal`) |
+| `utils/persistence.py` | Signal record creation and update handling (`persist_signal_record`) |
+| `utils/linking.py` | Participant person link creation and role assignment (`link_signal_persons`) |
+| `utils/upsert.py` | Master persistence and deduplication coordinator (`upsert_detected_signal`) |
+| `utils/__init__.py` | Utility package exports with public and backward-compatible private aliases |
+| `detectors/dormant/signal.py` | Dormant account signal builder, inactivity evidence, and persistence |
+| `detectors/dormant/__init__.py` | Dormant strategic account detector facade (`detect_dormant_strategic_accounts`) |
+| `detectors/unanswered/query.py` | Candidate inbound conversation querying awaiting response |
+| `detectors/unanswered/signal.py` | Signal creation, evidence building, and persistence for unanswered threads |
+| `detectors/unanswered/__init__.py` | Unanswered conversation detector facade |
+| `detectors/contracts/query.py` | Signed engagement query within contract expiration SLA window |
+| `detectors/contracts/signal.py` | Expiring contract signal builder, milestone evidence, and persistence |
+| `detectors/contracts/__init__.py` | Expiring contract detector facade (`detect_expiring_contracts`) |
+| `detectors/leadership/signal.py` | Signal payload and metadata builder for leadership transitions |
+| `detectors/leadership/departures.py` | Champion departure detection from strategic accounts |
+| `detectors/leadership/arrivals.py` | Executive arrival/joiner detection across client/prospect accounts |
+| `detectors/leadership/__init__.py` | Leadership change detector facade coordinating departures and arrivals |
+| `detectors/growth/activities.py` | Unstructured interaction text scanning for funding & hiring events |
+| `detectors/growth/enrichment.py` | Structured `Company.attributes` evaluation for funding & headcount growth |
+| `detectors/growth/__init__.py` | Growth detector facade coordinating activities and enrichment pipelines |
+| `detectors/competitors/constants.py` | Known competitor consultancy lists & high-intent bake-off indicators |
+| `detectors/competitors/signal.py` | Competitor threat signal builder, confidence assessment, and persistence |
+| `detectors/competitors/__init__.py` | Competitor threat detector facade |
+| `orchestrator.py` | `evaluate_all_signals` — wires all detectors, stale signal retirement, conflict detection |
+| `detector.py` | Thin re-export shim for backward-compatible imports |
+
+
 
 1. **`dormant_strategic_account`**: Scans companies qualifying as strategic (signed engagement, won deal, or strategic tier/segment attributes) where `MAX(activity.occurred_at)` is older than 60 days (or no activity).
 2. **`unanswered_conversation`**: Scans inbound messages (LinkedIn, email, WhatsApp) where the external contact was the last sender > 3 days ago without an outbound response within the lookback window (default 90 days). Strictly filters out routine inbox noise by requiring commercial gig/project opportunity context (proposals, budget, rates, consulting/advisory engagement) or competitor bake-off mentions. Resolves contact's current company via `PersonCompanyRelationship`.

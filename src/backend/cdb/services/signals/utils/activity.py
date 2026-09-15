@@ -1,0 +1,144 @@
+"""
+cdb.services.signals.utils.activity
+
+Activity parsing and participant extraction utilities for signal detectors.
+"""
+
+import datetime
+import re
+import uuid
+from typing import Any
+
+from sqlalchemy import func, select
+
+from cdb.models.activity import Activity
+
+_SPEAKER_RE = re.compile(r"^([A-Za-z0-9\s\.\-_]+?):\s*(.*)$")
+_DEFAULT_HOST_IDENTIFIERS: tuple[str, ...] = ("jimmy", "pang", "host", "databiz", "me")
+
+
+def get_activity_searchable_text(act: Any) -> str:
+    """Extracts and concatenates title, summary, and raw_content into searchable text."""
+    if not act:
+        return ""
+    title = getattr(act, "title", None) or ""
+    summary = getattr(act, "summary", None) or ""
+    raw_content = getattr(act, "raw_content", None) or ""
+    return f"{title} {summary} {raw_content}"
+
+
+def is_last_speaker_host(
+    raw_content: str | None,
+    host_identifiers: tuple[str, ...] = _DEFAULT_HOST_IDENTIFIERS,
+) -> bool:
+    """
+    Parses a multiline transcript or chat snippet in raw_content to determine
+    if the last speaker line was sent by the internal host/team.
+    """
+    if not raw_content:
+        return False
+    lines = [line_str.strip() for line_str in raw_content.splitlines() if line_str.strip()]
+    for line in reversed(lines):
+        m = _SPEAKER_RE.match(line)
+        if m:
+            last_speaker = m.group(1).strip().lower()
+            return any(h in last_speaker for h in host_identifiers)
+    return False
+
+
+async def has_newer_outbound_activity(
+    db: Any,
+    person_id: Any,
+    occurred_at: datetime.datetime,
+) -> bool:
+    """Checks if any newer activity exists for this person after the given timestamp."""
+    count = (
+        await db.scalar(
+            select(func.count(Activity.id)).where(
+                Activity.person_id == person_id,
+                Activity.occurred_at > occurred_at,
+            )
+        )
+        or 0
+    )
+    return count > 0
+
+
+async def fetch_recent_activities(
+    db: Any,
+    cutoff: datetime.datetime,
+    require_company: bool = False,
+) -> list[Activity]:
+    """Fetches activities occurred on or after cutoff, ordered by occurred_at desc."""
+    conditions = [Activity.occurred_at >= cutoff]
+    if require_company:
+        conditions.append(Activity.company_id.is_not(None))
+
+    stmt = select(Activity).where(*conditions).order_by(Activity.occurred_at.desc())
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def fetch_latest_company_activity(
+    db: Any,
+    company_id: Any,
+) -> Activity | None:
+    """Fetches the single most recent activity recorded for a company."""
+    stmt = (
+        select(Activity)
+        .where(Activity.company_id == company_id)
+        .order_by(Activity.occurred_at.desc())
+        .limit(1)
+    )
+    return (await db.execute(stmt)).scalars().first()
+
+
+def extract_activity_persons(
+    act: Any,
+    include_primary: bool = True,
+) -> tuple[list[Any], dict[str, str], list[Any]]:
+    """
+    Extracts connected person IDs, role mappings, and suggested persons from an
+    Activity's attributes dict. When include_primary=True, prepends act.person_id
+    if present and not already in the list.
+
+    Sources examined:
+    - ``act.person_id``: primary activity contact (when include_primary=True)
+    - ``participant_person_ids``: flat list of person UUIDs
+    - ``entities``: list of entity dicts with ``person_id``, ``role``, ``is_internal``
+    - ``suggested_persons``: unresolved name hints returned by enrichment pipelines
+
+    Returns:
+        connected_pids    — deduplicated list of external person UUIDs
+        person_roles      — {str(uuid): role} mapping for each connected person
+        suggested_persons — raw suggested-person list (caller may store in meta)
+    """
+    connected_pids: list[Any] = []
+    person_roles: dict[str, str] = {}
+    suggested_persons: list[Any] = []
+
+    primary_pid = getattr(act, "person_id", None)
+    if include_primary and primary_pid:
+        connected_pids.append(primary_pid)
+
+    attrs = getattr(act, "attributes", None)
+    if not attrs or not isinstance(attrs, dict):
+        return connected_pids, person_roles, suggested_persons
+
+    for extra_pid in attrs.get("participant_person_ids", []):
+        if extra_pid and extra_pid not in connected_pids:
+            connected_pids.append(extra_pid)
+
+    for e in attrs.get("entities", []):
+        epid = e.get("person_id")
+        erole = e.get("role") or "counterparty"
+        if epid and not e.get("is_internal"):
+            try:
+                uuid_val = uuid.UUID(epid) if isinstance(epid, str) else epid
+                if uuid_val not in connected_pids:
+                    connected_pids.append(uuid_val)
+                person_roles[str(uuid_val)] = erole
+            except Exception:
+                pass
+
+    suggested_persons = attrs.get("suggested_persons") or []
+    return connected_pids, person_roles, suggested_persons

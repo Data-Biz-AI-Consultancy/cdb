@@ -20,7 +20,7 @@ from cdb.services.signals.detected import (
     list_detected_signals,
     update_detected_signal,
 )
-from cdb.services.signals.detector import evaluate_all_signals
+from cdb.services.signals.orchestrator import evaluate_all_signals
 
 __all__ = [
     "INITIAL_SIGNAL_CATALOG",
