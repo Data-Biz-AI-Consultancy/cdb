@@ -520,7 +520,7 @@ export default function SignalsPage() {
                   sig.signal.category
                 )}`}
               >
-                {sig.signal.category}
+                {sig.signal.category.toLowerCase() === 'hybrid' ? 'Mixed' : sig.signal.category}
               </span>
             )}
             <span
@@ -1070,7 +1070,7 @@ export default function SignalsPage() {
                 <option value="all">Category: All</option>
                 <option value="opportunity">Opportunity</option>
                 <option value="risk">Risk</option>
-                <option value="hybrid">Hybrid</option>
+                <option value="hybrid">Mixed</option>
               </select>
 
               <select
@@ -1237,7 +1237,35 @@ export default function SignalsPage() {
                 )}
               </div>
 
-              {/* Column 2: Risks */}
+              {/* Column 2: Mixed */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🟡</span>
+                    <div>
+                      <h2 className="text-sm font-bold text-amber-900">Mixed</h2>
+                      <p className="text-[11px] text-amber-700 font-medium">
+                        Opposing Polarities & Ambiguity
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                    {hybridSignals.length}
+                  </span>
+                </div>
+
+                {hybridSignals.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    No mixed signals detected
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {hybridSignals.map((sig) => renderSignalCard(sig, 'hybrid'))}
+                  </div>
+                )}
+              </div>
+
+              {/* Column 3: Risks */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 shadow-sm">
                   <div className="flex items-center gap-2">
@@ -1261,34 +1289,6 @@ export default function SignalsPage() {
                 ) : (
                   <div className="space-y-3">
                     {riskSignals.map((sig) => renderSignalCard(sig, 'risk'))}
-                  </div>
-                )}
-              </div>
-
-              {/* Column 3: Hybrid & Conflicts */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🟡</span>
-                    <div>
-                      <h2 className="text-sm font-bold text-amber-900">Hybrid & Conflicts</h2>
-                      <p className="text-[11px] text-amber-700 font-medium">
-                        Opposing Polarities & Ambiguity
-                      </p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 text-amber-900 border border-amber-300">
-                    {hybridSignals.length}
-                  </span>
-                </div>
-
-                {hybridSignals.length === 0 ? (
-                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
-                    No conflicting or hybrid signals detected
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {hybridSignals.map((sig) => renderSignalCard(sig, 'hybrid'))}
                   </div>
                 )}
               </div>
