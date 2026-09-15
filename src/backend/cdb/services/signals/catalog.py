@@ -114,7 +114,7 @@ INITIAL_SIGNAL_CATALOG: list[dict] = [
     {
         "id": "leadership_change",
         "name": "Leadership Change",
-        "category": "hybrid",
+        "category": "opportunity",
         "target_entity": "person",
         "severity": "high",
         "detection_mechanism": "deterministic_rule",

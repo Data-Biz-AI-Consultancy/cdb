@@ -83,15 +83,12 @@ async def test_get_signals_from_db_and_filtering(db_session: AsyncSession):
     }
 
     opp_signals = await get_signals_from_db(db_session, category=SignalCategory.OPPORTUNITY)
-    assert len(opp_signals) == 1
-    assert opp_signals[0].id == "hiring_funding_event"
+    assert len(opp_signals) == 2
+    assert {s.id for s in opp_signals} == {"hiring_funding_event", "leadership_change"}
 
     hybrid_signals = await get_signals_from_db(db_session, category=SignalCategory.HYBRID)
-    assert len(hybrid_signals) == 2
-    assert {s.id for s in hybrid_signals} == {
-        "expiring_contract",
-        "leadership_change",
-    }
+    assert len(hybrid_signals) == 1
+    assert hybrid_signals[0].id == "expiring_contract"
 
     # Target entity filtering
     company_signals = await get_signals_from_db(
@@ -143,8 +140,8 @@ async def test_get_catalog_response_with_summary(db_session: AsyncSession):
     assert len(response.data) == 6
     assert response.summary.total_signals == 6
     assert response.summary.by_category["risk"] == 3
-    assert response.summary.by_category["opportunity"] == 1
-    assert response.summary.by_category["hybrid"] == 2
+    assert response.summary.by_category["opportunity"] == 2
+    assert response.summary.by_category["hybrid"] == 1
     assert response.summary.by_target_entity["company"] == 2
     assert response.summary.by_target_entity["person"] == 2
     assert response.summary.by_target_entity["engagement"] == 1

@@ -26,14 +26,25 @@ from cdb.services.signals.classification import (
 COMMERCIAL_OPPORTUNITY_REGEX = re.compile(
     r"\b("
     r"proposal|sow|statement of work|scope of work|project scope|"
-    r"project budget|allocated budget|budget for (?:this|the project|consulting)|"
+    r"project budget|budget for (?:the project|consulting)|"
     r"rate card|hourly rate|daily rate|fixed price|retainer|"
     r"pilot project|proof of concept|poc|contract renewal|contract terms|sign(?:ing)? the contract|"
     r"hire you|hire us|work together|partner with us|collaborate on|"
-    r"need your help|need help with|looking for an expert|looking for assistance|"
+    r"need your help|need help with|looking for assistance|"
     r"looking for (?:architectural\s+|data\s+|technical\s+)?consulting|architectural consulting|"
     r"consulting on|inquiry regarding|"
     r"provide a quote|cost estimate|commercial terms|master service agreement|msa"
+    r")\b",
+    re.IGNORECASE,
+)
+
+EXCLUDE_CONVERSATION_REGEX = re.compile(
+    r"\b("
+    r"visasq|alphasights|guidepoint|dialectica|newtonx|glg|gerson\s+lehrman|"
+    r"paid\s+independent\s+phone\s+consultation|paid\s+consultation\s+on\s+this\s+topic|"
+    r"talent\s+acquisition|book\s+a\s+slot\s+for\s+the\s+interview|send\s+me\s+your\s+(?:updated\s+)?cv|"
+    r"salary\s+and\s+other\s+details\s+about\s+the\s+position|position\s+namely\s+business\s+intelligence|"
+    r"expected\s+salary|current\s+salary|notice\s+period"
     r")\b",
     re.IGNORECASE,
 )
@@ -64,7 +75,19 @@ COMPETITOR_REGEX = re.compile(
     re.IGNORECASE,
 )
 EXECUTIVE_TITLE_REGEX = re.compile(
-    r"\b(chief|cto|cio|cdo|vp|vice president|head of data|head of engineering|director of data|director)\b",
+    r"\b("
+    r"chief\s+(?:executive|technology|information|data|product|analytics|revenue|operating|commercial)?\s*officer|"
+    r"chief\s+executive|chief|cto|cio|cdo|cpo|cro|ceo|coo|"
+    r"vp|vice\s+president|"
+    r"head\s+of\s+(?:data|analytics|engineering|tech|technology|product|ai|bi|platform|architecture|cloud|core\s+services|sales|solutions)|"
+    r"(?:senior\s+)?director(?:\s*,\s*|\s+of\s+|\s+-\s+)(?:data|analytics|engineering|tech|technology|product|ai|bi|platform|architecture|cloud|sales|solutions)|"
+    r"(?:data|analytics|engineering|tech|technology|product|ai|bi)\s+director|"
+    r"founder|co-founder|managing\s+director"
+    r")\b",
+    re.IGNORECASE,
+)
+EXCLUDE_EXECUTIVE_TITLE_REGEX = re.compile(
+    r"\b(medical\s+director|chapter\s+director|director\s+general|talent\s+management)\b",
     re.IGNORECASE,
 )
 
@@ -595,6 +618,9 @@ async def detect_unanswered_conversations(
 
         # Check conversation content for competitor context or commercial gig/project intent
         content = f"{act.title or ''} {act.summary or ''} {act.raw_content or ''}"
+        if EXCLUDE_CONVERSATION_REGEX.search(content):
+            continue
+
         comp_match = COMPETITOR_REGEX.search(content)
         opp_match = COMMERCIAL_OPPORTUNITY_REGEX.search(content)
 
@@ -773,6 +799,8 @@ async def detect_leadership_changes(
 
     for rel in arrivals:
         if not rel.title or not EXECUTIVE_TITLE_REGEX.search(rel.title):
+            continue
+        if EXCLUDE_EXECUTIVE_TITLE_REGEX.search(rel.title):
             continue
 
         person = await db.get(Person, rel.person_id)
