@@ -262,15 +262,44 @@ class NotionAttendeeIndex:
         matched_company_id: UUID | None = None
         matched_company_name: str | None = None
 
-        for c in self.companies:
-            cname = normalise_text_tokens(c.name)
-            if cname and len(cname) >= 3 and cname not in COMPANY_STOPWORDS:
-                if re.search(rf"\b{re.escape(cname)}\b", title_att_corpus) or re.search(
-                    rf"\b{re.escape(cname)}\b", content_norm[:2000]
-                ):
-                    matched_company_id = c.id
-                    matched_company_name = c.name
-                    break
+        # Check for database-level default company (e.g. FaDi project notes)
+        fadi_db_ids = {"3a36e98d4ef88084a1aec60052a3cb80", "3a36e98d-4ef8-8084-a1ae-c60052a3cb80"}
+        note_db_id = (url or "").lower()
+        if any(f_db in note_db_id for f_db in fadi_db_ids) or re.search(
+            r"\b(fashion\s+digital|fadi|pnc|peek\s*&\s*cloppenburg)\b",
+            f"{clean_title.lower()} {content_full[:1500].lower()}",
+        ):
+            fadi_comp = next(
+                (c for c in self.companies if c.name and "fashion digital" in c.name.lower()),
+                None,
+            )
+            if not fadi_comp:
+                fadi_comp = next(
+                    (c for c in self.companies if c.name and "peek & cloppenburg" in c.name.lower()),
+                    None,
+                )
+            if fadi_comp:
+                matched_company_id = fadi_comp.id
+                matched_company_name = fadi_comp.name
+
+        if not matched_company_id:
+            # Strip out biographical self-introduction patterns like "ex-HelloFresh", "ex-Metro", "ex-Vestiaire"
+            # so past employment doesn't hijack current meeting counterparty resolution
+            sanitized_content = re.sub(
+                r"\b(?:ex\s*[-/]|formerly\s+at\s+|past\s+at\s+)[a-zA-Z0-9_\-\.]+\b",
+                " ",
+                content_norm[:2500],
+                flags=re.IGNORECASE,
+            )
+            for c in self.companies:
+                cname = normalise_text_tokens(c.name)
+                if cname and len(cname) >= 3 and cname not in COMPANY_STOPWORDS:
+                    if re.search(rf"\b{re.escape(cname)}\b", title_att_corpus) or re.search(
+                        rf"\b{re.escape(cname)}\b", sanitized_content
+                    ):
+                        matched_company_id = c.id
+                        matched_company_name = c.name
+                        break
 
         # 2. Extract entities
         extracted_entities: list[ExtractedEntity] = []

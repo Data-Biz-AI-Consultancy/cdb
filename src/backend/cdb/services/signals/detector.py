@@ -42,7 +42,11 @@ FUNDING_REGEX = re.compile(
     re.IGNORECASE,
 )
 HIRING_REGEX = re.compile(
-    r"\b(hiring data|scaling the team|growing the team|headcount growth|hiring\s+\d+\s+engineers|analytics engineer|data engineer|lead architect)\b",
+    r"\b("
+    r"(?:hiring|recruiting|looking\s+for|expanding|seeking|onboarding)\s+(?:a\s+|an\s+|the\s+)?(?:data\s+engineer|analytics\s+engineer|lead\s+architect|data\s+lead)|"
+    r"hiring\s+data|scaling\s+the\s+team|growing\s+the\s+team|headcount\s+growth|hiring\s+\d+\s+engineers|"
+    r"(?:open|new)\s+(?:position|role|opening)s?\s+for\s+(?:data\s+engineer|analytics\s+engineer)"
+    r")\b",
     re.IGNORECASE,
 )
 COMPETITOR_REGEX = re.compile(
