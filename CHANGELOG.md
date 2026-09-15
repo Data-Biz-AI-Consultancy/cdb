@@ -1,3 +1,11 @@
+# [1.31.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.30.0...v1.31.0) (2026-09-15)
+
+
+### Features
+
+* add signal detection service with orchestrator and modular detectors ([f1d75cf](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/f1d75cf755e77ed6424165955a4670104ff10afa))
+* add utility helpers for account opportunities, activity queries, and date formatting ([34d71ce](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/34d71ce24cf4e0ccb817c479b4d4e3864a1ebe60))
+
 # [1.30.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.29.0...v1.30.0) (2026-09-15)
 
 
