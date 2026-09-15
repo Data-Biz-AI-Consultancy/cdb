@@ -43,12 +43,15 @@ def is_last_speaker_host(
 
 def extract_activity_persons(
     act: Any,
+    include_primary: bool = True,
 ) -> tuple[list[Any], dict[str, str], list[Any]]:
     """
     Extracts connected person IDs, role mappings, and suggested persons from an
-    Activity's attributes dict.
+    Activity's attributes dict. When include_primary=True, prepends act.person_id
+    if present and not already in the list.
 
     Sources examined:
+    - ``act.person_id``: primary activity contact (when include_primary=True)
     - ``participant_person_ids``: flat list of person UUIDs
     - ``entities``: list of entity dicts with ``person_id``, ``role``, ``is_internal``
     - ``suggested_persons``: unresolved name hints returned by enrichment pipelines
@@ -57,13 +60,14 @@ def extract_activity_persons(
         connected_pids    — deduplicated list of external person UUIDs
         person_roles      — {str(uuid): role} mapping for each connected person
         suggested_persons — raw suggested-person list (caller may store in meta)
-
-    Note: Does NOT include ``act.person_id`` — the caller should prepend it as the
-    primary person when appropriate.
     """
     connected_pids: list[Any] = []
     person_roles: dict[str, str] = {}
     suggested_persons: list[Any] = []
+
+    primary_pid = getattr(act, "person_id", None)
+    if include_primary and primary_pid:
+        connected_pids.append(primary_pid)
 
     attrs = getattr(act, "attributes", None)
     if not attrs or not isinstance(attrs, dict):

@@ -1,19 +1,71 @@
 """
 cdb.services.signals.utils.account
 
-Account resolution utilities for signal detection.
+Account resolution and entity name formatting utilities for signal detection.
 Traverses entity relationships to find the affected Company ID.
 """
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.activity import Activity
+from cdb.models.company import Company
 from cdb.models.engagement import Engagement
-from cdb.models.opportunity import OpportunityCompany
+from cdb.models.opportunity import Opportunity, OpportunityCompany
+from cdb.models.person import Person
 from cdb.models.relationship import PersonCompanyRelationship
+
+
+def get_person_display_name(person: Person | None, default: str = "Contact") -> str:
+    """Returns the formatted full name for a person model or fallback default."""
+    if not person:
+        return default
+    name = f"{person.first_name or ''} {person.last_name or ''}".strip()
+    return name if name else default
+
+
+def get_company_display_name(company: Company | None, default: str = "Company") -> str:
+    """Returns company name or fallback default."""
+    return company.name if company and company.name else default
+
+
+async def get_strategic_companies(db: AsyncSession) -> list[Company]:
+    """
+    Fetches all companies qualifying as strategic:
+    - Has a signed engagement OR a closed-won opportunity
+    - Tagged with strategic segment ('clients_and_prospects') or tier ('strategic')
+    """
+    companies_stmt = (
+        select(Company)
+        .where(Company.deleted_at.is_(None))
+        .join(Engagement, Engagement.company_id == Company.id, isouter=True)
+        .join(Opportunity, Opportunity.id == Engagement.opportunity_id, isouter=True)
+        .where(
+            or_(
+                Engagement.contract_status == "signed",
+                Opportunity.stage == "closed_won",
+            )
+        )
+        .distinct()
+    )
+    contract_companies = (await db.execute(companies_stmt)).scalars().all()
+    strategic_set: dict[Any, Company] = {c.id: c for c in contract_companies}
+
+    # Also include companies tagged with strategic attributes
+    all_companies = (
+        (await db.execute(select(Company).where(Company.deleted_at.is_(None)))).scalars().all()
+    )
+    for c in all_companies:
+        if c.id not in strategic_set and c.attributes:
+            if (
+                c.attributes.get("segment") == "clients_and_prospects"
+                or c.attributes.get("tier") == "strategic"
+            ):
+                strategic_set[c.id] = c
+
+    return list(strategic_set.values())
 
 
 async def resolve_account_for_signal(

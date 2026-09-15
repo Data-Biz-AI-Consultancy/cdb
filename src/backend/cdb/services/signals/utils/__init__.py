@@ -4,7 +4,7 @@ cdb.services.signals.utils
 Signal utility modules:
 - dates: datetime and timezone normalization (ensure_utc, days_between)
 - activity: activity parsing and participant extraction (extract_activity_persons, get_activity_searchable_text, is_last_speaker_host)
-- account: entity relationship traversal for company attribution (resolve_account_for_signal)
+- account: entity relationship traversal and display names (resolve_account_for_signal, get_strategic_companies, get_person_display_name, get_company_display_name)
 - enrichment: account metadata enrichment, attribute parsing, and internal employee sanitization
 - matching: deduplication query lookup (find_existing_active_signal)
 - persistence: signal creation and updates (persist_signal_record)
@@ -14,6 +14,9 @@ Signal utility modules:
 
 from cdb.services.signals.utils.account import (
     _resolve_account_for_signal,
+    get_company_display_name,
+    get_person_display_name,
+    get_strategic_companies,
     resolve_account_for_signal,
 )
 from cdb.services.signals.utils.activity import (
@@ -49,6 +52,9 @@ __all__ = [
     "extract_headcount_enrichment",
     "resolve_account_for_signal",
     "_resolve_account_for_signal",
+    "get_strategic_companies",
+    "get_person_display_name",
+    "get_company_display_name",
     "enrich_company_context",
     "sanitize_target_persons",
     "find_existing_active_signal",
