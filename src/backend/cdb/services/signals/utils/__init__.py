@@ -1,20 +1,23 @@
 """
 cdb.services.signals.utils
 
-Shared utility functions for signal evaluation and persistence:
-- resolve_account_for_signal: entity relationship traversal for company attribution
-- enrich_company_context: account metadata enrichment
-- sanitize_target_persons: internal employee filtering
-- find_existing_active_signal: deduplication query lookup
-- persist_signal_record: signal creation and updates
-- link_signal_persons: participant entity relationship linking
-- upsert_detected_signal: master persistence and deduplication coordinator
+Signal utility modules:
+- dates: datetime and timezone normalization (ensure_utc)
+- activity: activity parsing and participant extraction (extract_activity_persons)
+- account: entity relationship traversal for company attribution (resolve_account_for_signal)
+- enrichment: account metadata enrichment and internal employee sanitization
+- matching: deduplication query lookup (find_existing_active_signal)
+- persistence: signal creation and updates (persist_signal_record)
+- linking: participant entity relationship linking (link_signal_persons)
+- upsert: master persistence and deduplication coordinator (upsert_detected_signal)
 """
 
 from cdb.services.signals.utils.account import (
     _resolve_account_for_signal,
     resolve_account_for_signal,
 )
+from cdb.services.signals.utils.activity import extract_activity_persons
+from cdb.services.signals.utils.dates import ensure_utc
 from cdb.services.signals.utils.enrichment import (
     enrich_company_context,
     sanitize_target_persons,
@@ -28,6 +31,8 @@ from cdb.services.signals.utils.upsert import (
 )
 
 __all__ = [
+    "ensure_utc",
+    "extract_activity_persons",
     "resolve_account_for_signal",
     "_resolve_account_for_signal",
     "enrich_company_context",
