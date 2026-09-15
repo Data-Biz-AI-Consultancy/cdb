@@ -4,9 +4,14 @@ cdb.services.signals.utils.activity
 Activity parsing and participant extraction utilities for signal detectors.
 """
 
+import datetime
 import re
 import uuid
 from typing import Any
+
+from sqlalchemy import func, select
+
+from cdb.models.activity import Activity
 
 _SPEAKER_RE = re.compile(r"^([A-Za-z0-9\s\.\-_]+?):\s*(.*)$")
 _DEFAULT_HOST_IDENTIFIERS: tuple[str, ...] = ("jimmy", "pang", "host", "databiz", "me")
@@ -39,6 +44,24 @@ def is_last_speaker_host(
             last_speaker = m.group(1).strip().lower()
             return any(h in last_speaker for h in host_identifiers)
     return False
+
+
+async def has_newer_outbound_activity(
+    db: Any,
+    person_id: Any,
+    occurred_at: datetime.datetime,
+) -> bool:
+    """Checks if any newer activity exists for this person after the given timestamp."""
+    count = (
+        await db.scalar(
+            select(func.count(Activity.id)).where(
+                Activity.person_id == person_id,
+                Activity.occurred_at > occurred_at,
+            )
+        )
+        or 0
+    )
+    return count > 0
 
 
 def extract_activity_persons(

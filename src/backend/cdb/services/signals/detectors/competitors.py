@@ -7,7 +7,6 @@ Engagement, or Person entity traversal.
 """
 
 import datetime
-import uuid
 from decimal import Decimal
 from typing import Any
 
@@ -17,9 +16,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cdb.models.activity import Activity
 from cdb.models.engagement import Engagement
 from cdb.models.signal import DetectedSignal
-from cdb.services.signals._helpers import _resolve_account_for_signal, _upsert_detected_signal
-from cdb.services.signals.classification import assess_confidence, build_evidence_payload
+from cdb.services.signals.classification import (
+    assess_confidence,
+    build_evidence_payload,
+    build_signal_meta,
+)
 from cdb.services.signals.patterns import COMPETITOR_REGEX
+from cdb.services.signals.utils import (
+    _resolve_account_for_signal,
+    _upsert_detected_signal,
+    days_between,
+    extract_activity_persons,
+    get_activity_searchable_text,
+)
 
 _NAMED_CONSULTANCIES: frozenset[str] = frozenset(
     {"slalom", "thoughtworks", "accenture", "deloitte", "competing proposal", "bake-off", "rfp"}
@@ -44,14 +53,14 @@ async def detect_competitor_signals(
     seen_opps: set[Any] = set()
 
     for act in activities:
-        content = f"{act.title or ''} {act.summary or ''} {act.raw_content or ''}"
+        content = get_activity_searchable_text(act)
         comp_match = COMPETITOR_REGEX.search(content)
         if not comp_match:
             continue
 
         matched_phrase = comp_match.group(0)
 
-        # Check if activity has an opportunity or company
+        # Check if activity has an opportunity via engagement
         opp_id = None
         if act.engagement_id:
             eng = await db.get(Engagement, act.engagement_id)
@@ -75,12 +84,7 @@ async def detect_competitor_signals(
         matched_lower = matched_phrase.lower()
         is_named = any(name in matched_lower for name in _NAMED_CONSULTANCIES)
 
-        act_dt = (
-            act.occurred_at
-            if act.occurred_at.tzinfo
-            else act.occurred_at.replace(tzinfo=datetime.UTC)
-        )
-        days_ago = (now - act_dt).days
+        days_ago = days_between(act.occurred_at, now)
         conf_val = Decimal("0.85") if is_named else Decimal("0.60")
         flags: list[str] = []
         if days_ago > 60:
@@ -110,34 +114,19 @@ async def detect_competitor_signals(
             f"'{matched_phrase}'. Recommend activating competitive battlecard."
         )
 
-        meta: dict[str, Any] = {
-            "matched_phrase": matched_phrase,
-            "activity_occurred_at": act.occurred_at.isoformat() if act.occurred_at else None,
-            "confidence_score": float(conf_score),
-            "confidence_tier": conf_tier.value,
-            "is_uncertain": is_uncertain,
-            "uncertainty_reasons": uncert_reasons,
-            "evidence": evidence,
-        }
+        connected_pids, _, suggested = extract_activity_persons(act)
 
-        connected_pids: list[Any] = []
-        if act.person_id:
-            connected_pids.append(act.person_id)
-        if act.attributes and isinstance(act.attributes, dict):
-            for extra_pid in act.attributes.get("participant_person_ids", []):
-                if extra_pid not in connected_pids:
-                    connected_pids.append(extra_pid)
-            for e in act.attributes.get("entities", []):
-                epid = e.get("person_id")
-                if epid and not e.get("is_internal"):
-                    try:
-                        uuid_val = uuid.UUID(epid) if isinstance(epid, str) else epid
-                        if uuid_val not in connected_pids:
-                            connected_pids.append(uuid_val)
-                    except Exception:
-                        pass
-            if act.attributes.get("suggested_persons"):
-                meta["suggested_persons"] = act.attributes.get("suggested_persons")
+        meta = build_signal_meta(
+            conf_score,
+            conf_tier,
+            is_uncertain,
+            uncert_reasons,
+            evidence,
+            matched_phrase=matched_phrase,
+            activity_occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
+        )
+        if suggested:
+            meta["suggested_persons"] = suggested
 
         res = await _upsert_detected_signal(
             db,

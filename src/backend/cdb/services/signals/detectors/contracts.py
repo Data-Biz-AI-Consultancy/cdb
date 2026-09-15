@@ -13,8 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.engagement import Engagement
 from cdb.models.signal import DetectedSignal
-from cdb.services.signals._helpers import _upsert_detected_signal
-from cdb.services.signals.classification import assess_confidence, build_evidence_payload
+from cdb.services.signals.classification import (
+    assess_confidence,
+    build_evidence_payload,
+    build_signal_meta,
+)
+from cdb.services.signals.utils import _upsert_detected_signal
 
 
 async def detect_expiring_contracts(
@@ -72,18 +76,18 @@ async def detect_expiring_contracts(
             f"Contract status is '{eng.contract_status}'. Immediate renewal or extension review required."
         )
 
-        meta = {
-            "days_left": days_left,
-            "expected_end_date": eng.expected_end_date.isoformat(),
-            "rate_type": eng.rate_type,
-            "currency": eng.currency,
-            "rate_value": float(eng.rate_value) if eng.rate_value else None,
-            "confidence_score": float(conf_score),
-            "confidence_tier": conf_tier.value,
-            "is_uncertain": is_uncertain,
-            "uncertainty_reasons": uncert_reasons,
-            "evidence": evidence,
-        }
+        meta = build_signal_meta(
+            conf_score,
+            conf_tier,
+            is_uncertain,
+            uncert_reasons,
+            evidence,
+            days_left=days_left,
+            expected_end_date=eng.expected_end_date.isoformat(),
+            rate_type=eng.rate_type,
+            currency=eng.currency,
+            rate_value=float(eng.rate_value) if eng.rate_value else None,
+        )
 
         res = await _upsert_detected_signal(
             db,
