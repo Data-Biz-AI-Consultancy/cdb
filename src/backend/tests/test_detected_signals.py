@@ -673,3 +673,69 @@ async def test_api_detected_signals_crud(
     stats_data = stats_res.json()
     assert "total_active" in stats_data
     assert "by_severity" in stats_data
+
+
+async def test_signal_evaluation_lookback_and_noise_filtering(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    auth_headers: dict[str, str],
+):
+    now = datetime.datetime.now(datetime.UTC)
+
+    company = Company(name="Lookback Test Corp")
+    person1 = Person(first_name="Alice", last_name="Casual", primary_email="alice@example.com")
+    person2 = Person(first_name="Bob", last_name="Prospect", primary_email="bob@example.com")
+    person3 = Person(
+        first_name="Charlie", last_name="Competitor", primary_email="charlie@example.com"
+    )
+    db_session.add_all([company, person1, person2, person3])
+    await db_session.commit()
+
+    # 1. Routine casual message: should be ignored as noise
+    casual_msg = Activity(
+        person_id=person1.id,
+        company_id=company.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=10),
+        title="Casual chat",
+        raw_content="Hey Jimmy, happy Monday! Hope you have a great week ahead.",
+    )
+    # 2. Commercial proposal message: should trigger signal
+    commercial_msg = Activity(
+        person_id=person2.id,
+        company_id=company.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=10),
+        title="New consulting proposal",
+        raw_content="Can we discuss the budget and scope for the upcoming consulting project?",
+    )
+    # 3. Competitor discussion message: should trigger signal
+    competitor_msg = Activity(
+        person_id=person3.id,
+        company_id=company.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=10),
+        title="Comparing options",
+        raw_content="We are currently evaluating alternatives and talking to another consultancy.",
+    )
+    db_session.add_all([casual_msg, commercial_msg, competitor_msg])
+    await db_session.commit()
+
+    # Run evaluation with lookback_days=90
+    eval_res = await client.post("/api/v1/signals/evaluate?lookback_days=90", headers=auth_headers)
+    assert eval_res.status_code == 200
+    data = eval_res.json()
+    assert data["lookback_days"] == 90
+
+    # Verify detected signals for these persons
+    list_res = await client.get("/api/v1/signals/detected?lookback_days=90", headers=auth_headers)
+    assert list_res.status_code == 200
+    signals = list_res.json()["data"]
+
+    person_ids_with_signal = {s["person_id"] for s in signals if s.get("person_id")}
+    assert str(person1.id) not in person_ids_with_signal  # Casual was ignored!
+    assert str(person2.id) in person_ids_with_signal  # Commercial was flagged!
+    assert str(person3.id) in person_ids_with_signal  # Competitor was flagged!

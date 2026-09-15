@@ -21,6 +21,20 @@ from cdb.services.signals.classification import (
     detect_signal_conflicts,
 )
 
+# Commercial opportunity / gig regex for filtering unanswered conversations
+COMMERCIAL_OPPORTUNITY_REGEX = re.compile(
+    r"\b("
+    r"proposal|sow|statement of work|contract|scope|scope of work|project scope|"
+    r"budget|pricing|rate card|hourly rate|daily rate|fixed price|retainer|"
+    r"deliverable|deliverables|consulting|advisory|"
+    r"pilot|pilot project|proof of concept|poc|kickoff|kick-off|contract renewal|"
+    r"hire you|hire us|work together|partner with us|collaborate on|"
+    r"need your help|need help with|looking for an expert|looking for assistance|"
+    r"provide a quote|cost estimate|commercial terms|master service agreement|msa"
+    r")\b",
+    re.IGNORECASE,
+)
+
 # Keyword regexes
 FUNDING_REGEX = re.compile(
     r"\b(seed|series\s+[abcde]|funding round|raised\s+[\$€£]?\d+|venture round|new capital|investment round)\b",
@@ -31,7 +45,18 @@ HIRING_REGEX = re.compile(
     re.IGNORECASE,
 )
 COMPETITOR_REGEX = re.compile(
-    r"\b(talking to another|evaluating alternative|competing proposal|bake-off|rfp|cheaper alternative|other consultancy|other agency|competitor|slalom|thoughtworks|accenture|deloitte)\b",
+    r"\b("
+    r"talking to another (?:consultancy|agency|firm|vendor|provider|team)|"
+    r"evaluating (?:alternatives?|other options?|competitors?|other firms?|other agencies)|"
+    r"considering another (?:consultancy|agency|firm|vendor|provider)|"
+    r"competing proposal|competitive proposal|vendor bake-off|competitive bake-off|bake-off|bakeoff|"
+    r"competitive rfp|rfp bake-off|comparing proposals?|"
+    r"cheaper alternative|lower price from|"
+    r"lost to (?:a )?competitor|competitor won|competitor chosen|"
+    r"evaluating (?:slalom|thoughtworks|accenture|deloitte|mckinsey|bcg|bain)|"
+    r"talking to (?:slalom|thoughtworks|accenture|deloitte|mckinsey|bcg|bain)|"
+    r"slalom|thoughtworks|accenture|deloitte"
+    r")\b",
     re.IGNORECASE,
 )
 EXECUTIVE_TITLE_REGEX = re.compile(
@@ -187,6 +212,10 @@ async def _upsert_detected_signal(
         stmt = stmt.where(DetectedSignal.opportunity_id == opportunity_id)
     elif company_id:
         stmt = stmt.where(DetectedSignal.company_id == company_id)
+    elif activity_id:
+        stmt = stmt.where(DetectedSignal.activity_id == activity_id)
+    elif person_id:
+        stmt = stmt.where(DetectedSignal.person_id == person_id)
 
     existing = (await db.execute(stmt)).scalars().first()
     now = utc_now()
@@ -458,22 +487,26 @@ async def detect_expiring_contracts(
 
 
 async def detect_unanswered_conversations(
-    db: AsyncSession, now: datetime.datetime
+    db: AsyncSession, now: datetime.datetime, lookback_days: int = 90
 ) -> list[tuple[DetectedSignal, bool]]:
     """
     Detects inbound messages or communications awaiting outbound response for > 3 days.
+    Filters out routine inbox noise by strictly requiring either:
+    1. Competitor mentions / alternative evaluations, OR
+    2. Commercial intent / gig or project opportunities.
     """
     cutoff_3d = now - datetime.timedelta(days=3)
     cutoff_7d = now - datetime.timedelta(days=7)
+    lookback_cutoff = now - datetime.timedelta(days=lookback_days)
 
-    # Inspect activities of type linkedin_message, email, whatsapp
+    # Inspect activities of type conversation, message, linkedin_message, email, whatsapp within lookback window
     stmt = (
         select(Activity)
         .where(
-            Activity.type.in_(["linkedin_message", "email", "whatsapp"]),
+            Activity.type.in_(["conversation", "message", "linkedin_message", "email", "whatsapp"]),
             Activity.person_id.is_not(None),
             Activity.occurred_at <= cutoff_3d,
-            Activity.occurred_at >= now - datetime.timedelta(days=60),
+            Activity.occurred_at >= lookback_cutoff,
         )
         .order_by(Activity.occurred_at.desc())
     )
@@ -507,6 +540,16 @@ async def detect_unanswered_conversations(
         if newer_act > 0:
             continue
 
+        # Check conversation content for competitor context or commercial gig/project intent
+        content = f"{act.title or ''} {act.summary or ''} {act.raw_content or ''}"
+        comp_match = COMPETITOR_REGEX.search(content)
+        opp_match = COMMERCIAL_OPPORTUNITY_REGEX.search(content)
+
+        if not (comp_match or opp_match):
+            # As per requirements, unanswered conversations without competitor context
+            # or potential commercial opportunity / gig are routine inbox noise and ignored.
+            continue
+
         person = await db.get(Person, person_id)
         person_name = f"{person.first_name} {person.last_name}" if person else "Contact"
 
@@ -520,8 +563,28 @@ async def detect_unanswered_conversations(
         comp = await db.get(Company, comp_id) if comp_id else None
         comp_name = comp.name if comp else None
 
-        severity = "critical" if act_dt <= cutoff_7d else "high"
-        conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(Decimal("0.95"))
+        if comp_match:
+            matched_term = comp_match.group(0)
+            severity = "critical" if act_dt <= cutoff_7d else "high"
+            title = f"Unanswered Thread (Competitor Mention): {person_name} ({days_unanswered}d waiting)"
+            summary = (
+                f"Inbound conversation from {person_name} received on {act.occurred_at.strftime('%Y-%m-%d')} "
+                f"({days_unanswered} days ago) referenced competitor/bake-off ('{matched_term}') and is awaiting response."
+            )
+            context_type = "competitor_risk"
+            excerpt = f"Competitor context '{matched_term}' in conversation with {person_name}"
+        else:
+            matched_term = opp_match.group(0) if opp_match else "project/gig"
+            severity = "high" if act_dt <= cutoff_7d else "medium"
+            title = f"Unanswered Opportunity / Gig Lead: {person_name} ({days_unanswered}d waiting)"
+            summary = (
+                f"Inbound conversation from {person_name} received on {act.occurred_at.strftime('%Y-%m-%d')} "
+                f"({days_unanswered} days ago) discussed a commercial opportunity/gig ('{matched_term}') and has no recorded reply."
+            )
+            context_type = "commercial_opportunity"
+            excerpt = f"Opportunity context '{matched_term}' in conversation with {person_name}"
+
+        conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(Decimal("0.90"))
 
         evidence = build_evidence_payload(
             evidence_type="message_sla",
@@ -529,19 +592,15 @@ async def detect_unanswered_conversations(
             source_entity_id=str(act.id),
             occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
             days_elapsed=days_unanswered,
-            excerpt=act.title or act.summary or f"Inbound message from {person_name}",
+            excerpt=excerpt,
             key_metrics={
                 "days_unanswered": days_unanswered,
                 "channel": act.type,
                 "account_name": comp_name,
+                "matched_phrase": matched_term,
+                "context_type": context_type,
             },
             verification_status="verified",
-        )
-
-        title = f"Unanswered Thread: {person_name} ({days_unanswered}d waiting)"
-        summary = (
-            f"Last message from {person_name} was received on {act.occurred_at.strftime('%Y-%m-%d')} "
-            f"({days_unanswered} days ago) with no recorded response."
         )
 
         meta = {
@@ -550,6 +609,8 @@ async def detect_unanswered_conversations(
             "message_occurred_at": act.occurred_at.isoformat() if act.occurred_at else None,
             "person_name": person_name,
             "company_name": comp_name,
+            "matched_phrase": matched_term,
+            "context_type": context_type,
             "confidence_score": float(conf_score),
             "confidence_tier": conf_tier.value,
             "is_uncertain": is_uncertain,
@@ -575,19 +636,19 @@ async def detect_unanswered_conversations(
 
 
 async def detect_leadership_changes(
-    db: AsyncSession, now: datetime.datetime
+    db: AsyncSession, now: datetime.datetime, lookback_days: int = 90
 ) -> list[tuple[DetectedSignal, bool]]:
     """
-    Detects executive departures or new executive roles within the last 60 days.
+    Detects executive departures or new executive roles within the lookback window.
     """
-    cutoff_60d = (now - datetime.timedelta(days=60)).date()
+    cutoff_date = (now - datetime.timedelta(days=lookback_days)).date()
 
-    # 1. Departures (ended_at >= cutoff_60d or is_current=False with ended_at)
+    # 1. Departures (ended_at >= cutoff_date or is_current=False with ended_at)
     dep_stmt = (
         select(PersonCompanyRelationship)
         .where(
             PersonCompanyRelationship.is_current.is_(False),
-            PersonCompanyRelationship.ended_at >= cutoff_60d,
+            PersonCompanyRelationship.ended_at >= cutoff_date,
         )
         .order_by(PersonCompanyRelationship.ended_at.desc())
     )
@@ -646,12 +707,12 @@ async def detect_leadership_changes(
         )
         results.append(res)
 
-    # 2. New Executive arrivals (started_at >= cutoff_60d, title matching executive regex)
+    # 2. New Executive arrivals (started_at >= cutoff_date, title matching executive regex)
     arr_stmt = (
         select(PersonCompanyRelationship)
         .where(
             PersonCompanyRelationship.is_current.is_(True),
-            PersonCompanyRelationship.started_at >= cutoff_60d,
+            PersonCompanyRelationship.started_at >= cutoff_date,
         )
         .order_by(PersonCompanyRelationship.started_at.desc())
     )
@@ -716,14 +777,14 @@ async def detect_leadership_changes(
 
 
 async def detect_hiring_funding_events(
-    db: AsyncSession, now: datetime.datetime
+    db: AsyncSession, now: datetime.datetime, lookback_days: int = 90
 ) -> list[tuple[DetectedSignal, bool]]:
     """
     Detects mentions of funding rounds or hiring acceleration across:
-    1. Unstructured interactions and meeting debriefs (Activity records within 90d).
+    1. Unstructured interactions and meeting debriefs (Activity records within lookback window).
     2. Structured account enrichment data (Company.attributes funding and headcount signals).
     """
-    cutoff_90d = now - datetime.timedelta(days=90)
+    cutoff = now - datetime.timedelta(days=lookback_days)
 
     results: list[tuple[DetectedSignal, bool]] = []
     seen_companies: set[Any] = set()
@@ -732,7 +793,7 @@ async def detect_hiring_funding_events(
     stmt = (
         select(Activity)
         .where(
-            Activity.occurred_at >= cutoff_90d,
+            Activity.occurred_at >= cutoff,
             Activity.company_id.is_not(None),
         )
         .order_by(Activity.occurred_at.desc())
@@ -1001,18 +1062,16 @@ async def detect_hiring_funding_events(
 
 
 async def detect_competitor_signals(
-    db: AsyncSession, now: datetime.datetime
+    db: AsyncSession, now: datetime.datetime, lookback_days: int = 90
 ) -> list[tuple[DetectedSignal, bool]]:
     """
     Detects competitor mentions or bake-offs in recent meeting debriefs or deal notes.
     Guarantees affected account resolution via Opportunity, Engagement, or Person.
     """
-    cutoff_90d = now - datetime.timedelta(days=90)
+    cutoff = now - datetime.timedelta(days=lookback_days)
 
     stmt = (
-        select(Activity)
-        .where(Activity.occurred_at >= cutoff_90d)
-        .order_by(Activity.occurred_at.desc())
+        select(Activity).where(Activity.occurred_at >= cutoff).order_by(Activity.occurred_at.desc())
     )
     activities = (await db.execute(stmt)).scalars().all()
 
@@ -1132,22 +1191,53 @@ async def detect_competitor_signals(
     return results
 
 
-async def evaluate_all_signals(db: AsyncSession) -> dict[str, Any]:
+async def evaluate_all_signals(db: AsyncSession, lookback_days: int = 90) -> dict[str, Any]:
     """
-    Master orchestrator running detection rules across all 6 catalog signals,
-    followed by cross-signal conflict evaluation across Company, Opportunity, and Person scopes.
+    Master orchestrator running detection rules across all 6 catalog signals
+    within the configured lookback window (default: 90 days; up to 730 days / 2 years),
+    followed by retiring outdated signals and evaluating multi-entity conflicts.
     """
+    lookback_days = max(1, min(730, lookback_days))
     await ensure_signals_dimension(db)
     now = utc_now()
 
     dormant = await detect_dormant_strategic_accounts(db, now)
-    unanswered = await detect_unanswered_conversations(db, now)
+    unanswered = await detect_unanswered_conversations(db, now, lookback_days=lookback_days)
     contracts = await detect_expiring_contracts(db, now)
-    leadership = await detect_leadership_changes(db, now)
-    growth = await detect_hiring_funding_events(db, now)
-    competitors = await detect_competitor_signals(db, now)
+    leadership = await detect_leadership_changes(db, now, lookback_days=lookback_days)
+    growth = await detect_hiring_funding_events(db, now, lookback_days=lookback_days)
+    competitors = await detect_competitor_signals(db, now, lookback_days=lookback_days)
 
     all_pairs = dormant + unanswered + contracts + leadership + growth + competitors
+    await db.flush()
+
+    # Automatically retire/dismiss active signals for managed catalog signals that were not detected
+    # in this run (e.g. outside the selected lookback window or criteria no longer met)
+    managed_signal_ids = [
+        "dormant_strategic_account",
+        "unanswered_conversation",
+        "expiring_contract",
+        "leadership_change",
+        "hiring_funding_event",
+        "competitor_signal",
+    ]
+    detected_ids = {sig.id for sig, _ in all_pairs}
+    stale_stmt = select(DetectedSignal).where(
+        DetectedSignal.status == "active",
+        DetectedSignal.signal_id.in_(managed_signal_ids),
+        DetectedSignal.id.not_in(detected_ids),
+    )
+    stale_signals = (await db.execute(stale_stmt)).scalars().all()
+    for stale_sig in stale_signals:
+        stale_sig.status = "dismissed"
+        meta = dict(stale_sig.metadata_payload or {})
+        meta["auto_retired"] = True
+        meta["retired_reason"] = (
+            f"Outside {lookback_days}d lookback window or criteria no longer met"
+        )
+        stale_sig.metadata_payload = meta
+        stale_sig.updated_at = now
+
     await db.flush()
 
     # Query all active/acknowledged signals to evaluate multi-entity conflicts
@@ -1197,6 +1287,7 @@ async def evaluate_all_signals(db: AsyncSession) -> dict[str, Any]:
     return {
         "status": "success",
         "evaluated_at": now,
+        "lookback_days": lookback_days,
         "total_active_signals": total_active,
         "total_conflicting": total_conflicting,
         "total_uncertain": total_uncertain,

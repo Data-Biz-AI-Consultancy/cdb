@@ -180,6 +180,7 @@ class DetectedSignalStatsResponse(BaseModel):
 class SignalEvaluationResult(BaseModel):
     status: str = "success"
     evaluated_at: datetime
+    lookback_days: int = 90
     total_active_signals: int
     total_conflicting: int = 0
     total_uncertain: int = 0

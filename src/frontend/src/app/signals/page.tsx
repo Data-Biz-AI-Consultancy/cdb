@@ -102,6 +102,7 @@ export interface DetectedSignalStatsResponse {
 export interface SignalEvaluationResult {
   status: string;
   evaluated_at: string;
+  lookback_days?: number;
   total_active_signals: number;
   total_conflicting?: number;
   total_uncertain?: number;
@@ -141,6 +142,7 @@ export default function SignalsPage() {
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [signalTypeFilter, setSignalTypeFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('newest');
+  const [lookbackDays, setLookbackDays] = useState<number>(90);
 
   // Dynamic catalog options based on active category filter
   const availableCatalog = useMemo(() => {
@@ -158,13 +160,17 @@ export default function SignalsPage() {
   const [resolutionNotes, setResolutionNotes] = useState('');
 
   // Load initial data
-  const loadData = async () => {
+  const loadData = async (lookback: number = lookbackDays) => {
     try {
       setLoading(true);
       const [catRes, sigRes, statRes] = await Promise.allSettled([
         apiFetch<SignalCatalogResponse>('/api/v1/signals/catalog'),
-        apiFetch<ApiResponse<DetectedSignal[]>>('/api/v1/signals/detected?page_size=100'),
-        apiFetch<DetectedSignalStatsResponse>('/api/v1/signals/detected/stats'),
+        apiFetch<ApiResponse<DetectedSignal[]>>(
+          `/api/v1/signals/detected?page_size=100&lookback_days=${lookback}`
+        ),
+        apiFetch<DetectedSignalStatsResponse>(
+          `/api/v1/signals/detected/stats?lookback_days=${lookback}`
+        ),
       ]);
 
       if (catRes.status === 'fulfilled' && catRes.value?.data) {
@@ -187,19 +193,35 @@ export default function SignalsPage() {
     loadData();
   }, []);
 
+  const handleLookbackChange = (newDays: number) => {
+    setLookbackDays(newDays);
+    loadData(newDays);
+  };
+
   // Trigger evaluation
   const handleRunEvaluation = async () => {
     try {
       setEvaluating(true);
       setEvaluationBanner(null);
-      const res = await apiFetch<SignalEvaluationResult>('/api/v1/signals/evaluate', {
-        method: 'POST',
-      });
+      const res = await apiFetch<SignalEvaluationResult>(
+        `/api/v1/signals/evaluate?lookback_days=${lookbackDays}`,
+        {
+          method: 'POST',
+        }
+      );
       if (res) {
+        const windowDesc =
+          lookbackDays === 90
+            ? '3 months'
+            : lookbackDays === 180
+            ? '6 months'
+            : lookbackDays === 365
+            ? '1 year'
+            : '2 years';
         setEvaluationBanner(
-          `Radar sweep completed: ${res.new_signals_detected} new signals flagged, ${res.refreshed_signals} refreshed. Total active: ${res.total_active_signals}.`
+          `Radar sweep completed (${windowDesc} lookback): ${res.new_signals_detected} new signals flagged, ${res.refreshed_signals} refreshed. Total active: ${res.total_active_signals}.`
         );
-        await loadData();
+        await loadData(lookbackDays);
       }
     } catch (err: any) {
       setEvaluationBanner(`Evaluation failed: ${err.message || 'Unknown error'}`);
@@ -667,6 +689,22 @@ export default function SignalsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-200">
+              <span className="text-slate-400 font-medium">Lookback:</span>
+              <select
+                id="header-lookback-select"
+                aria-label="Select lookback window"
+                value={lookbackDays}
+                onChange={(e) => handleLookbackChange(Number(e.target.value))}
+                className="bg-transparent text-emerald-300 font-bold focus:outline-none cursor-pointer"
+              >
+                <option value={90} className="bg-slate-900 text-white">3 Months (Default)</option>
+                <option value={180} className="bg-slate-900 text-white">6 Months</option>
+                <option value={365} className="bg-slate-900 text-white">1 Year</option>
+                <option value={730} className="bg-slate-900 text-white">2 Years (Max)</option>
+              </select>
+            </div>
+
             <button
               onClick={handleRunEvaluation}
               disabled={evaluating}
@@ -997,11 +1035,25 @@ export default function SignalsPage() {
                 <option value="confidence_asc">Sort: Lowest Confidence</option>
               </select>
 
+              <select
+                id="lookback-filter"
+                aria-label="Filter by Lookback Window"
+                value={lookbackDays}
+                onChange={(e) => handleLookbackChange(Number(e.target.value))}
+                className="px-3 py-2 text-xs font-semibold bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value={90}>Lookback: 3 Months (Default)</option>
+                <option value={180}>Lookback: 6 Months</option>
+                <option value={365}>Lookback: 1 Year</option>
+                <option value={730}>Lookback: 2 Years (Max)</option>
+              </select>
+
               {(statusFilter !== 'active' ||
                 categoryFilter !== 'all' ||
                 severityFilter !== 'all' ||
                 signalTypeFilter !== 'all' ||
                 sortBy !== 'newest' ||
+                lookbackDays !== 90 ||
                 searchQuery.trim().length > 0) && (
                 <button
                   type="button"
@@ -1012,6 +1064,8 @@ export default function SignalsPage() {
                     setSignalTypeFilter('all');
                     setSortBy('newest');
                     setSearchQuery('');
+                    setLookbackDays(90);
+                    loadData(90);
                   }}
                   className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-dashed border-slate-300 transition-colors"
                 >

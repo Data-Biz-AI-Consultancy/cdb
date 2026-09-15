@@ -1243,13 +1243,17 @@ Retrieve the full definition, trigger thresholds, and action playbook for a spec
 
 ### `POST /signals/evaluate`
 
-Triggers the automated Signal Detection Engine to scan the initial catalog across CDB activity, engagement, contract, and enrichment data. Guarantees affected account attribution (`company_id` and `company_name`) on every detected signal. Idempotent on rerun.
+Triggers the automated Signal Detection Engine to scan the initial catalog across CDB activity, engagement, contract, and enrichment data within a user-configurable lookback window. Guarantees affected account attribution (`company_id` and `company_name`) on every detected signal. Idempotent on rerun, and automatically retires stale active signals outside the chosen lookback window.
+
+**Query params:**
+- `lookback_days`: Lookback window in days (default: `90` / 3 months; allowable: `1` to `730` / 2 years max)
 
 **Response 200:**
 ```json
 {
   "status": "success",
   "evaluated_at": "2026-09-09T10:00:00Z",
+  "lookback_days": 90,
   "total_active_signals": 12,
   "new_signals_detected": 4,
   "refreshed_signals": 8,
@@ -1268,6 +1272,9 @@ Triggers the automated Signal Detection Engine to scan the initial catalog acros
 
 Retrieve real-time aggregate count metrics of active detected signals by severity, category, and signal type, including conflicting signals and uncertain signals needing verification.
 
+**Query params:**
+- `lookback_days`: Optional lookback window in days (`1` to `730`)
+
 **Response 200:**
 ```json
 {
@@ -1276,7 +1283,7 @@ Retrieve real-time aggregate count metrics of active detected signals by severit
   "total_uncertain": 1,
   "by_severity": { "critical": 3, "high": 7, "medium": 2 },
   "by_category": { "risk": 7, "opportunity": 3, "hybrid": 2 },
-  "by_signal": { "dormant_strategic_account": 3, "unanswered_conversation": 2, ... },
+  "by_signal": { "dormant_strategic_account": 3, "unanswered_conversation": 2 },
   "by_status": { "active": 12, "acknowledged": 2, "actioned": 5 }
 }
 ```
@@ -1296,6 +1303,7 @@ List detected signal event instances (paginated) with multi-dimensional filterin
 - `engagement_id`: Filter by engagement UUID
 - `is_uncertain`: Filter by uncertainty flag (`true` | `false`)
 - `has_conflict`: Filter by conflicting polarities flag (`true` | `false`)
+- `lookback_days`: Filter signals detected or active within lookback window in days (`1` to `730`)
 - `page`: 1-indexed page number (default: 1)
 - `page_size`: items per page (default: 50)
 

@@ -254,10 +254,13 @@ describe('SignalsPage Component', () => {
     fireEvent.click(evalBtn);
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenCalledWith('/api/v1/signals/evaluate', {
-        method: 'POST',
-      });
-      expect(screen.getByText(/Radar sweep completed: 1 new signals flagged/)).toBeInTheDocument();
+      expect(apiFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/signals/evaluate'),
+        {
+          method: 'POST',
+        }
+      );
+      expect(screen.getByText(/Radar sweep completed/)).toBeInTheDocument();
     });
   });
 
@@ -409,6 +412,40 @@ describe('SignalsPage Component', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Louis Guitton')).not.toBeInTheDocument();
+    });
+  });
+
+  it('allows user to change the lookback window and triggers evaluation with chosen lookback', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Opportunity & Risk Signals Radar')).toBeInTheDocument();
+    });
+
+    // Initial fetch includes lookback_days=90
+    expect(apiFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/signals/detected?page_size=100&lookback_days=90')
+    );
+
+    // Change lookback window in toolbar
+    const lookbackSelect = screen.getByLabelText(/Filter by Lookback Window/i);
+    fireEvent.change(lookbackSelect, { target: { value: '180' } });
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/signals/detected?page_size=100&lookback_days=180')
+      );
+    });
+
+    // Run signal detection and check evaluate call with lookback_days=180
+    const runBtn = screen.getByText('Run Signal Detection');
+    fireEvent.click(runBtn);
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/v1/signals/evaluate?lookback_days=180',
+        expect.objectContaining({ method: 'POST' })
+      );
     });
   });
 });

@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from collections.abc import Sequence
 from decimal import Decimal
@@ -147,6 +148,7 @@ async def list_detected_signals(
     engagement_id: uuid.UUID | None = None,
     is_uncertain: bool | None = None,
     has_conflict: bool | None = None,
+    lookback_days: int | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[DetectedSignalResponse], int]:
@@ -185,6 +187,9 @@ async def list_detected_signals(
         stmt = stmt.join(Signal, Signal.id == DetectedSignal.signal_id).where(
             Signal.category == category
         )
+    if lookback_days:
+        cutoff = utc_now() - datetime.timedelta(days=lookback_days)
+        stmt = stmt.where(DetectedSignal.detected_at >= cutoff)
 
     bind = db.get_bind()
     is_sqlite = getattr(bind.dialect, "name", "") == "sqlite"
@@ -221,11 +226,17 @@ async def list_detected_signals(
     return [_to_detected_response(r) for r in records], total
 
 
-async def get_detected_signal_stats(db: AsyncSession) -> DetectedSignalStatsResponse:
+async def get_detected_signal_stats(
+    db: AsyncSession, lookback_days: int | None = None
+) -> DetectedSignalStatsResponse:
     """
     Computes summary breakdown metrics across all detected signals.
+    Optionally constrained to a lookback window.
     """
     stmt = select(DetectedSignal).options(selectinload(DetectedSignal.signal))
+    if lookback_days:
+        cutoff = utc_now() - datetime.timedelta(days=lookback_days)
+        stmt = stmt.where(DetectedSignal.detected_at >= cutoff)
     records: Sequence[DetectedSignal] = (await db.execute(stmt)).scalars().all()
 
     by_severity: dict[str, int] = {}
