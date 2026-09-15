@@ -8,10 +8,8 @@ import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cdb.models.activity import Activity
 from cdb.models.company import Company
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.classification import (
@@ -24,6 +22,7 @@ from cdb.services.signals.utils import (
     _upsert_detected_signal,
     days_between,
     extract_activity_persons,
+    fetch_recent_activities,
     get_activity_searchable_text,
     get_company_display_name,
 )
@@ -36,15 +35,7 @@ async def detect_growth_from_activities(
     seen_companies: set[Any],
 ) -> list[tuple[DetectedSignal, bool]]:
     """Evaluates unstructured interaction text for funding or hiring keywords."""
-    stmt = (
-        select(Activity)
-        .where(
-            Activity.occurred_at >= cutoff,
-            Activity.company_id.is_not(None),
-        )
-        .order_by(Activity.occurred_at.desc())
-    )
-    activities = (await db.execute(stmt)).scalars().all()
+    activities = await fetch_recent_activities(db, cutoff, require_company=True)
     results: list[tuple[DetectedSignal, bool]] = []
 
     for act in activities:
