@@ -255,7 +255,24 @@ erDiagram
     }
 ```
 
-### Detection Engine Rules (`detector.py`)
+### Detection Engine (`detectors/` package)
+
+The detection engine has been refactored from a single `detector.py` into focused sub-modules:
+
+| Module | Responsibility |
+| :--- | :--- |
+| `patterns.py` | Compiled regex constants (`COMMERCIAL_OPPORTUNITY_REGEX`, `FUNDING_REGEX`, `COMPETITOR_REGEX`, etc.) |
+| `_helpers.py` | Shared private DB helpers: `_resolve_account_for_signal`, `_upsert_detected_signal` |
+| `detectors/dormant.py` | `detect_dormant_strategic_accounts` |
+| `detectors/unanswered.py` | `detect_unanswered_conversations` |
+| `detectors/contracts.py` | `detect_expiring_contracts` |
+| `detectors/leadership.py` | `detect_leadership_changes` |
+| `detectors/growth.py` | `detect_hiring_funding_events` |
+| `detectors/competitors.py` | `detect_competitor_signals` |
+| `orchestrator.py` | `evaluate_all_signals` — wires all detectors, stale signal retirement, conflict detection |
+| `detector.py` | Thin re-export shim for backward-compatible imports |
+
+
 
 1. **`dormant_strategic_account`**: Scans companies qualifying as strategic (signed engagement, won deal, or strategic tier/segment attributes) where `MAX(activity.occurred_at)` is older than 60 days (or no activity).
 2. **`unanswered_conversation`**: Scans inbound messages (LinkedIn, email, WhatsApp) where the external contact was the last sender > 3 days ago without an outbound response within the lookback window (default 90 days). Strictly filters out routine inbox noise by requiring commercial gig/project opportunity context (proposals, budget, rates, consulting/advisory engagement) or competitor bake-off mentions. Resolves contact's current company via `PersonCompanyRelationship`.
