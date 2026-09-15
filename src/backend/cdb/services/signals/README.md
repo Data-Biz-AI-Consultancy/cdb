@@ -261,13 +261,34 @@ The detection engine has been refactored from a single `detector.py` into focuse
 
 | Module | Responsibility |
 | :--- | :--- |
+| `classification/rules.py` | Classification rule definitions & canonical catalog rules (`SIGNAL_CLASSIFICATION_RULES`) |
+| `classification/confidence.py` | Confidence scoring thresholds & heuristics (`assess_confidence`, `SignalConfidenceTier`) |
+| `classification/evidence.py` | Supporting evidence contracts & metadata builders (`build_evidence_payload`, `build_signal_meta`) |
+| `classification/polarity.py` | Signal polarity enums & dynamic resolution (`SignalPolarity`, `resolve_signal_effective_polarity`) |
+| `classification/conflicts.py` | Multi-entity conflict detection across Company, Opportunity, Person scopes (`detect_signal_conflicts`) |
+| `classification/__init__.py` | Classification package facade re-exporting all rules, metrics, and contracts |
 | `patterns.py` | Compiled regex constants (`COMMERCIAL_OPPORTUNITY_REGEX`, `FUNDING_REGEX`, `COMPETITOR_REGEX`, etc.) |
-| `_helpers.py` | Shared private DB helpers: `_resolve_account_for_signal`, `_upsert_detected_signal` |
+| `utils/dates.py` | Date and timezone normalization utilities (`ensure_utc`) |
+| `utils/activity.py` | Activity parsing and participant extraction (`extract_activity_persons`) |
+| `utils/account.py` | Account resolution utilities (`resolve_account_for_signal`) traversing entity graphs |
+| `utils/enrichment.py` | Context enrichment (`enrich_company_context`) and employee sanitization (`sanitize_target_persons`) |
+| `utils/matching.py` | Active signal lookup and query builder (`find_existing_active_signal`) |
+| `utils/persistence.py` | Signal record creation and update handling (`persist_signal_record`) |
+| `utils/linking.py` | Participant person link creation and role assignment (`link_signal_persons`) |
+| `utils/upsert.py` | Master persistence and deduplication coordinator (`upsert_detected_signal`) |
+| `utils/__init__.py` | Utility package exports with public and backward-compatible private aliases |
 | `detectors/dormant.py` | `detect_dormant_strategic_accounts` |
-| `detectors/unanswered.py` | `detect_unanswered_conversations` |
+| `detectors/unanswered/query.py` | Candidate inbound conversation querying awaiting response |
+| `detectors/unanswered/signal.py` | Signal creation, evidence building, and persistence for unanswered threads |
+| `detectors/unanswered/__init__.py` | Unanswered conversation detector facade |
 | `detectors/contracts.py` | `detect_expiring_contracts` |
-| `detectors/leadership.py` | `detect_leadership_changes` |
-| `detectors/growth.py` | `detect_hiring_funding_events` |
+| `detectors/leadership/signal.py` | Signal payload and metadata builder for leadership transitions |
+| `detectors/leadership/departures.py` | Champion departure detection from strategic accounts |
+| `detectors/leadership/arrivals.py` | Executive arrival/joiner detection across client/prospect accounts |
+| `detectors/leadership/__init__.py` | Leadership change detector facade coordinating departures and arrivals |
+| `detectors/growth/activities.py` | Unstructured interaction text scanning for funding & hiring events |
+| `detectors/growth/enrichment.py` | Structured `Company.attributes` evaluation for funding & headcount growth |
+| `detectors/growth/__init__.py` | Growth detector facade coordinating activities and enrichment pipelines |
 | `detectors/competitors.py` | `detect_competitor_signals` |
 | `orchestrator.py` | `evaluate_all_signals` — wires all detectors, stale signal retirement, conflict detection |
 | `detector.py` | Thin re-export shim for backward-compatible imports |
