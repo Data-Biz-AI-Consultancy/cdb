@@ -289,7 +289,9 @@ The detection engine has been refactored from a single `detector.py` into focuse
 | `detectors/growth/activities.py` | Unstructured interaction text scanning for funding & hiring events |
 | `detectors/growth/enrichment.py` | Structured `Company.attributes` evaluation for funding & headcount growth |
 | `detectors/growth/__init__.py` | Growth detector facade coordinating activities and enrichment pipelines |
-| `detectors/competitors.py` | `detect_competitor_signals` |
+| `detectors/competitors/constants.py` | Known competitor consultancy lists & high-intent bake-off indicators |
+| `detectors/competitors/signal.py` | Competitor threat signal builder, confidence assessment, and persistence |
+| `detectors/competitors/__init__.py` | Competitor threat detector facade |
 | `orchestrator.py` | `evaluate_all_signals` — wires all detectors, stale signal retirement, conflict detection |
 | `detector.py` | Thin re-export shim for backward-compatible imports |
 
