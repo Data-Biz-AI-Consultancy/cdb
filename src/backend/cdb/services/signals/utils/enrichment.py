@@ -1,7 +1,7 @@
 """
 cdb.services.signals.utils.enrichment
 
-Metadata enrichment and person sanitization utilities for signal evaluation.
+Metadata enrichment, company attribute parsing, and person sanitization utilities.
 """
 
 from typing import Any
@@ -38,6 +38,99 @@ async def enrich_company_context(
             metadata_payload["evidence"].setdefault("account_name", company.name)
 
     return metadata_payload
+
+
+def extract_funding_enrichment(
+    attrs: dict[str, Any] | None,
+) -> tuple[str, str | None, str | None, str] | None:
+    """
+    Extracts structured funding round data from Company.attributes.
+    Returns: (round_label, amount, date_str, severity) or None
+    """
+    if not attrs or not isinstance(attrs, dict):
+        return None
+
+    funding_data = (
+        attrs.get("funding") or attrs.get("funding_round") or attrs.get("recent_funding_round")
+    )
+    stage_data = attrs.get("funding_stage") or attrs.get("stage")
+    total_funding = attrs.get("total_funding") or attrs.get("total_raised")
+
+    round_name = None
+    amount = None
+    date_str = None
+
+    if isinstance(funding_data, dict):
+        round_name = (
+            funding_data.get("round") or funding_data.get("stage") or funding_data.get("name")
+        )
+        amount = funding_data.get("amount") or funding_data.get("total_raised")
+        date_str = funding_data.get("announced_date") or funding_data.get("date")
+    elif isinstance(funding_data, str) and funding_data:
+        round_name = funding_data
+    elif stage_data:
+        round_name = str(stage_data)
+
+    if total_funding and not amount:
+        amount = str(total_funding)
+
+    if round_name or (amount and "seed" in str(amount).lower()):
+        round_label = str(round_name) if round_name else "Capital Investment"
+        severity = (
+            "high"
+            if any(x in round_label.lower() for x in ["series b", "series c", "series d", "growth"])
+            else "medium"
+        )
+        return (
+            round_label,
+            str(amount) if amount else None,
+            str(date_str) if date_str else None,
+            severity,
+        )
+
+    return None
+
+
+def extract_headcount_enrichment(
+    attrs: dict[str, Any] | None,
+) -> str | None:
+    """
+    Extracts structured headcount scaling and hiring data from Company.attributes.
+    Returns: growth_description string or None
+    """
+    if not attrs or not isinstance(attrs, dict):
+        return None
+
+    headcount_data = (
+        attrs.get("headcount") or attrs.get("headcount_growth") or attrs.get("hiring_signals")
+    )
+    growth_rate = None
+    openings = None
+
+    if isinstance(headcount_data, dict):
+        growth_rate = (
+            headcount_data.get("growth_rate_pct")
+            or headcount_data.get("growth_pct")
+            or headcount_data.get("growth_rate")
+        )
+        openings = (
+            headcount_data.get("open_roles")
+            or headcount_data.get("engineering_openings")
+            or headcount_data.get("openings")
+        )
+    elif isinstance(headcount_data, (int, float)):
+        growth_rate = headcount_data
+    elif isinstance(headcount_data, str) and "%" in headcount_data:
+        growth_rate = headcount_data
+
+    if growth_rate or openings or attrs.get("is_hiring_data"):
+        return (
+            f"+{growth_rate}% growth"
+            if growth_rate
+            else (f"{openings} open positions" if openings else "Aggressive team expansion")
+        )
+
+    return None
 
 
 async def sanitize_target_persons(

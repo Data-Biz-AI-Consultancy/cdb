@@ -2,10 +2,10 @@
 cdb.services.signals.utils
 
 Signal utility modules:
-- dates: datetime and timezone normalization (ensure_utc)
-- activity: activity parsing and participant extraction (extract_activity_persons)
+- dates: datetime and timezone normalization (ensure_utc, days_between)
+- activity: activity parsing and participant extraction (extract_activity_persons, get_activity_searchable_text, is_last_speaker_host)
 - account: entity relationship traversal for company attribution (resolve_account_for_signal)
-- enrichment: account metadata enrichment and internal employee sanitization
+- enrichment: account metadata enrichment, attribute parsing, and internal employee sanitization
 - matching: deduplication query lookup (find_existing_active_signal)
 - persistence: signal creation and updates (persist_signal_record)
 - linking: participant entity relationship linking (link_signal_persons)
@@ -16,10 +16,19 @@ from cdb.services.signals.utils.account import (
     _resolve_account_for_signal,
     resolve_account_for_signal,
 )
-from cdb.services.signals.utils.activity import extract_activity_persons
-from cdb.services.signals.utils.dates import ensure_utc
+from cdb.services.signals.utils.activity import (
+    extract_activity_persons,
+    get_activity_searchable_text,
+    is_last_speaker_host,
+)
+from cdb.services.signals.utils.dates import (
+    days_between,
+    ensure_utc,
+)
 from cdb.services.signals.utils.enrichment import (
     enrich_company_context,
+    extract_funding_enrichment,
+    extract_headcount_enrichment,
     sanitize_target_persons,
 )
 from cdb.services.signals.utils.linking import link_signal_persons
@@ -31,8 +40,13 @@ from cdb.services.signals.utils.upsert import (
 )
 
 __all__ = [
+    "days_between",
     "ensure_utc",
     "extract_activity_persons",
+    "get_activity_searchable_text",
+    "is_last_speaker_host",
+    "extract_funding_enrichment",
+    "extract_headcount_enrichment",
     "resolve_account_for_signal",
     "_resolve_account_for_signal",
     "enrich_company_context",

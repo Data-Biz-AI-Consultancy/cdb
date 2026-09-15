@@ -4,8 +4,41 @@ cdb.services.signals.utils.activity
 Activity parsing and participant extraction utilities for signal detectors.
 """
 
+import re
 import uuid
 from typing import Any
+
+_SPEAKER_RE = re.compile(r"^([A-Za-z0-9\s\.\-_]+?):\s*(.*)$")
+_DEFAULT_HOST_IDENTIFIERS: tuple[str, ...] = ("jimmy", "pang", "host", "databiz", "me")
+
+
+def get_activity_searchable_text(act: Any) -> str:
+    """Extracts and concatenates title, summary, and raw_content into searchable text."""
+    if not act:
+        return ""
+    title = getattr(act, "title", None) or ""
+    summary = getattr(act, "summary", None) or ""
+    raw_content = getattr(act, "raw_content", None) or ""
+    return f"{title} {summary} {raw_content}"
+
+
+def is_last_speaker_host(
+    raw_content: str | None,
+    host_identifiers: tuple[str, ...] = _DEFAULT_HOST_IDENTIFIERS,
+) -> bool:
+    """
+    Parses a multiline transcript or chat snippet in raw_content to determine
+    if the last speaker line was sent by the internal host/team.
+    """
+    if not raw_content:
+        return False
+    lines = [line_str.strip() for line_str in raw_content.splitlines() if line_str.strip()]
+    for line in reversed(lines):
+        m = _SPEAKER_RE.match(line)
+        if m:
+            last_speaker = m.group(1).strip().lower()
+            return any(h in last_speaker for h in host_identifiers)
+    return False
 
 
 def extract_activity_persons(
@@ -32,7 +65,7 @@ def extract_activity_persons(
     person_roles: dict[str, str] = {}
     suggested_persons: list[Any] = []
 
-    attrs = act.attributes
+    attrs = getattr(act, "attributes", None)
     if not attrs or not isinstance(attrs, dict):
         return connected_pids, person_roles, suggested_persons
 
