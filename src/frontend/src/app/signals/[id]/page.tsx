@@ -111,6 +111,42 @@ export default function SignalDetailPage({
     }
   };
 
+  const handleLinkPerson = async (personId: string, role: string) => {
+    if (!signal) return;
+    try {
+      setSubmittingAction(true);
+      const updated = await apiFetch<DetectedSignal>(`/api/v1/signals/detected/${signal.id}/persons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: personId, role }),
+      });
+      if (updated) {
+        setSignal(updated);
+      }
+    } catch (err) {
+      console.error('Failed to link person to signal:', err);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const handleUnlinkPerson = async (personId: string) => {
+    if (!signal) return;
+    try {
+      setSubmittingAction(true);
+      const updated = await apiFetch<DetectedSignal>(`/api/v1/signals/detected/${signal.id}/persons/${personId}`, {
+        method: 'DELETE',
+      });
+      if (updated) {
+        setSignal(updated);
+      }
+    } catch (err) {
+      console.error('Failed to unlink person from signal:', err);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
   // Badge helpers
   const getSeverityBadge = (severity: SignalSeverity) => {
     switch (severity) {
@@ -264,6 +300,73 @@ export default function SignalDetailPage({
                   {signal.summary}
                 </p>
               )}
+
+              {/* Linked Context Entities Bar */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {signal.company_name && (
+                  <Link
+                    href={
+                      signal.company_id
+                        ? `/companies/${signal.company_id}`
+                        : `/companies?q=${encodeURIComponent(signal.company_name)}`
+                    }
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition text-xs font-medium"
+                  >
+                    <span>🏢</span>
+                    <span>{signal.company_name}</span>
+                  </Link>
+                )}
+                {signal.connected_persons && signal.connected_persons.length > 0 ? (
+                  signal.connected_persons.map((p) => {
+                    const name =
+                      p.name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Contact';
+                    return (
+                      <Link
+                        key={p.id}
+                        href={`/persons/${p.id}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition text-xs font-medium"
+                      >
+                        <span>👤</span>
+                        <span>{name}</span>
+                        {p.role && (
+                          <span className="text-[10px] text-emerald-600 uppercase font-semibold">
+                            ({p.role})
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })
+                ) : signal.person_name ? (
+                  signal.person_name.includes(',') ? (
+                    signal.person_name.split(',').map((name, idx) => {
+                      const trimmed = name.trim();
+                      if (!trimmed) return null;
+                      return (
+                        <Link
+                          key={idx}
+                          href={`/persons?q=${encodeURIComponent(trimmed)}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition text-xs font-medium"
+                        >
+                          <span>👤</span>
+                          <span>{trimmed}</span>
+                        </Link>
+                      );
+                    })
+                  ) : (
+                    <Link
+                      href={
+                        signal.person_id
+                          ? `/persons/${signal.person_id}`
+                          : `/persons?q=${encodeURIComponent(signal.person_name)}`
+                      }
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition text-xs font-medium"
+                    >
+                      <span>👤</span>
+                      <span>{signal.person_name}</span>
+                    </Link>
+                  )
+                ) : null}
+              </div>
             </div>
 
             {/* Triage Action Cluster */}
@@ -443,7 +546,7 @@ export default function SignalDetailPage({
             </div>
 
             <div className="space-y-3 text-xs">
-              {signal.company_name ? (
+              {signal.company_name || signal.company_id ? (
                 <div className="flex items-center justify-between p-3 bg-blue-50/60 border border-blue-100 rounded-lg">
                   <div className="flex items-center gap-2.5">
                     <span className="text-lg">🏢</span>
@@ -452,40 +555,146 @@ export default function SignalDetailPage({
                         Client Company
                       </span>
                       <span className="font-semibold text-blue-950 text-sm">
-                        {signal.company_name}
+                        {signal.company_name || 'Associated Company'}
                       </span>
                     </div>
                   </div>
                   <Link
-                    href={`/companies?search=${encodeURIComponent(signal.company_name)}`}
-                    className="px-2.5 py-1 bg-white text-blue-700 border border-blue-200 rounded font-medium hover:bg-blue-50 transition"
+                    href={
+                      signal.company_id
+                        ? `/companies/${signal.company_id}`
+                        : `/companies?q=${encodeURIComponent(signal.company_name || '')}`
+                    }
+                    className="px-2.5 py-1 bg-white text-blue-700 border border-blue-200 rounded font-medium hover:bg-blue-50 transition shrink-0"
                   >
                     View Company →
                   </Link>
                 </div>
               ) : null}
 
-              {signal.person_name ? (
-                <div className="flex items-center justify-between p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-lg">👤</span>
-                    <div>
-                      <span className="text-[11px] text-emerald-600 font-medium block uppercase tracking-wide">
+              {signal.connected_persons && signal.connected_persons.length > 0 ? (
+                <div className="space-y-2.5">
+                  <span className="text-[11px] text-emerald-600 font-medium block uppercase tracking-wide">
+                    Connected People ({signal.connected_persons.length})
+                  </span>
+                  {signal.connected_persons.map((person) => {
+                    const personName =
+                      person.name ||
+                      [person.first_name, person.last_name].filter(Boolean).join(' ') ||
+                      'Unnamed Contact';
+                    const email = person.email || person.primary_email;
+                    return (
+                      <div
+                        key={person.id}
+                        className="flex items-center justify-between p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg gap-3"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="text-lg shrink-0">👤</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-emerald-950 text-sm truncate">
+                                {personName}
+                              </span>
+                              {person.role && (
+                                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  {person.role}
+                                </span>
+                              )}
+                            </div>
+                            {email && (
+                              <span className="text-[11px] text-slate-500 block truncate">
+                                {email}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Link
+                            href={`/persons/${person.id}`}
+                            className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition text-xs"
+                          >
+                            View Person →
+                          </Link>
+                          <button
+                            onClick={() => handleUnlinkPerson(person.id)}
+                            disabled={submittingAction}
+                            className="px-2 py-1 bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 rounded font-medium transition text-xs cursor-pointer"
+                            title="Unlink Person from Signal"
+                          >
+                            Unlink
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-3 bg-slate-50/70 border border-slate-200 rounded-lg gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-lg shrink-0 text-slate-400">👤</span>
+                    <div className="min-w-0">
+                      <span className="text-[11px] text-slate-500 font-medium block uppercase tracking-wide">
                         Contact Person
                       </span>
-                      <span className="font-semibold text-emerald-950 text-sm">
-                        {signal.person_name}
-                      </span>
+                      {signal.person_name ? (
+                        <span className="font-semibold text-slate-800 text-sm truncate block">
+                          {signal.person_name}
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="font-medium text-slate-400 text-xs italic">
+                            None (Unable to identify counterparty contact)
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <Link
-                    href={`/persons?search=${encodeURIComponent(signal.person_name)}`}
-                    className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition"
-                  >
-                    View Person →
-                  </Link>
+                  {signal.person_id && signal.person_name && (
+                    <Link
+                      href={`/persons/${signal.person_id}`}
+                      className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition shrink-0 text-xs"
+                    >
+                      View Person →
+                    </Link>
+                  )}
                 </div>
-              ) : null}
+              )}
+
+                {/* Suggested Counterparty Contacts */}
+                {signal.suggested_persons && signal.suggested_persons.length > 0 && (
+                  <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-indigo-700 font-bold uppercase tracking-wide flex items-center gap-1">
+                        <span>💡</span>
+                        <span>Suggested Counterparty Contacts</span>
+                      </span>
+                      <span className="text-[10px] text-indigo-500 font-medium">
+                        Identified from meeting / debrief
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {signal.suggested_persons.map((sp, idx) => (
+                        sp.person_id ? (
+                          <button
+                            key={sp.person_id || idx}
+                            onClick={() => handleLinkPerson(sp.person_id!, sp.role || 'counterparty')}
+                            disabled={submittingAction}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-indigo-100 text-indigo-950 border border-indigo-200 text-xs font-semibold transition cursor-pointer shadow-2xs"
+                            title={`Link ${sp.name} (${sp.role || 'contact'}) to this signal`}
+                          >
+                            <span className="text-indigo-600 font-bold text-sm">+</span>
+                            <span>{sp.name}</span>
+                            {sp.role && (
+                              <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-1 rounded border border-indigo-100">
+                                {sp.role}
+                              </span>
+                            )}
+                          </button>
+                        ) : null
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               {signal.opportunity_title ? (
                 <div className="flex items-center justify-between p-3 bg-purple-50/60 border border-purple-100 rounded-lg">

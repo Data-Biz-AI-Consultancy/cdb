@@ -42,3 +42,28 @@ class Person(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
+
+    @property
+    def is_internal(self) -> bool:
+        """Determines if the person is an internal team member/employee."""
+        if not self.attributes:
+            attr = {}
+        else:
+            attr = self.attributes
+        if attr.get("is_internal") is True:
+            return True
+        tags = attr.get("tags") or []
+        if any("internal" in str(t).lower() for t in tags):
+            return True
+        fn = (self.first_name or "").strip().lower()
+        ln = (self.last_name or "").strip().lower()
+        if fn == "jimmy" and ln == "pang":
+            return True
+        emails = [self.primary_email] + (self.secondary_emails or [])
+        for em in emails:
+            if not em:
+                continue
+            em_low = em.strip().lower()
+            if em_low.endswith("@databiz.ai") or "jimmy.pang" in em_low:
+                return True
+        return False

@@ -1,4 +1,21 @@
 import re
+import unicodedata
+
+
+def strip_accents(text: str | None) -> str:
+    """Removes diacritics and accents from characters (e.g., ć -> c, é -> e, ö -> o)."""
+    if not text:
+        return ""
+    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+
+
+def normalise_text_tokens(text: str | None) -> str:
+    """Strips accents, replaces punctuation with space, lowercases, and collapses whitespace."""
+    if not text:
+        return ""
+    stripped = strip_accents(text).lower()
+    cleaned = re.sub(r"[^a-z0-9]+", " ", stripped)
+    return " ".join(cleaned.split())
 
 
 def normalise_email(raw: str | None) -> str | None:

@@ -31,6 +31,27 @@ export interface SignalDefinition {
   is_active: boolean;
 }
 
+export interface ConnectedPerson {
+  id: string;
+  name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  primary_email?: string | null;
+  role?: string | null;
+  linkedin_url?: string | null;
+}
+
+export interface SuggestedPerson {
+  person_id?: string | null;
+  name: string;
+  first_name?: string | null;
+  role?: string | null;
+  company_id?: string | null;
+  company_name?: string | null;
+  confidence?: number | null;
+}
+
 export interface DetectedSignal {
   id: string;
   signal_id: string;
@@ -39,6 +60,8 @@ export interface DetectedSignal {
   company_name?: string | null;
   person_id?: string | null;
   person_name?: string | null;
+  connected_persons?: ConnectedPerson[];
+  suggested_persons?: SuggestedPerson[];
   opportunity_id?: string | null;
   opportunity_title?: string | null;
   engagement_id?: string | null;
@@ -90,6 +113,7 @@ export interface DetectedSignalStatsResponse {
 export interface SignalEvaluationResult {
   status: string;
   evaluated_at: string;
+  lookback_days?: number;
   total_active_signals: number;
   total_conflicting?: number;
   total_uncertain?: number;
@@ -129,6 +153,7 @@ export default function SignalsPage() {
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [signalTypeFilter, setSignalTypeFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('newest');
+  const [lookbackDays, setLookbackDays] = useState<number>(90);
 
   // Dynamic catalog options based on active category filter
   const availableCatalog = useMemo(() => {
@@ -146,13 +171,17 @@ export default function SignalsPage() {
   const [resolutionNotes, setResolutionNotes] = useState('');
 
   // Load initial data
-  const loadData = async () => {
+  const loadData = async (lookback: number = lookbackDays) => {
     try {
       setLoading(true);
       const [catRes, sigRes, statRes] = await Promise.allSettled([
         apiFetch<SignalCatalogResponse>('/api/v1/signals/catalog'),
-        apiFetch<ApiResponse<DetectedSignal[]>>('/api/v1/signals/detected?page_size=100'),
-        apiFetch<DetectedSignalStatsResponse>('/api/v1/signals/detected/stats'),
+        apiFetch<ApiResponse<DetectedSignal[]>>(
+          `/api/v1/signals/detected?page_size=100&lookback_days=${lookback}`
+        ),
+        apiFetch<DetectedSignalStatsResponse>(
+          `/api/v1/signals/detected/stats?lookback_days=${lookback}`
+        ),
       ]);
 
       if (catRes.status === 'fulfilled' && catRes.value?.data) {
@@ -175,19 +204,35 @@ export default function SignalsPage() {
     loadData();
   }, []);
 
+  const handleLookbackChange = (newDays: number) => {
+    setLookbackDays(newDays);
+    loadData(newDays);
+  };
+
   // Trigger evaluation
   const handleRunEvaluation = async () => {
     try {
       setEvaluating(true);
       setEvaluationBanner(null);
-      const res = await apiFetch<SignalEvaluationResult>('/api/v1/signals/evaluate', {
-        method: 'POST',
-      });
+      const res = await apiFetch<SignalEvaluationResult>(
+        `/api/v1/signals/evaluate?lookback_days=${lookbackDays}`,
+        {
+          method: 'POST',
+        }
+      );
       if (res) {
+        const windowDesc =
+          lookbackDays === 90
+            ? '3 months'
+            : lookbackDays === 180
+            ? '6 months'
+            : lookbackDays === 365
+            ? '1 year'
+            : '2 years';
         setEvaluationBanner(
-          `Radar sweep completed: ${res.new_signals_detected} new signals flagged, ${res.refreshed_signals} refreshed. Total active: ${res.total_active_signals}.`
+          `Radar sweep completed (${windowDesc} lookback): ${res.new_signals_detected} new signals flagged, ${res.refreshed_signals} refreshed. Total active: ${res.total_active_signals}.`
         );
-        await loadData();
+        await loadData(lookbackDays);
       }
     } catch (err: any) {
       setEvaluationBanner(`Evaluation failed: ${err.message || 'Unknown error'}`);
@@ -242,6 +287,36 @@ export default function SignalsPage() {
     }
   };
 
+  const handleLinkPerson = async (signalId: string, personId: string, role: string) => {
+    try {
+      setActionInProgress(signalId);
+      await apiFetch(`/api/v1/signals/detected/${signalId}/persons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: personId, role }),
+      });
+      await loadData();
+    } catch (err) {
+      console.error('Failed to link person to signal:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleUnlinkPerson = async (signalId: string, personId: string) => {
+    try {
+      setActionInProgress(signalId);
+      await apiFetch(`/api/v1/signals/detected/${signalId}/persons/${personId}`, {
+        method: 'DELETE',
+      });
+      await loadData();
+    } catch (err) {
+      console.error('Failed to unlink person from signal:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   // Filtered and sorted detected signals
   const filteredSignals = useMemo(() => {
     const list = signals.filter((s) => {
@@ -286,7 +361,12 @@ export default function SignalsPage() {
         const matchesTitle = s.title.toLowerCase().includes(q);
         const matchesSummary = s.summary?.toLowerCase().includes(q) ?? false;
         const matchesCompany = s.company_name?.toLowerCase().includes(q) ?? false;
-        const matchesPerson = s.person_name?.toLowerCase().includes(q) ?? false;
+        const matchesPerson =
+          (s.person_name?.toLowerCase().includes(q) ?? false) ||
+          (s.connected_persons?.some((p) => {
+            const pName = p.name || [p.first_name, p.last_name].filter(Boolean).join(' ');
+            return pName.toLowerCase().includes(q);
+          }) ?? false);
         const matchesOpp = s.opportunity_title?.toLowerCase().includes(q) ?? false;
         const matchesEng = s.engagement_title?.toLowerCase().includes(q) ?? false;
         if (
@@ -440,7 +520,7 @@ export default function SignalsPage() {
                   sig.signal.category
                 )}`}
               >
-                {sig.signal.category}
+                {sig.signal.category.toLowerCase() === 'hybrid' ? 'Mixed' : sig.signal.category}
               </span>
             )}
             <span
@@ -500,22 +580,67 @@ export default function SignalsPage() {
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
             {sig.company_name && (
               <Link
-                href={`/companies?search=${encodeURIComponent(sig.company_name)}`}
+                href={
+                  sig.company_id
+                    ? `/companies/${sig.company_id}`
+                    : `/companies?q=${encodeURIComponent(sig.company_name)}`
+                }
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition font-medium text-[11px]"
               >
                 <span>🏢</span>
                 <span className="truncate max-w-[140px]">{sig.company_name}</span>
               </Link>
             )}
-            {sig.person_name && (
+            {sig.connected_persons && sig.connected_persons.length > 0 ? (
+              sig.connected_persons.map((p) => {
+                const pName =
+                  p.name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Contact';
+                return (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-medium"
+                  >
+                    <span>👤</span>
+                    <Link
+                      href={`/persons/${p.id}`}
+                      className="hover:underline truncate max-w-[130px]"
+                      title={p.role ? `${pName} (${p.role})` : pName}
+                    >
+                      {pName}
+                    </Link>
+                    {p.role && (
+                      <span className="text-[9px] uppercase font-bold text-emerald-600 bg-emerald-100/80 px-1 rounded">
+                        {p.role}
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleUnlinkPerson(sig.id, p.id);
+                      }}
+                      disabled={actionInProgress === sig.id}
+                      className="text-emerald-500 hover:text-rose-600 hover:bg-emerald-100/50 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[10px] ml-0.5 cursor-pointer"
+                      title={`Unlink ${pName}`}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                );
+              })
+            ) : sig.person_name ? (
               <Link
-                href={`/persons?search=${encodeURIComponent(sig.person_name)}`}
+                href={
+                  sig.person_id
+                    ? `/persons/${sig.person_id}`
+                    : `/persons?q=${encodeURIComponent(sig.person_name)}`
+                }
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium text-[11px]"
               >
                 <span>👤</span>
                 <span className="truncate max-w-[140px]">{sig.person_name}</span>
               </Link>
-            )}
+            ) : null}
             {sig.opportunity_title && (
               <Link
                 href={`/opportunities?search=${encodeURIComponent(sig.opportunity_title)}`}
@@ -535,6 +660,34 @@ export default function SignalsPage() {
               </Link>
             )}
           </div>
+
+          {/* Suggested People Prompt Bar */}
+          {sig.suggested_persons && sig.suggested_persons.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-indigo-50/60 border border-indigo-100 rounded-lg text-xs">
+              <span className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider flex items-center gap-1">
+                <span>💡 Suggested:</span>
+              </span>
+              {sig.suggested_persons.map((sp, idx) => (
+                sp.person_id ? (
+                  <button
+                    key={sp.person_id || idx}
+                    onClick={() => handleLinkPerson(sig.id, sp.person_id!, sp.role || 'counterparty')}
+                    disabled={actionInProgress === sig.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
+                    title={`Click to link ${sp.name} (${sp.role || 'contact'}) to this signal`}
+                  >
+                    <span className="text-indigo-600 font-bold">+</span>
+                    <span>{sp.name}</span>
+                    {sp.role && (
+                      <span className="text-[9px] uppercase font-bold text-indigo-600">
+                        ({sp.role})
+                      </span>
+                    )}
+                  </button>
+                ) : null
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Card Actions Footer */}
@@ -626,6 +779,22 @@ export default function SignalsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-200">
+              <span className="text-slate-400 font-medium">Lookback:</span>
+              <select
+                id="header-lookback-select"
+                aria-label="Select lookback window"
+                value={lookbackDays}
+                onChange={(e) => handleLookbackChange(Number(e.target.value))}
+                className="bg-transparent text-emerald-300 font-bold focus:outline-none cursor-pointer"
+              >
+                <option value={90} className="bg-slate-900 text-white">3 Months (Default)</option>
+                <option value={180} className="bg-slate-900 text-white">6 Months</option>
+                <option value={365} className="bg-slate-900 text-white">1 Year</option>
+                <option value={730} className="bg-slate-900 text-white">2 Years (Max)</option>
+              </select>
+            </div>
+
             <button
               onClick={handleRunEvaluation}
               disabled={evaluating}
@@ -901,7 +1070,7 @@ export default function SignalsPage() {
                 <option value="all">Category: All</option>
                 <option value="opportunity">Opportunity</option>
                 <option value="risk">Risk</option>
-                <option value="hybrid">Hybrid</option>
+                <option value="hybrid">Mixed</option>
               </select>
 
               <select
@@ -956,11 +1125,25 @@ export default function SignalsPage() {
                 <option value="confidence_asc">Sort: Lowest Confidence</option>
               </select>
 
+              <select
+                id="lookback-filter"
+                aria-label="Filter by Lookback Window"
+                value={lookbackDays}
+                onChange={(e) => handleLookbackChange(Number(e.target.value))}
+                className="px-3 py-2 text-xs font-semibold bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value={90}>Lookback: 3 Months (Default)</option>
+                <option value={180}>Lookback: 6 Months</option>
+                <option value={365}>Lookback: 1 Year</option>
+                <option value={730}>Lookback: 2 Years (Max)</option>
+              </select>
+
               {(statusFilter !== 'active' ||
                 categoryFilter !== 'all' ||
                 severityFilter !== 'all' ||
                 signalTypeFilter !== 'all' ||
                 sortBy !== 'newest' ||
+                lookbackDays !== 90 ||
                 searchQuery.trim().length > 0) && (
                 <button
                   type="button"
@@ -971,6 +1154,8 @@ export default function SignalsPage() {
                     setSignalTypeFilter('all');
                     setSortBy('newest');
                     setSearchQuery('');
+                    setLookbackDays(90);
+                    loadData(90);
                   }}
                   className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-dashed border-slate-300 transition-colors"
                 >
@@ -1052,7 +1237,35 @@ export default function SignalsPage() {
                 )}
               </div>
 
-              {/* Column 2: Risks */}
+              {/* Column 2: Mixed */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🟡</span>
+                    <div>
+                      <h2 className="text-sm font-bold text-amber-900">Mixed</h2>
+                      <p className="text-[11px] text-amber-700 font-medium">
+                        Opposing Polarities & Ambiguity
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                    {hybridSignals.length}
+                  </span>
+                </div>
+
+                {hybridSignals.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    No mixed signals detected
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {hybridSignals.map((sig) => renderSignalCard(sig, 'hybrid'))}
+                  </div>
+                )}
+              </div>
+
+              {/* Column 3: Risks */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 shadow-sm">
                   <div className="flex items-center gap-2">
@@ -1076,34 +1289,6 @@ export default function SignalsPage() {
                 ) : (
                   <div className="space-y-3">
                     {riskSignals.map((sig) => renderSignalCard(sig, 'risk'))}
-                  </div>
-                )}
-              </div>
-
-              {/* Column 3: Hybrid & Conflicts */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🟡</span>
-                    <div>
-                      <h2 className="text-sm font-bold text-amber-900">Hybrid & Conflicts</h2>
-                      <p className="text-[11px] text-amber-700 font-medium">
-                        Opposing Polarities & Ambiguity
-                      </p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 text-amber-900 border border-amber-300">
-                    {hybridSignals.length}
-                  </span>
-                </div>
-
-                {hybridSignals.length === 0 ? (
-                  <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
-                    No conflicting or hybrid signals detected
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {hybridSignals.map((sig) => renderSignalCard(sig, 'hybrid'))}
                   </div>
                 )}
               </div>

@@ -1,6 +1,7 @@
 import datetime
+from uuid import UUID
 
-from sqlalchemy import String, cast, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.activity import Activity
@@ -27,6 +28,7 @@ from cdb.services.entity_resolution.normalise import (
     normalise_linkedin_url,
 )
 from cdb.services.entity_resolution.rules import evaluate_person_match
+from cdb.services.ingestion.notion_resolver import NotionAttendeeIndex
 from cdb.services.ingestion.signals import detect_message_metadata
 
 
@@ -364,6 +366,31 @@ async def ingest_notion_meeting_notes(
     queued = 0
     duplicates_skipped = 0
 
+    # Preload persons and companies for accurate participant resolution
+    persons = (await db.execute(select(Person).where(Person.deleted_at.is_(None)))).scalars().all()
+    companies = (await db.execute(select(Company))).scalars().all()
+    rels = (
+        await db.execute(
+            select(PersonCompanyRelationship, Company).join(
+                Company, Company.id == PersonCompanyRelationship.company_id
+            )
+        )
+    ).all()
+    person_companies: dict[UUID, list[str]] = {}
+    person_company_ids: dict[UUID, UUID] = {}
+    for r, c in rels:
+        c_norm = (c.name or "").lower().strip()
+        if c_norm:
+            person_companies.setdefault(r.person_id, []).append(c_norm)
+        person_company_ids[r.person_id] = c.id
+
+    attendee_index = NotionAttendeeIndex(
+        persons=persons,
+        companies=companies,
+        person_companies=person_companies,
+        person_company_ids=person_company_ids,
+    )
+
     for rec in data.records:
         existing = (
             await db.execute(
@@ -404,10 +431,24 @@ async def ingest_notion_meeting_notes(
                     .first()
                 )
                 if act:
+                    res = attendee_index.detect_meeting_entities(
+                        title=existing.title,
+                        attendees=existing.attendees,
+                        url=existing.url,
+                        content=existing.content,
+                    )
+                    if res.primary_person_id:
+                        act.person_id = res.primary_person_id
+                    if res.company_id:
+                        act.company_id = res.company_id
+                    if res.clean_title:
+                        act.title = res.clean_title
                     if rec.content and (not act.summary or len(rec.content) > len(act.summary)):
                         act.summary = rec.content
-                    if rec.title:
-                        act.title = rec.title
+                    act_attr = dict(act.attributes or {})
+                    act_attr["entities"] = [e.to_dict() for e in res.entities]
+                    act_attr["suggested_persons"] = res.suggested_persons
+                    act.attributes = act_attr
 
             if updated:
                 queued += 1
@@ -415,108 +456,50 @@ async def ingest_notion_meeting_notes(
                 duplicates_skipped += 1
             continue
 
+        res = attendee_index.detect_meeting_entities(
+            title=rec.title,
+            attendees=rec.attendees,
+            url=rec.url,
+            content=rec.content,
+        )
+
         intake = IntakeNotionMeetingNote(
             page_id=rec.page_id,
             database_name=rec.database_name,
-            title=rec.title,
+            title=res.clean_title,
             meeting_date=rec.meeting_date,
             attendees=rec.attendees,
             content=rec.content,
             to_dos=rec.to_dos,
             url=rec.url,
             raw_payload=rec.raw_payload,
-            status="pending",
+            status="resolved" if res.primary_person_id else "ingested",
         )
         db.add(intake)
         await db.flush()
 
-        # Parse multiple attendees (names or emails separated by comma / semicolon)
-        resolved_persons: list[Person] = []
-        if rec.attendees:
-            raw_attendees = rec.attendees.replace(";", ",")
-            attendee_list = [a.strip() for a in raw_attendees.split(",") if a.strip()]
-
-            for attendee in attendee_list:
-                if "@" in attendee:
-                    norm_e = normalise_email(attendee)
-                    if norm_e:
-                        is_sqlite = (
-                            getattr(getattr(db, "bind", None), "dialect", None)
-                            and db.bind.dialect.name == "sqlite"
-                        )
-                        sec_cond = (
-                            cast(Person.secondary_emails, String).ilike(f"%{norm_e}%")
-                            if is_sqlite
-                            else Person.secondary_emails.contains([norm_e])
-                        )
-                        p = (
-                            (
-                                await db.execute(
-                                    select(Person).where(
-                                        or_(
-                                            Person.primary_email == norm_e,
-                                            sec_cond,
-                                        )
-                                    )
-                                )
-                            )
-                            .scalars()
-                            .first()
-                        )
-                        if p and p not in resolved_persons:
-                            resolved_persons.append(p)
-                else:
-                    p = (
-                        (
-                            await db.execute(
-                                select(Person).where(
-                                    (Person.first_name + " " + Person.last_name).ilike(
-                                        f"%{attendee}%"
-                                    )
-                                )
-                            )
-                        )
-                        .scalars()
-                        .first()
-                    )
-                    if p and p not in resolved_persons:
-                        resolved_persons.append(p)
-
-        primary_person_id = resolved_persons[0].id if resolved_persons else None
-
-        # If attendee was unresolved, fallback to host Jimmy Pang to satisfy ck_activities_person_or_company_required
-        act_person_id = primary_person_id
-        if not act_person_id:
-            jimmy = (
-                (
-                    await db.execute(
-                        select(Person).where(
-                            Person.first_name.ilike("jimmy"),
-                            Person.last_name.ilike("pang"),
-                        )
-                    )
-                )
-                .scalars()
-                .first()
-            )
-            if jimmy:
-                act_person_id = jimmy.id
-
-        if act_person_id:
+        if res.primary_person_id or res.company_id:
             act = Activity(
-                person_id=act_person_id,
+                person_id=res.primary_person_id,
+                company_id=res.company_id,
                 type="meeting",
                 source="notion",
                 source_id=f"notion:{rec.page_id}",
                 occurred_at=rec.meeting_date or datetime.datetime.now(datetime.UTC),
-                title=rec.title or "Notion Meeting",
-                summary=rec.content,
+                title=res.clean_title,
+                summary=rec.content or f"Notion Meeting Note: {res.clean_title}",
                 raw_content=rec.content,
-                attributes={"url": rec.url, "attendees": rec.attendees},
+                attributes={
+                    "database_name": rec.database_name,
+                    "url": rec.url,
+                    "to_dos": rec.to_dos,
+                    "attendees": rec.attendees,
+                    "entities": [e.to_dict() for e in res.entities],
+                    "suggested_persons": res.suggested_persons,
+                },
             )
             db.add(act)
 
-        intake.status = "resolved" if primary_person_id else "ingested"
         queued += 1
 
     await db.commit()

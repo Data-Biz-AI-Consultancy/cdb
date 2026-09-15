@@ -86,7 +86,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'employees' | 'timeline' | 'notes' | 'opportunities' | 'leads' | 'engagements' | 'profile'>('employees');
+  const [activeTab, setActiveTab] = useState<'employees' | 'timeline' | 'notes' | 'opportunities' | 'leads' | 'engagements' | 'signals' | 'profile'>('employees');
 
   // Employee Tab Controls: Subfilter & Sorting
   const [employeeSubFilter, setEmployeeSubFilter] = useState<'all' | 'current' | 'alumni'>('all');
@@ -157,6 +157,9 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
     notes: '',
   });
 
+  const [detectedSignals, setDetectedSignals] = useState<any[]>([]);
+  const [signalSubFilter, setSignalSubFilter] = useState<'all' | 'active' | 'risk' | 'opportunity'>('active');
+
   useEffect(() => {
     if (params && typeof (params as any).then === 'function') {
       (params as Promise<{ id: string }>).then((p) => {
@@ -177,7 +180,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
     setLoading(true);
     setError(null);
     try {
-      const [compData, empData, actData, oppData, leadData, personsData, engData] = await Promise.all([
+      const [compData, empData, actData, oppData, leadData, personsData, engData, sigData] = await Promise.all([
         apiFetch<any>(`/api/v1/companies/${targetId}`),
         apiFetch<any[]>(`/api/v1/companies/${targetId}/employees`).catch(() => []),
         apiFetch<ApiResponse<any[]>>(`/api/v1/activities?company_id=${targetId}&page_size=100`).catch(() => ({ data: [] })),
@@ -185,6 +188,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
         apiFetch<ApiResponse<any[]>>(`/api/v1/leads?company_id=${targetId}&page_size=100&sort=created_at&order=desc`).catch(() => ({ data: [] })),
         apiFetch<ApiResponse<any[]>>('/api/v1/persons?page_size=100').catch(() => ({ data: [] })),
         apiFetch<ApiResponse<any[]>>(`/api/v1/engagements?company_id=${targetId}&limit=100`).catch(() => ({ data: [] })),
+        apiFetch<ApiResponse<any[]>>(`/api/v1/signals/detected?company_id=${targetId}&page_size=100`).catch(() => ({ data: [] })),
       ]);
 
       setCompany(compData);
@@ -194,6 +198,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
       setLeads(leadData.data || []);
       setAllPersons(personsData.data || []);
       setEngagements(engData.data || []);
+      setDetectedSignals(sigData?.data || []);
 
       // Populate edit form
       setCompanyForm({
@@ -730,6 +735,36 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
             <div className="text-[11px] text-slate-500 mt-0.5">Meetings, notes & touchpoints</div>
           </div>
         </div>
+
+        {/* Active Signals Alert Banner */}
+        {detectedSignals.filter((s) => s.status === 'active').length > 0 && (
+          <div className="mt-4 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-amber-300/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-xl font-bold shadow-xs">
+                ⚡
+              </div>
+              <div>
+                <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span>{detectedSignals.filter((s) => s.status === 'active').length} Active Opportunity & Risk Signals Detected</span>
+                  {detectedSignals.some((s) => s.status === 'active' && s.severity === 'critical') && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-600 text-white font-bold uppercase tracking-wider">
+                      Critical SLA
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Actionable relationship moments detected across touchpoints, contracts, and company enrichment data.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveTab('signals')}
+              className="px-3.5 py-2 text-xs font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition whitespace-nowrap self-start sm:self-auto shadow-xs"
+            >
+              Review Signals →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabs Header */}
@@ -815,6 +850,26 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
           <span>📋 Engagements</span>
           <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
             {engagements.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('signals')}
+          className={`pb-3 px-4 text-sm font-semibold border-b-2 whitespace-nowrap transition flex items-center gap-2 ${
+            activeTab === 'signals'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
+          }`}
+        >
+          <span>⚡ Signals</span>
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              detectedSignals.filter((s) => s.status === 'active').length > 0
+                ? 'bg-amber-100 text-amber-800'
+                : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            {detectedSignals.length}
           </span>
         </button>
 
@@ -1587,6 +1642,222 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Tab: Account Opportunity & Risk Signals */}
+      {activeTab === 'signals' && (
+        <div className="space-y-4">
+          {/* Controls Bar: Filters & Summary */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Filter:</span>
+              <button
+                onClick={() => setSignalSubFilter('active')}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
+                  signalSubFilter === 'active'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Active ({detectedSignals.filter((s) => s.status === 'active').length})
+              </button>
+              <button
+                onClick={() => setSignalSubFilter('all')}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
+                  signalSubFilter === 'all'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                All Signals ({detectedSignals.length})
+              </button>
+              <button
+                onClick={() => setSignalSubFilter('risk')}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
+                  signalSubFilter === 'risk'
+                    ? 'bg-red-700 text-white shadow-sm'
+                    : 'bg-red-50 text-red-700 hover:bg-red-100'
+                }`}
+              >
+                Risks ({detectedSignals.filter((s) => s.signal?.category === 'risk' || s.signal_id?.includes('dormant') || s.signal_id?.includes('unanswered') || s.signal_id?.includes('competitor')).length})
+              </button>
+              <button
+                onClick={() => setSignalSubFilter('opportunity')}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
+                  signalSubFilter === 'opportunity'
+                    ? 'bg-emerald-700 text-white shadow-sm'
+                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                }`}
+              >
+                Opportunities ({detectedSignals.filter((s) => s.signal?.category === 'opportunity' || s.signal_id?.includes('hiring') || s.signal_id?.includes('funding')).length})
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-500 flex items-center gap-2">
+              <span>Automated Detection:</span>
+              <span className="font-semibold text-slate-700">Activity · Contract · Enrichment</span>
+            </div>
+          </div>
+
+          {/* Signals List */}
+          {(() => {
+            const filteredSignals = detectedSignals.filter((sig) => {
+              if (signalSubFilter === 'active') return sig.status === 'active';
+              if (signalSubFilter === 'risk') {
+                return sig.signal?.category === 'risk' || sig.signal_id?.includes('dormant') || sig.signal_id?.includes('unanswered') || sig.signal_id?.includes('competitor');
+              }
+              if (signalSubFilter === 'opportunity') {
+                return sig.signal?.category === 'opportunity' || sig.signal_id?.includes('hiring') || sig.signal_id?.includes('funding');
+              }
+              return true;
+            });
+
+            if (filteredSignals.length === 0) {
+              return (
+                <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-sm">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-2xl mx-auto mb-3">
+                    🛡️
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900">No Detected Signals for this Filter</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                    No active risks or commercial opportunities have triggered under the current criteria for {company.name}.
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                {filteredSignals.map((sig) => {
+                  const severityStyles = {
+                    critical: 'bg-red-50 text-red-700 border-red-200',
+                    high: 'bg-orange-50 text-orange-700 border-orange-200',
+                    medium: 'bg-amber-50 text-amber-700 border-amber-200',
+                    low: 'bg-slate-50 text-slate-700 border-slate-200',
+                  }[sig.severity as 'critical' | 'high' | 'medium' | 'low'] || 'bg-slate-50 text-slate-700 border-slate-200';
+
+                  const categoryStyles = {
+                    risk: 'bg-red-100 text-red-800',
+                    opportunity: 'bg-emerald-100 text-emerald-800',
+                    hybrid: 'bg-orange-100 text-orange-800',
+                  }[sig.signal?.category as 'risk' | 'opportunity' | 'hybrid'] || 'bg-slate-100 text-slate-700';
+
+                  const evidence = sig.evidence || sig.metadata_payload?.evidence;
+
+                  return (
+                    <div
+                      key={sig.id}
+                      className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-slate-300 transition space-y-4"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-lg shrink-0">
+                            {sig.signal?.icon || (sig.severity === 'critical' ? '🚨' : '⚡')}
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-sm font-bold text-slate-900">{sig.title}</h3>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border uppercase tracking-wider ${severityStyles}`}>
+                                {sig.severity}
+                              </span>
+                              {sig.signal?.category && (
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize ${categoryStyles}`}>
+                                  {sig.signal.category}
+                                </span>
+                              )}
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-600 capitalize">
+                                {sig.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 mt-1">{sig.summary}</p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="text-[11px] text-slate-400">
+                            Detected {new Date(sig.detected_at).toLocaleDateString()}
+                          </div>
+                          {sig.confidence_score !== null && sig.confidence_score !== undefined && (
+                            <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                              Confidence: {Math.round(Number(sig.confidence_score) * 100)}%
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Supporting Context & Evidence */}
+                      {evidence && (
+                        <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-3 text-xs space-y-1.5">
+                          <div className="font-semibold text-slate-700 flex items-center gap-1.5">
+                            <span>🔍 Supporting Evidence:</span>
+                            <span className="font-normal text-slate-500">
+                              {evidence.excerpt || 'Context recorded from detection engine'}
+                            </span>
+                          </div>
+
+                          {evidence.key_metrics && Object.keys(evidence.key_metrics).length > 0 && (
+                            <div className="flex flex-wrap gap-3 pt-1 border-t border-slate-200/60 text-[11px] text-slate-600">
+                              {Object.entries(evidence.key_metrics).map(([k, v]) => (
+                                <div key={k} className="flex items-center gap-1">
+                                  <span className="font-medium text-slate-500 capitalize">{k.replace(/_/g, ' ')}:</span>
+                                  <span className="font-semibold text-slate-800">{String(v)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Conflicting Signal Warning */}
+                      {sig.has_conflict && (
+                        <div className="bg-purple-50 border border-purple-200 text-purple-900 rounded-lg p-2.5 text-xs flex items-center gap-2">
+                          <span className="text-base">⚠️</span>
+                          <div>
+                            <span className="font-bold">Conflicting Signal Detected: </span>
+                            <span>{sig.conflict_summary || 'Co-occurring signals have opposing commercial polarities.'}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Uncertainty Warning */}
+                      {sig.is_uncertain && (
+                        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-2.5 text-xs flex items-center gap-2">
+                          <span className="text-base">❓</span>
+                          <div>
+                            <span className="font-bold">Verification Needed: </span>
+                            <span>{sig.uncertainty_reasons?.join(', ') || 'Signal evidence requires manual confirmation.'}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Recommended Action Playbook */}
+                      {sig.signal?.recommended_action && (
+                        <div className="bg-blue-50/70 border border-blue-100 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                              <span>🎯 Playbook:</span>
+                              <span>{sig.signal.recommended_action.title}</span>
+                            </div>
+                            <p className="text-[11px] text-blue-900/80 mt-0.5">
+                              {sig.signal.recommended_action.description}
+                            </p>
+                          </div>
+
+                          <a
+                            href={`/signals/${sig.id}`}
+                            className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition whitespace-nowrap self-start sm:self-auto shadow-xs"
+                          >
+                            Open Triage →
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 

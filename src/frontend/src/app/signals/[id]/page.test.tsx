@@ -107,15 +107,82 @@ describe('SignalDetailPage', () => {
     ).toBeInTheDocument();
 
     // Connected Entities
-    expect(screen.getByText('Acme Enterprise Solutions')).toBeInTheDocument();
-    expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
+    expect(screen.getAllByText('Acme Enterprise Solutions').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Sarah Connor').length).toBeGreaterThan(0);
     expect(screen.getByText('Cloud Transformation Retainer')).toBeInTheDocument();
+
+    const viewPersonLink = screen.getByRole('link', { name: /View Person/i });
+    expect(viewPersonLink).toHaveAttribute('href', '/persons/pers-888');
+
+    const viewCompanyLink = screen.getByRole('link', { name: /View Company/i });
+    expect(viewCompanyLink).toHaveAttribute('href', '/companies/comp-999');
 
     // Playbook
     expect(screen.getByText('Schedule Executive Check-In or QBR')).toBeInTheDocument();
     expect(
       screen.getByText('Reach out to past client sponsors with a relevant industry benchmark.')
     ).toBeInTheDocument();
+  });
+
+  it('handles multi-person contact names with individual search links and direct person link', async () => {
+    const multiPersonSignal = {
+      ...mockSignalDetail,
+      person_id: 'pers-multi-123',
+      person_name: 'Louis Guitton, Jodi Barrow',
+    };
+    (apiFetch as any).mockResolvedValue(multiPersonSignal);
+
+    render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Louis Guitton').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Jodi Barrow').length).toBeGreaterThan(0);
+    });
+
+    const louisLinks = screen.getAllByRole('link', { name: /Louis Guitton/i });
+    expect(louisLinks.some((l) => l.getAttribute('href')?.includes('Louis%20Guitton'))).toBe(true);
+
+    const jodiLinks = screen.getAllByRole('link', { name: /Jodi Barrow/i });
+    expect(jodiLinks.some((l) => l.getAttribute('href')?.includes('Jodi%20Barrow'))).toBe(true);
+
+    const viewPersonBtn = screen.getByRole('link', { name: /View Person/i });
+    expect(viewPersonBtn).toHaveAttribute('href', '/persons/pers-multi-123');
+  });
+
+  it('renders multiple distinct connected persons with individual direct view person links', async () => {
+    const multiConnectedSignal = {
+      ...mockSignalDetail,
+      person_id: 'pers-louis-1',
+      person_name: 'Louis Guitton',
+      connected_persons: [
+        {
+          id: 'pers-louis-1',
+          name: 'Louis Guitton',
+          email: 'louis@example.com',
+          role: 'primary',
+        },
+        {
+          id: 'pers-jodi-2',
+          name: 'Jodi Barrow',
+          email: 'jodi@example.com',
+          role: 'counterparty',
+        },
+      ],
+    };
+    (apiFetch as any).mockResolvedValue(multiConnectedSignal);
+
+    render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Connected People (2)')).toBeInTheDocument();
+      expect(screen.getAllByText('Louis Guitton').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Jodi Barrow').length).toBeGreaterThan(0);
+    });
+
+    const viewPersonLinks = screen.getAllByRole('link', { name: /View Person/i });
+    expect(viewPersonLinks).toHaveLength(2);
+    expect(viewPersonLinks[0]).toHaveAttribute('href', '/persons/pers-louis-1');
+    expect(viewPersonLinks[1]).toHaveAttribute('href', '/persons/pers-jodi-2');
   });
 
   it('allows acknowledging signal and updates status', async () => {

@@ -1243,13 +1243,17 @@ Retrieve the full definition, trigger thresholds, and action playbook for a spec
 
 ### `POST /signals/evaluate`
 
-Triggers the automated Signal Detection Engine to scan all 6 catalog signals across all database entities. Idempotent on rerun.
+Triggers the automated Signal Detection Engine to scan the initial catalog across CDB activity, engagement, contract, and enrichment data within a user-configurable lookback window. Guarantees affected account attribution (`company_id` and `company_name`) on every detected signal. Idempotent on rerun, and automatically retires stale active signals outside the chosen lookback window.
+
+**Query params:**
+- `lookback_days`: Lookback window in days (default: `90` / 3 months; allowable: `1` to `730` / 2 years max)
 
 **Response 200:**
 ```json
 {
   "status": "success",
   "evaluated_at": "2026-09-09T10:00:00Z",
+  "lookback_days": 90,
   "total_active_signals": 12,
   "new_signals_detected": 4,
   "refreshed_signals": 8,
@@ -1268,6 +1272,9 @@ Triggers the automated Signal Detection Engine to scan all 6 catalog signals acr
 
 Retrieve real-time aggregate count metrics of active detected signals by severity, category, and signal type, including conflicting signals and uncertain signals needing verification.
 
+**Query params:**
+- `lookback_days`: Optional lookback window in days (`1` to `730`)
+
 **Response 200:**
 ```json
 {
@@ -1276,7 +1283,7 @@ Retrieve real-time aggregate count metrics of active detected signals by severit
   "total_uncertain": 1,
   "by_severity": { "critical": 3, "high": 7, "medium": 2 },
   "by_category": { "risk": 7, "opportunity": 3, "hybrid": 2 },
-  "by_signal": { "dormant_strategic_account": 3, "unanswered_conversation": 2, ... },
+  "by_signal": { "dormant_strategic_account": 3, "unanswered_conversation": 2 },
   "by_status": { "active": 12, "acknowledged": 2, "actioned": 5 }
 }
 ```
@@ -1296,6 +1303,7 @@ List detected signal event instances (paginated) with multi-dimensional filterin
 - `engagement_id`: Filter by engagement UUID
 - `is_uncertain`: Filter by uncertainty flag (`true` | `false`)
 - `has_conflict`: Filter by conflicting polarities flag (`true` | `false`)
+- `lookback_days`: Filter signals detected or active within lookback window in days (`1` to `730`)
 - `page`: 1-indexed page number (default: 1)
 - `page_size`: items per page (default: 50)
 
@@ -1305,6 +1313,21 @@ List detected signal event instances (paginated) with multi-dimensional filterin
   "id": "e2a4a350-4d40-4100-a6fe-b7d6b38c201a",
   "signal_id": "dormant_strategic_account",
   "company_id": "c30164e2-6fd5-4c07-ba71-6ba3b2a26514",
+  "person_id": "082fbb5d-458c-4236-acfa-1ff25e218412",
+  "connected_persons": [
+    {
+      "id": "082fbb5d-458c-4236-acfa-1ff25e218412",
+      "name": "Louis Guitton",
+      "email": "louis@example.com",
+      "role": "primary"
+    },
+    {
+      "id": "f0cd9f20-7aa4-4fad-bf88-75e3a64dab54",
+      "name": "Jodi Barrow",
+      "email": "jodi@example.com",
+      "role": "counterparty"
+    }
+  ],
   "status": "active",
   "severity": "high",
   "title": "Dormant Strategic Account: Acme Corp",
@@ -1350,6 +1373,27 @@ Update the lifecycle status and resolution notes of a detected signal.
 
 **Response 200:** Updated `DetectedSignalResponse` with `actioned_at` timestamp.
 
+### `POST /signals/detected/{signal_instance_id}/persons`
+
+Link a person to a detected signal with a specific role (e.g., `counterparty`, `interviewer`, `recruiter`, `hiring_manager`).
+
+**Request:**
+```json
+{
+  "person_id": "<uuid>",
+  "role": "recruiter"
+}
+```
+
+**Response 200:** Updated `DetectedSignalResponse` with updated `connected_persons` and `person_roles`.
+
+### `DELETE /signals/detected/{signal_instance_id}/persons/{person_id}`
+
+Unlink a person from a detected signal.
+
+**Response 200:** Updated `DetectedSignalResponse` with the person removed from `connected_persons`.
+
 ---
 
 *See [Database Schema](src/backend/db/README.md) for field definitions and [Signal Catalog Specification](src/backend/cdb/services/signals/README.md) for business interpretation details.*
+

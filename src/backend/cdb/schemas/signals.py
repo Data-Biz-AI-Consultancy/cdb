@@ -104,6 +104,34 @@ class EntitySummary(BaseModel):
     title: str | None = None
 
 
+class ConnectedPersonResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+    primary_email: str | None = None
+    role: str | None = None
+    linkedin_url: str | None = None
+
+
+class SuggestedPersonResponse(BaseModel):
+    person_id: uuid.UUID | None = None
+    name: str
+    first_name: str | None = None
+    role: str | None = None
+    company_id: uuid.UUID | None = None
+    company_name: str | None = None
+    confidence: float | None = None
+
+
+class SignalPersonLinkRequest(BaseModel):
+    person_id: uuid.UUID
+    role: str = "counterparty"
+
+
 class DetectedSignalResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -115,6 +143,8 @@ class DetectedSignalResponse(BaseModel):
     company_name: str | None = None
     person_id: uuid.UUID | None = None
     person_name: str | None = None
+    connected_persons: list[ConnectedPersonResponse] = Field(default_factory=list)
+    suggested_persons: list[SuggestedPersonResponse] = Field(default_factory=list)
     opportunity_id: uuid.UUID | None = None
     opportunity_title: str | None = None
     engagement_id: uuid.UUID | None = None
@@ -166,6 +196,7 @@ class DetectedSignalStatsResponse(BaseModel):
 class SignalEvaluationResult(BaseModel):
     status: str = "success"
     evaluated_at: datetime
+    lookback_days: int = 90
     total_active_signals: int
     total_conflicting: int = 0
     total_uncertain: int = 0

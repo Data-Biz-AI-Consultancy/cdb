@@ -720,3 +720,185 @@ async def test_backfill_notion_meeting_notes_into_activities(db_session: AsyncSe
     # Verify note4 existing activity had its title cleaned
     await db_session.refresh(existing_act)
     assert existing_act.title == "Sync Note"
+
+
+@pytest.mark.asyncio
+async def test_backfill_notion_meeting_notes_diacritics_and_disambiguation(
+    db_session: AsyncSession,
+):
+    """
+    Verifies:
+    1. Accent normalization: Tony Zeljković (with ć) matches note title 'Jimmy Pang and Tony Zeljkovic'
+    2. Multiple persons with first name 'Tony' (Tony Tushar Jr vs Tony Zeljković) does not falsely attach to Tony Tushar Jr
+    3. Trailing ISO timestamp without space 'Jimmy Pang and Paul Dudley2026-05-21T...' matches Paul Dudley rather than Paul Ekeland
+    4. Stopwords like 'Business', 'Claude', 'Data' do not match contacts with first names Business/Claude/Data
+    """
+    host_jimmy = Person(first_name="Jimmy", last_name="Pang", primary_email="jimmy.host@test.com")
+    tony_tushar = Person(first_name="Tony", last_name="Tushar Jr", primary_email="tony.t@test.com")
+    tony_zeljkovic = Person(
+        first_name="Tony", last_name="Zeljković", primary_email="tony.z@test.com"
+    )
+    paul_ekeland = Person(first_name="Paul", last_name="Ekeland", primary_email="paul.e@test.com")
+    paul_dudley = Person(first_name="Paul", last_name="Dudley", primary_email="paul.d@test.com")
+    business_contact = Person(
+        first_name="Business",
+        last_name="Clarity with Michelle",
+        primary_email="michelle@test.com",
+    )
+    claude_contact = Person(
+        first_name="Claude", last_name="Ebaneck", primary_email="claude.e@test.com"
+    )
+    data_contact = Person(
+        first_name="Data",
+        last_name="Engineering Byte",
+        primary_email="data.byte@test.com",
+    )
+
+    company_narona = Company(name="Narona Data", domain="naronadata.com")
+    company_streamkap = Company(name="Streamkap", domain="streamkap.com")
+
+    db_session.add_all(
+        [
+            host_jimmy,
+            tony_tushar,
+            tony_zeljkovic,
+            paul_ekeland,
+            paul_dudley,
+            business_contact,
+            claude_contact,
+            data_contact,
+            company_narona,
+            company_streamkap,
+        ]
+    )
+    await db_session.flush()
+
+    # Link Tony Zeljkovic to Narona Data, Paul Dudley to Streamkap
+    db_session.add(
+        PersonCompanyRelationship(person_id=tony_zeljkovic.id, company_id=company_narona.id)
+    )
+    db_session.add(
+        PersonCompanyRelationship(person_id=paul_dudley.id, company_id=company_streamkap.id)
+    )
+    await db_session.flush()
+
+    # Add test notes:
+    # 1. Tony Zeljkovic note (ASCII 'c' in title vs 'ć' in contact record)
+    note_tony = IntakeNotionMeetingNote(
+        page_id="page-tony-zeljkovic",
+        title="Jimmy Pang and Tony Zeljkovic2026-08-27T16:28:00.000+02:00",
+        content="Catchup with Tony on Narona Data architecture",
+        url="https://app.notion.com/p/Jimmy-Pang-and-Tony-Zeljkovic-page-tony",
+    )
+    # 2. Paul Dudley note (ISO date without space, multiple Pauls exist)
+    note_paul = IntakeNotionMeetingNote(
+        page_id="page-paul-dudley",
+        title="Jimmy Pang and Paul Dudley2026-05-21T17:01:00.000+02:00",
+        content="Coffee chat with Bo / Paul Dudley from Streamkap",
+        url="https://app.notion.com/p/Jimmy-Pang-and-Paul-Dudley-page-paul",
+    )
+    # 3. Stopword note mentioning 'Business'
+    note_business = IntakeNotionMeetingNote(
+        page_id="page-business-guide",
+        title="SEO, AEO & GEO – Helping Your Business Get Found Online",
+        content="General SEO guidelines and search optimization notes",
+    )
+    # 4. Stopword note mentioning 'Claude'
+    note_claude = IntakeNotionMeetingNote(
+        page_id="page-claude-guide",
+        title="How To Get Your Brand Recommended by ChatGPT, Claude, Gemini",
+        content="AI engine optimization guide",
+    )
+    # 5. Stopword note mentioning 'Data'
+    note_data = IntakeNotionMeetingNote(
+        page_id="page-data-hustle",
+        title="Data Hustle w/ Jimmy Pang",
+        content="Podcast episode brainstorming",
+    )
+
+    db_session.add_all([note_tony, note_paul, note_business, note_claude, note_data])
+    await db_session.commit()
+
+    # Run backfill
+    res = await backfill_notion_meeting_notes_into_activities(db_session)
+    assert res["status"] == "success"
+
+    # 1. Verify Tony Zeljković matched, NOT Tony Tushar Jr
+    act_tony = (
+        await db_session.execute(
+            select(Activity).where(Activity.source_id == "notion:page-tony-zeljkovic")
+        )
+    ).scalar_one()
+    assert act_tony.person_id == tony_zeljkovic.id
+    assert act_tony.person_id != tony_tushar.id
+    assert act_tony.company_id == company_narona.id
+    assert act_tony.title == "Jimmy Pang and Tony Zeljkovic"
+
+    # 2. Verify Paul Dudley matched, NOT Paul Ekeland
+    act_paul = (
+        await db_session.execute(
+            select(Activity).where(Activity.source_id == "notion:page-paul-dudley")
+        )
+    ).scalar_one()
+    assert act_paul.person_id == paul_dudley.id
+    assert act_paul.person_id != paul_ekeland.id
+    assert act_paul.company_id == company_streamkap.id
+    assert act_paul.title == "Jimmy Pang and Paul Dudley"
+
+    # 3. Verify Business stopword did not match Business Clarity with Michelle
+    act_business = (
+        await db_session.execute(
+            select(Activity).where(Activity.source_id == "notion:page-business-guide")
+        )
+    ).scalar_one()
+    assert act_business.person_id != business_contact.id
+    assert act_business.person_id == host_jimmy.id
+
+    # 4. Verify Claude stopword did not match Claude Ebaneck
+    act_claude = (
+        await db_session.execute(
+            select(Activity).where(Activity.source_id == "notion:page-claude-guide")
+        )
+    ).scalar_one()
+    assert act_claude.person_id != claude_contact.id
+    assert act_claude.person_id == host_jimmy.id
+
+    # 5. Verify Data stopword did not match Data Engineering Byte
+    act_data = (
+        await db_session.execute(
+            select(Activity).where(Activity.source_id == "notion:page-data-hustle")
+        )
+    ).scalar_one()
+    assert act_data.person_id != data_contact.id
+    assert act_data.person_id == host_jimmy.id
+
+
+@pytest.mark.asyncio
+async def test_notion_api_429_retry_and_backoff():
+    """Verify _request_with_retry backs off and retries when Notion returns HTTP 429."""
+    service = NotionConnectorService(api_key="test-key")
+    mock_client = AsyncMock()
+
+    resp_429 = MagicMock(spec=Response)
+    resp_429.status_code = 429
+    resp_429.headers = {"Retry-After": "0.05"}
+
+    resp_200 = MagicMock(spec=Response)
+    resp_200.status_code = 200
+    resp_200.json.return_value = {"results": [{"id": "page-after-retry"}]}
+
+    mock_client.post.side_effect = [resp_429, resp_200]
+
+    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        res = await service._request_with_retry(
+            mock_client,
+            "POST",
+            "https://api.notion.com/v1/databases/test-db/query",
+            headers={"Authorization": "Bearer test-key"},
+            json={"page_size": 100},
+        )
+        assert res.status_code == 200
+        assert mock_client.post.call_count == 2
+        mock_sleep.assert_called_once()
+        wait_arg = mock_sleep.call_args[0][0]
+        assert wait_arg >= 1.0

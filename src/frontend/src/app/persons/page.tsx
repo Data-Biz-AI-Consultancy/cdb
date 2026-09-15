@@ -53,11 +53,12 @@ export default function PersonsPage() {
     country: '',
   });
 
-  const loadPersons = async () => {
+  const loadPersons = async (searchOverride?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const qParam = search.trim() ? `&q=${encodeURIComponent(search.trim())}` : '';
+      const queryToUse = searchOverride !== undefined ? searchOverride : search;
+      const qParam = queryToUse.trim() ? `&q=${encodeURIComponent(queryToUse.trim())}` : '';
       const sortParam = `&sort=${encodeURIComponent(sortField)}&order=${encodeURIComponent(sortOrder)}`;
       const res = await apiFetch<ApiResponse<PersonItem[]>>(
         `/api/v1/persons?page=${page}&page_size=${pageSize}${qParam}${sortParam}`
@@ -72,7 +73,16 @@ export default function PersonsPage() {
   };
 
   useEffect(() => {
-    loadPersons();
+    let currentSearch = search;
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlQ = urlParams.get('q') || urlParams.get('search');
+      if (urlQ && !search) {
+        currentSearch = urlQ;
+        setSearch(urlQ);
+      }
+    }
+    loadPersons(currentSearch);
   }, [page, pageSize, sortField, sortOrder]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -84,6 +94,7 @@ export default function PersonsPage() {
   const handleClearSearch = () => {
     setSearch('');
     setPage(1);
+    loadPersons('');
   };
 
   const handleSort = (field: string) => {

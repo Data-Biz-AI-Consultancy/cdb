@@ -18,6 +18,7 @@ from cdb.schemas.signals import (
     SignalCategory,
     SignalDefinition,
     SignalEvaluationResult,
+    SignalPersonLinkRequest,
     SignalSeverity,
     SignalTargetEntity,
 )
@@ -105,6 +106,12 @@ async def get_signal_definition(
     status_code=status.HTTP_200_OK,
 )
 async def trigger_signal_evaluation(
+    lookback_days: int = Query(
+        90,
+        ge=1,
+        le=730,
+        description="Lookback window in days (default: 90 / 3 months; up to 730 / 2 years)",
+    ),
     db: AsyncSession = Depends(get_db),
     auth_user: User | None = Depends(get_current_user_or_api_key),
 ) -> Any:
@@ -117,7 +124,7 @@ async def trigger_signal_evaluation(
     - Hiring or funding events
     - Competitor signals
     """
-    return await detector_service.evaluate_all_signals(db)
+    return await detector_service.evaluate_all_signals(db, lookback_days=lookback_days)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -131,13 +138,19 @@ async def trigger_signal_evaluation(
     status_code=status.HTTP_200_OK,
 )
 async def get_detected_stats(
+    lookback_days: int | None = Query(
+        None,
+        ge=1,
+        le=730,
+        description="Filter metrics to signals within lookback window in days",
+    ),
     db: AsyncSession = Depends(get_db),
     auth_user: User | None = Depends(get_current_user_or_api_key),
 ) -> DetectedSignalStatsResponse:
     """
     Returns real-time aggregate count metrics of active and historical detected signals.
     """
-    return await detected_signal_service.get_detected_signal_stats(db)
+    return await detected_signal_service.get_detected_signal_stats(db, lookback_days=lookback_days)
 
 
 @router.get(
@@ -164,6 +177,12 @@ async def list_detected_signals(
         None, description="Filter by uncertain / needs verification status"
     ),
     has_conflict: bool | None = Query(None, description="Filter by multi-signal conflict status"),
+    lookback_days: int | None = Query(
+        None,
+        ge=1,
+        le=730,
+        description="Filter signals detected within lookback window in days",
+    ),
     page: int = Query(1, ge=1, description="1-indexed page number"),
     page_size: int = Query(50, ge=1, le=200, description="Items per page"),
     db: AsyncSession = Depends(get_db),
@@ -185,6 +204,7 @@ async def list_detected_signals(
         engagement_id=engagement_id,
         is_uncertain=is_uncertain,
         has_conflict=has_conflict,
+        lookback_days=lookback_days,
         limit=page_size,
         offset=offset,
     )
@@ -246,5 +266,60 @@ async def update_detected_signal_status(
         raise NotFoundError(
             message=f"Detected signal with id '{signal_instance_id}' not found",
             details={"id": str(signal_instance_id)},
+        )
+    return updated
+
+
+@router.post(
+    "/detected/{signal_instance_id}/persons",
+    response_model=DetectedSignalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def link_person_to_signal(
+    signal_instance_id: uuid.UUID,
+    payload: SignalPersonLinkRequest,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> DetectedSignalResponse:
+    """
+    Links a person to a detected signal with a given role (e.g. interviewer, recruiter).
+    """
+    updated = await detected_signal_service.link_person_to_detected_signal(
+        db,
+        signal_instance_id=signal_instance_id,
+        person_id=payload.person_id,
+        role=payload.role,
+    )
+    if not updated:
+        raise NotFoundError(
+            message=f"Detected signal '{signal_instance_id}' or person '{payload.person_id}' not found",
+            details={"signal_id": str(signal_instance_id), "person_id": str(payload.person_id)},
+        )
+    return updated
+
+
+@router.delete(
+    "/detected/{signal_instance_id}/persons/{person_id}",
+    response_model=DetectedSignalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def unlink_person_from_signal(
+    signal_instance_id: uuid.UUID,
+    person_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> DetectedSignalResponse:
+    """
+    Unlinks a person from a detected signal.
+    """
+    updated = await detected_signal_service.unlink_person_from_detected_signal(
+        db,
+        signal_instance_id=signal_instance_id,
+        person_id=person_id,
+    )
+    if not updated:
+        raise NotFoundError(
+            message=f"Detected signal '{signal_instance_id}' not found",
+            details={"signal_id": str(signal_instance_id), "person_id": str(person_id)},
         )
     return updated

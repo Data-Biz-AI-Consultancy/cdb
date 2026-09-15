@@ -83,15 +83,12 @@ async def test_get_signals_from_db_and_filtering(db_session: AsyncSession):
     }
 
     opp_signals = await get_signals_from_db(db_session, category=SignalCategory.OPPORTUNITY)
-    assert len(opp_signals) == 1
-    assert opp_signals[0].id == "hiring_funding_event"
+    assert len(opp_signals) == 2
+    assert {s.id for s in opp_signals} == {"hiring_funding_event", "leadership_change"}
 
     hybrid_signals = await get_signals_from_db(db_session, category=SignalCategory.HYBRID)
-    assert len(hybrid_signals) == 2
-    assert {s.id for s in hybrid_signals} == {
-        "expiring_contract",
-        "leadership_change",
-    }
+    assert len(hybrid_signals) == 1
+    assert hybrid_signals[0].id == "expiring_contract"
 
     # Target entity filtering
     company_signals = await get_signals_from_db(
@@ -143,8 +140,8 @@ async def test_get_catalog_response_with_summary(db_session: AsyncSession):
     assert len(response.data) == 6
     assert response.summary.total_signals == 6
     assert response.summary.by_category["risk"] == 3
-    assert response.summary.by_category["opportunity"] == 1
-    assert response.summary.by_category["hybrid"] == 2
+    assert response.summary.by_category["opportunity"] == 2
+    assert response.summary.by_category["hybrid"] == 1
     assert response.summary.by_target_entity["company"] == 2
     assert response.summary.by_target_entity["person"] == 2
     assert response.summary.by_target_entity["engagement"] == 1
@@ -242,3 +239,83 @@ def test_celery_evaluate_signals_task_execution():
         res = evaluate_signals_background()
         assert res == mock_result
         mock_eval.assert_called_once()
+
+
+async def test_person_search_multi_contact_and_concat(db_session: AsyncSession):
+    """Verify person search supports full name concatenation and multi-token comma searches."""
+    from cdb.models.person import Person
+    from cdb.services import persons as person_service
+
+    p1 = Person(first_name="Louis", last_name="Guitton")
+    p2 = Person(first_name="Jodi", last_name="Barrow")
+    p3 = Person(first_name="Louis", last_name="Guitton,Jodi Barrow")
+    db_session.add_all([p1, p2, p3])
+    await db_session.commit()
+
+    # Search combined comma query
+    items, pagination = await person_service.list_persons(
+        db_session, q="Louis Guitton, Jodi Barrow"
+    )
+    found_ids = {p.id for p in items}
+    assert p1.id in found_ids
+    assert p2.id in found_ids
+    assert p3.id in found_ids
+
+    # Search full concatenated name
+    items_louis, _ = await person_service.list_persons(db_session, q="Louis Guitton")
+    found_louis = {p.id for p in items_louis}
+    assert p1.id in found_louis
+    assert p3.id in found_louis
+
+
+@pytest.mark.asyncio
+async def test_multi_person_signal_connectivity(
+    db_session: AsyncSession, client: AsyncClient, auth_headers: dict[str, str]
+):
+    """Verify that detected signals can link multiple natural persons and expose them via API and service."""
+    from cdb.models.person import Person
+    from cdb.services.signals.detected import get_detected_signal, list_detected_signals
+    from cdb.services.signals.detector import _upsert_detected_signal
+
+    p1 = Person(first_name="Louis", last_name="Guitton", primary_email="louis@example.com")
+    p2 = Person(first_name="Jodi", last_name="Barrow", primary_email="jodi@example.com")
+    db_session.add_all([p1, p2])
+    await db_session.commit()
+    await db_session.refresh(p1)
+    await db_session.refresh(p2)
+
+    sig, is_new = await _upsert_detected_signal(
+        db=db_session,
+        signal_id="unanswered_conversation",
+        title="Multi-Contact Inbound Thread",
+        severity="high",
+        summary="Conversation involving Louis and Jodi",
+        person_id=p1.id,
+        connected_person_ids=[p1.id, p2.id],
+    )
+    await db_session.commit()
+    assert is_new is True
+
+    # Check service layer
+    fetched = await get_detected_signal(db_session, sig.id)
+    assert fetched is not None
+    assert len(fetched.connected_persons) == 2
+    person_ids = {p.id for p in fetched.connected_persons}
+    assert p1.id in person_ids
+    assert p2.id in person_ids
+
+    # Check list service layer
+    items, _ = await list_detected_signals(db_session, signal_id="unanswered_conversation")
+    matching = next((s for s in items if s.id == sig.id), None)
+    assert matching is not None
+    assert len(matching.connected_persons) == 2
+
+    # Check API response
+    res = await client.get(f"/api/v1/signals/detected/{sig.id}", headers=auth_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "connected_persons" in data
+    assert len(data["connected_persons"]) == 2
+    api_ids = {p["id"] for p in data["connected_persons"]}
+    assert str(p1.id) in api_ids
+    assert str(p2.id) in api_ids

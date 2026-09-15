@@ -673,3 +673,198 @@ async def test_api_detected_signals_crud(
     stats_data = stats_res.json()
     assert "total_active" in stats_data
     assert "by_severity" in stats_data
+
+
+async def test_signal_evaluation_lookback_and_noise_filtering(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    auth_headers: dict[str, str],
+):
+    now = datetime.datetime.now(datetime.UTC)
+
+    company = Company(name="Lookback Test Corp")
+    person1 = Person(first_name="Alice", last_name="Casual", primary_email="alice@example.com")
+    person2 = Person(first_name="Bob", last_name="Prospect", primary_email="bob@example.com")
+    person3 = Person(
+        first_name="Charlie", last_name="Competitor", primary_email="charlie@example.com"
+    )
+    db_session.add_all([company, person1, person2, person3])
+    await db_session.commit()
+
+    # 1. Routine casual message: should be ignored as noise
+    casual_msg = Activity(
+        person_id=person1.id,
+        company_id=company.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=10),
+        title="Casual chat",
+        raw_content="Hey Jimmy, happy Monday! Hope you have a great week ahead.",
+    )
+    # 2. Commercial proposal message: should trigger signal
+    commercial_msg = Activity(
+        person_id=person2.id,
+        company_id=company.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=10),
+        title="New consulting proposal",
+        raw_content="Can we discuss the budget and scope for the upcoming consulting project?",
+    )
+    # 3. Competitor discussion message: should trigger signal
+    competitor_msg = Activity(
+        person_id=person3.id,
+        company_id=company.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=10),
+        title="Comparing options",
+        raw_content="We are currently evaluating alternatives and talking to another consultancy.",
+    )
+    db_session.add_all([casual_msg, commercial_msg, competitor_msg])
+    await db_session.commit()
+
+    # Run evaluation with lookback_days=90
+    eval_res = await client.post("/api/v1/signals/evaluate?lookback_days=90", headers=auth_headers)
+    assert eval_res.status_code == 200
+    data = eval_res.json()
+    assert data["lookback_days"] == 90
+
+    # Verify detected signals for these persons
+    list_res = await client.get("/api/v1/signals/detected?lookback_days=90", headers=auth_headers)
+    assert list_res.status_code == 200
+    signals = list_res.json()["data"]
+
+    person_ids_with_signal = {s["person_id"] for s in signals if s.get("person_id")}
+    assert str(person1.id) not in person_ids_with_signal  # Casual was ignored!
+    assert str(person2.id) in person_ids_with_signal  # Commercial was flagged!
+    assert str(person3.id) in person_ids_with_signal  # Competitor was flagged!
+
+
+@pytest.mark.asyncio
+async def test_detect_leadership_changes_icp_and_exclusion_filtering(db_session: AsyncSession):
+    """Verifies that ICP executive data/tech titles generate opportunity signals while non-ICP titles are excluded."""
+    await ensure_signals_dimension(db_session)
+    now = datetime.datetime.now(datetime.UTC)
+
+    comp = Company(name="Data Enterprise AG", domain="data-ent.de")
+    p_head_data = Person(first_name="Kolja", last_name="Siegmund")
+    p_medical_dir = Person(first_name="Otilia", last_name="Gudana")
+    p_chapter_dir = Person(first_name="Daniel", last_name="Gonzalvez")
+    p_hvac_dir = Person(first_name="Manuel", last_name="Monterrubio")
+    db_session.add_all([comp, p_head_data, p_medical_dir, p_chapter_dir, p_hvac_dir])
+    await db_session.flush()
+
+    rel_head_data = PersonCompanyRelationship(
+        person_id=p_head_data.id,
+        company_id=comp.id,
+        title="Head of Data Core Services",
+        is_current=True,
+        started_at=(now - datetime.timedelta(days=20)).date(),
+    )
+    rel_medical = PersonCompanyRelationship(
+        person_id=p_medical_dir.id,
+        company_id=comp.id,
+        title="Founder & Medical Director",
+        is_current=True,
+        started_at=(now - datetime.timedelta(days=20)).date(),
+    )
+    rel_chapter = PersonCompanyRelationship(
+        person_id=p_chapter_dir.id,
+        company_id=comp.id,
+        title="Chapter Director",
+        is_current=True,
+        started_at=(now - datetime.timedelta(days=20)).date(),
+    )
+    rel_hvac = PersonCompanyRelationship(
+        person_id=p_hvac_dir.id,
+        company_id=comp.id,
+        title="Director general - Pacerin (MIDEA HVAC)",
+        is_current=True,
+        started_at=(now - datetime.timedelta(days=20)).date(),
+    )
+    db_session.add_all([rel_head_data, rel_medical, rel_chapter, rel_hvac])
+    await db_session.commit()
+
+    results = await detect_leadership_changes(db_session, now)
+    detected_person_ids = {r[0].person_id for r in results}
+
+    assert p_head_data.id in detected_person_ids  # Head of Data is matched!
+    assert p_medical_dir.id not in detected_person_ids  # Medical Director is excluded!
+    assert p_chapter_dir.id not in detected_person_ids  # Chapter Director is excluded!
+    assert p_hvac_dir.id not in detected_person_ids  # HVAC Director general is excluded!
+
+
+@pytest.mark.asyncio
+async def test_detect_unanswered_conversations_host_reply_and_recruiter_exclusion(
+    db_session: AsyncSession,
+):
+    """Verifies that threads replied to by host and cold recruiter/expert-network pitches are excluded."""
+    await ensure_signals_dimension(db_session)
+    now = datetime.datetime.now(datetime.UTC)
+
+    comp = Company(name="Acme Tech", domain="acmetech.com")
+    p_host_replied = Person(first_name="Alan", last_name="Wong")
+    p_visasq = Person(first_name="Michiharu", last_name="Nagano")
+    p_recruiter = Person(first_name="Maurice", last_name="Khudhir")
+    p_genuine_lead = Person(first_name="Marcus", last_name="Brody")
+    db_session.add_all([comp, p_host_replied, p_visasq, p_recruiter, p_genuine_lead])
+    await db_session.flush()
+
+    # 1. Thread where host sent the last message
+    act_host_replied = Activity(
+        person_id=p_host_replied.id,
+        company_id=comp.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=15),
+        title="Catch up chat",
+        raw_content=(
+            "Alan Wong: Can we discuss project budget?\n"
+            "Jimmy Pang: Sure Alan, let's schedule a call next week."
+        ),
+    )
+
+    # 2. Expert network cold InMail (VisasQ)
+    act_visasq = Activity(
+        person_id=p_visasq.id,
+        company_id=comp.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=20),
+        title="VisasQ expert call",
+        raw_content="Michiharu: I am from VisasQ looking for an expert for a paid independent phone consultation on last mile delivery at $400/hr.",
+    )
+
+    # 3. Recruiter interview Calendly outreach
+    act_recruiter = Activity(
+        person_id=p_recruiter.id,
+        company_id=comp.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=20),
+        title="Position namely BI Manager",
+        raw_content="Maurice: Book a slot for the interview with Talent Acquisition: calendly.com/talent. Send me your updated CV.",
+    )
+
+    # 4. Genuine commercial client lead
+    act_genuine = Activity(
+        person_id=p_genuine_lead.id,
+        company_id=comp.id,
+        type="linkedin_message",
+        source="linkedin",
+        occurred_at=now - datetime.timedelta(days=10),
+        title="Consulting engagement inquiry",
+        raw_content="Marcus Brody: We need your help and would like to hire you for architectural consulting on our Snowflake migration.",
+    )
+
+    db_session.add_all([act_host_replied, act_visasq, act_recruiter, act_genuine])
+    await db_session.commit()
+
+    results = await detect_unanswered_conversations(db_session, now)
+    detected_person_ids = {r[0].person_id for r in results}
+
+    assert p_host_replied.id not in detected_person_ids  # Replied by host was skipped!
+    assert p_visasq.id not in detected_person_ids  # Expert network was skipped!
+    assert p_recruiter.id not in detected_person_ids  # Recruiter pitch was skipped!
+    assert p_genuine_lead.id in detected_person_ids  # Genuine commercial lead was flagged!

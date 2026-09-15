@@ -147,6 +147,13 @@ erDiagram
         timestamptz actioned_at
     }
 
+    detected_signal_persons {
+        uuid detected_signal_id FK
+        uuid person_id FK
+        varchar role
+        timestamptz created_at
+    }
+
     intake_linkedin_connections {
         uuid id PK
         varchar connection_id
@@ -211,6 +218,8 @@ erDiagram
     opportunities                ||--o{ detected_signals              : "tagged on"
     engagements                  ||--o{ detected_signals              : "tagged on"
     activities                   ||--o{ detected_signals              : "evidenced by"
+    detected_signals             ||--o{ detected_signal_persons       : "connects"
+    persons                      ||--o{ detected_signal_persons       : "connected to"
 
     %% Intake → master resolution
     intake_linkedin_connections  }o--o| persons                       : "resolves to"
@@ -721,6 +730,23 @@ CREATE INDEX idx_detected_signals_opportunity_id ON detected_signals (opportunit
 CREATE INDEX idx_detected_signals_engagement_id  ON detected_signals (engagement_id);
 CREATE INDEX idx_detected_signals_activity_id    ON detected_signals (activity_id);
 CREATE INDEX idx_detected_signals_detected_at    ON detected_signals (detected_at);
+```
+
+### `detected_signal_persons`
+
+Junction table supporting multi-person association on detected signals (e.g. group messaging threads or multi-stakeholder interactions).
+
+```sql
+CREATE TABLE detected_signal_persons (
+    detected_signal_id UUID NOT NULL REFERENCES detected_signals (id) ON DELETE CASCADE,
+    person_id          UUID NOT NULL REFERENCES persons (id) ON DELETE CASCADE,
+    role               VARCHAR(64) DEFAULT 'participant',
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (detected_signal_id, person_id)
+);
+
+CREATE INDEX idx_dsp_detected_signal_id ON detected_signal_persons (detected_signal_id);
+CREATE INDEX idx_dsp_person_id          ON detected_signal_persons (person_id);
 ```
 
 ---

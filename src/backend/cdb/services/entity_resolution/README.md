@@ -99,6 +99,36 @@ def email_prefix(email: str | None) -> str | None:
     return stripped if len(stripped) >= 5 else None
 ```
 
+### 2.6 `strip_accents(raw)`
+
+Removes unicode diacritics and accents (e.g. `ć` -> `c`, `é` -> `e`, `ö` -> `o`) using NFKD normalization:
+
+```python
+import unicodedata
+
+
+def strip_accents(text: str | None) -> str:
+    if not text:
+        return ""
+    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+```
+
+### 2.7 `normalise_text_tokens(raw)`
+
+Normalises free-text titles, slugs, and participant corpora by stripping accents, lowercasing, replacing punctuation/separators with spaces, and collapsing whitespace:
+
+```python
+import re
+
+
+def normalise_text_tokens(text: str | None) -> str:
+    if not text:
+        return ""
+    stripped = strip_accents(text).lower()
+    cleaned = re.sub(r"[^a-z0-9]+", " ", stripped)
+    return " ".join(cleaned.split())
+```
+
 ---
 
 ## 3. Rule-Based Matching

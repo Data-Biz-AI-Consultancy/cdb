@@ -173,7 +173,7 @@ describe('SignalsPage Component', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Opportunities' })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Risks' })).toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'Hybrid & Conflicts' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Mixed' })).toBeInTheDocument();
       expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
       expect(screen.getByText(/90% Confidence/)).toBeInTheDocument();
@@ -185,11 +185,13 @@ describe('SignalsPage Component', () => {
     });
   });
 
-  it('splits signals into 3 columns: Opportunities, Risks, and Hybrid & Conflicts', async () => {
+  it('splits signals into 3 columns: Opportunities, Mixed, and Risks', async () => {
     render(<SignalsPage />);
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Opportunities' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Mixed' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Risks' })).toBeInTheDocument();
       expect(screen.getByText('No active risk signals detected')).toBeInTheDocument();
       expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
       expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
@@ -254,10 +256,13 @@ describe('SignalsPage Component', () => {
     fireEvent.click(evalBtn);
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenCalledWith('/api/v1/signals/evaluate', {
-        method: 'POST',
-      });
-      expect(screen.getByText(/Radar sweep completed: 1 new signals flagged/)).toBeInTheDocument();
+      expect(apiFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/signals/evaluate'),
+        {
+          method: 'POST',
+        }
+      );
+      expect(screen.getByText(/Radar sweep completed/)).toBeInTheDocument();
     });
   });
 
@@ -360,6 +365,90 @@ describe('SignalsPage Component', () => {
     const resetBtn = screen.getByText('Reset filters');
     fireEvent.click(resetBtn);
     expect(sortSelect.value).toBe('newest');
+  });
+
+  it('renders multiple connected person pills and supports filtering by connected person name', async () => {
+    const multiPersonSignals = [
+      {
+        ...mockDetectedSignals[0],
+        id: 'sig-multi-persons',
+        title: 'Competitor Mention: Acme Corp',
+        connected_persons: [
+          { id: 'p-1', name: 'Louis Guitton', role: 'primary' },
+          { id: 'p-2', name: 'Jodi Barrow', role: 'counterparty' },
+        ],
+      },
+    ];
+
+    (apiFetch as any).mockImplementation((url: string) => {
+      if (url.includes('/signals/catalog')) return Promise.resolve({ data: mockCatalog });
+      if (url.includes('/signals/detected/stats')) return Promise.resolve(mockStats);
+      if (url.includes('/signals/detected')) return Promise.resolve({ data: multiPersonSignals });
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Louis Guitton')).toBeInTheDocument();
+      expect(screen.getByText('Jodi Barrow')).toBeInTheDocument();
+    });
+
+    const louisLink = screen.getByRole('link', { name: /Louis Guitton/i });
+    expect(louisLink).toHaveAttribute('href', '/persons/p-1');
+
+    const jodiLink = screen.getByRole('link', { name: /Jodi Barrow/i });
+    expect(jodiLink).toHaveAttribute('href', '/persons/p-2');
+
+    // Filter by searching for "Jodi"
+    const searchInput = screen.getByPlaceholderText(/Search signals by entity/i);
+    fireEvent.change(searchInput, { target: { value: 'Jodi' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Louis Guitton')).toBeInTheDocument();
+      expect(screen.getByText('Jodi Barrow')).toBeInTheDocument();
+    });
+
+    // Filter by searching for a name not in connected_persons
+    fireEvent.change(searchInput, { target: { value: 'Nonexistent Person' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Louis Guitton')).not.toBeInTheDocument();
+    });
+  });
+
+  it('allows user to change the lookback window and triggers evaluation with chosen lookback', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Opportunity & Risk Signals Radar')).toBeInTheDocument();
+    });
+
+    // Initial fetch includes lookback_days=90
+    expect(apiFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/signals/detected?page_size=100&lookback_days=90')
+    );
+
+    // Change lookback window in toolbar
+    const lookbackSelect = screen.getByLabelText(/Filter by Lookback Window/i);
+    fireEvent.change(lookbackSelect, { target: { value: '180' } });
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/signals/detected?page_size=100&lookback_days=180')
+      );
+    });
+
+    // Run signal detection and check evaluate call with lookback_days=180
+    const runBtn = screen.getByText('Run Signal Detection');
+    fireEvent.click(runBtn);
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/v1/signals/evaluate?lookback_days=180',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
   });
 });
 

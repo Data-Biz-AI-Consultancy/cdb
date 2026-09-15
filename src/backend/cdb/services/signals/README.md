@@ -257,12 +257,24 @@ erDiagram
 
 ### Detection Engine Rules (`detector.py`)
 
-1. **`dormant_strategic_account`**: Scans companies qualifying as strategic (signed engagement, won deal, or strategic tag) where `MAX(activity.occurred_at)` is older than 60 days (or no activity).
-2. **`unanswered_conversation`**: Scans inbound messages (LinkedIn, email, WhatsApp) where the external contact was the last sender > 3 days ago without an outbound response.
-3. **`expiring_contract`**: Scans active signed engagements where `expected_end_date` is within 60 days.
-4. **`leadership_change`**: Scans relationship ends in last 60 days (champion departures) and new executive relationships in last 60 days.
-5. **`hiring_funding_event`**: Scans activity texts in last 90 days matching funding round or technical hiring acceleration regex patterns.
-6. **`competitor_signal`**: Scans activity texts and opportunity notes for competitor evaluation or RFP bake-off mentions.
+1. **`dormant_strategic_account`**: Scans companies qualifying as strategic (signed engagement, won deal, or strategic tier/segment attributes) where `MAX(activity.occurred_at)` is older than 60 days (or no activity).
+2. **`unanswered_conversation`**: Scans inbound messages (LinkedIn, email, WhatsApp) where the external contact was the last sender > 3 days ago without an outbound response within the lookback window (default 90 days). Strictly filters out routine inbox noise by requiring commercial gig/project opportunity context (proposals, budget, rates, consulting/advisory engagement) or competitor bake-off mentions. Resolves contact's current company via `PersonCompanyRelationship`.
+3. **`expiring_contract`**: Scans active signed engagements where `expected_end_date` is within 60 days ($\le 30\text{d}$ high risk, $31-60\text{d}$ renewal opportunity).
+4. **`leadership_change`**: Scans relationship ends in lookback window (champion departures) and new executive relationships in lookback window.
+5. **`hiring_funding_event`**: Scans both unstructured touchpoint activities (within lookback window matching capital/hiring keywords) and structured account enrichment data (`Company.attributes` for funding rounds, capital amounts, and headcount growth rates).
+6. **`competitor_signal`**: Scans activity texts and opportunity notes for active competitor evaluation or RFP bake-off mentions within the lookback window, resolving affected account via `OpportunityCompany`, `Engagement`, or `Person`.
+
+### User-Configurable Lookback Window & Noise Control
+- Detection sweeps support a configurable `lookback_days` parameter (`90` days / 3 months default, `180` days / 6 months, `365` days / 1 year, and up to `730` days / 2 years max).
+- When a detection sweep is triggered with a lookback window, signals outside the window or whose criteria are no longer met are automatically retired (`status = 'dismissed'`), keeping the active signal queue fresh, focused, and free of historical noise.
+
+### Guaranteed Affected Account Attribution & Resolution
+- All detected signals strictly guarantee affected account attribution (`company_id` and `company_name`):
+  - **Direct Company Signals**: (`dormant_strategic_account`, `hiring_funding_event`) directly associate `company_id`.
+  - **Person Signals**: (`unanswered_conversation`, `leadership_change`) resolve the contact's current organization via `PersonCompanyRelationship.is_current == True` (or most recent employment).
+  - **Engagement Signals**: (`expiring_contract`) resolve `engagement.company_id`.
+  - **Opportunity Signals**: (`competitor_signal`) resolve `opportunity_companies.company_id` or linked engagement/activity.
+- Supporting account context (`account_name`, `company_tier`, `company_segment`) is embedded directly in `metadata_payload` and `metadata_payload["evidence"]`.
 
 ### Idempotency & Lifecycle State Machine
 * **Idempotency**: Running `evaluate_all_signals` repeatedly does **not** duplicate active signals. Existing active signals for the same entity and signal code have their timestamps, severity, and metadata refreshed in place.
