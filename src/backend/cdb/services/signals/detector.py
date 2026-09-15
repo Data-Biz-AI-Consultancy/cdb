@@ -57,9 +57,7 @@ COMPETITOR_REGEX = re.compile(
     r"competitive rfp|rfp bake-off|comparing proposals?|"
     r"cheaper alternative|lower price from|"
     r"lost to (?:a )?competitor|competitor won|competitor chosen|"
-    r"evaluating (?:slalom|thoughtworks|accenture|deloitte|mckinsey|bcg|bain)|"
-    r"talking to (?:slalom|thoughtworks|accenture|deloitte|mckinsey|bcg|bain)|"
-    r"slalom|thoughtworks|accenture|deloitte"
+    r"(?:evaluating|talking to|working with|hired|chose|selected|bringing in)\s+(?:slalom|thoughtworks|accenture|deloitte|mckinsey|bcg|bain|kearney|pwc|ey|kpmg)"
     r")\b",
     re.IGNORECASE,
 )
