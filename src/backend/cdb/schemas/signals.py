@@ -117,6 +117,21 @@ class ConnectedPersonResponse(BaseModel):
     linkedin_url: str | None = None
 
 
+class SuggestedPersonResponse(BaseModel):
+    person_id: uuid.UUID | None = None
+    name: str
+    first_name: str | None = None
+    role: str | None = None
+    company_id: uuid.UUID | None = None
+    company_name: str | None = None
+    confidence: float | None = None
+
+
+class SignalPersonLinkRequest(BaseModel):
+    person_id: uuid.UUID
+    role: str = "counterparty"
+
+
 class DetectedSignalResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -129,6 +144,7 @@ class DetectedSignalResponse(BaseModel):
     person_id: uuid.UUID | None = None
     person_name: str | None = None
     connected_persons: list[ConnectedPersonResponse] = Field(default_factory=list)
+    suggested_persons: list[SuggestedPersonResponse] = Field(default_factory=list)
     opportunity_id: uuid.UUID | None = None
     opportunity_title: str | None = None
     engagement_id: uuid.UUID | None = None

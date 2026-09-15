@@ -111,6 +111,42 @@ export default function SignalDetailPage({
     }
   };
 
+  const handleLinkPerson = async (personId: string, role: string) => {
+    if (!signal) return;
+    try {
+      setSubmittingAction(true);
+      const updated = await apiFetch<DetectedSignal>(`/api/v1/signals/detected/${signal.id}/persons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: personId, role }),
+      });
+      if (updated) {
+        setSignal(updated);
+      }
+    } catch (err) {
+      console.error('Failed to link person to signal:', err);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const handleUnlinkPerson = async (personId: string) => {
+    if (!signal) return;
+    try {
+      setSubmittingAction(true);
+      const updated = await apiFetch<DetectedSignal>(`/api/v1/signals/detected/${signal.id}/persons/${personId}`, {
+        method: 'DELETE',
+      });
+      if (updated) {
+        setSignal(updated);
+      }
+    } catch (err) {
+      console.error('Failed to unlink person from signal:', err);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
   // Badge helpers
   const getSeverityBadge = (severity: SignalSeverity) => {
     switch (severity) {
@@ -572,12 +608,22 @@ export default function SignalDetailPage({
                             )}
                           </div>
                         </div>
-                        <Link
-                          href={`/persons/${person.id}`}
-                          className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition shrink-0"
-                        >
-                          View Person →
-                        </Link>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Link
+                            href={`/persons/${person.id}`}
+                            className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition text-xs"
+                          >
+                            View Person →
+                          </Link>
+                          <button
+                            onClick={() => handleUnlinkPerson(person.id)}
+                            disabled={submittingAction}
+                            className="px-2 py-1 bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 rounded font-medium transition text-xs cursor-pointer"
+                            title="Unlink Person from Signal"
+                          >
+                            Unlink
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -626,6 +672,42 @@ export default function SignalDetailPage({
                   </Link>
                 </div>
               ) : null}
+
+                {/* Suggested Counterparty Contacts */}
+                {signal.suggested_persons && signal.suggested_persons.length > 0 && (
+                  <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-indigo-700 font-bold uppercase tracking-wide flex items-center gap-1">
+                        <span>💡</span>
+                        <span>Suggested Counterparty Contacts</span>
+                      </span>
+                      <span className="text-[10px] text-indigo-500 font-medium">
+                        Identified from meeting / debrief
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {signal.suggested_persons.map((sp, idx) => (
+                        sp.person_id ? (
+                          <button
+                            key={sp.person_id || idx}
+                            onClick={() => handleLinkPerson(sp.person_id!, sp.role || 'counterparty')}
+                            disabled={submittingAction}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-indigo-100 text-indigo-950 border border-indigo-200 text-xs font-semibold transition cursor-pointer shadow-2xs"
+                            title={`Link ${sp.name} (${sp.role || 'contact'}) to this signal`}
+                          >
+                            <span className="text-indigo-600 font-bold text-sm">+</span>
+                            <span>{sp.name}</span>
+                            {sp.role && (
+                              <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-1 rounded border border-indigo-100">
+                                {sp.role}
+                              </span>
+                            )}
+                          </button>
+                        ) : null
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               {signal.opportunity_title ? (
                 <div className="flex items-center justify-between p-3 bg-purple-50/60 border border-purple-100 rounded-lg">

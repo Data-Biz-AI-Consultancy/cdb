@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from cdb.models.base import utc_now
+from cdb.models.person import Person
 from cdb.models.signal import DetectedSignal, DetectedSignalPerson, Signal
 from cdb.models.user import User
 from cdb.schemas.signals import (
@@ -18,6 +19,7 @@ from cdb.schemas.signals import (
     DetectedSignalUpdate,
     SignalDefinition,
     SignalSeverity,
+    SuggestedPersonResponse,
 )
 
 
@@ -28,9 +30,11 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
     eng_title = sig.engagement.title if sig.engagement else None
 
     connected_persons: list[ConnectedPersonResponse] = []
+    connected_person_ids_set: set[uuid.UUID] = set()
+
     if getattr(sig, "signal_persons", None):
         for sp in sig.signal_persons:
-            if sp.person:
+            if sp.person and not sp.person.is_internal:
                 p = sp.person
                 p_name = f"{p.first_name or ''} {p.last_name or ''}".strip() or "Unnamed Contact"
                 connected_persons.append(
@@ -45,22 +49,25 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
                         linkedin_url=p.linkedin_url,
                     )
                 )
+                connected_person_ids_set.add(p.id)
     elif getattr(sig, "connected_persons", None):
         for cp in sig.connected_persons:
-            p_name = f"{cp.first_name or ''} {cp.last_name or ''}".strip() or "Unnamed Contact"
-            connected_persons.append(
-                ConnectedPersonResponse(
-                    id=cp.id,
-                    name=p_name,
-                    first_name=cp.first_name,
-                    last_name=cp.last_name,
-                    email=cp.primary_email,
-                    primary_email=cp.primary_email,
-                    role="participant",
-                    linkedin_url=cp.linkedin_url,
+            if not cp.is_internal:
+                p_name = f"{cp.first_name or ''} {cp.last_name or ''}".strip() or "Unnamed Contact"
+                connected_persons.append(
+                    ConnectedPersonResponse(
+                        id=cp.id,
+                        name=p_name,
+                        first_name=cp.first_name,
+                        last_name=cp.last_name,
+                        email=cp.primary_email,
+                        primary_email=cp.primary_email,
+                        role="participant",
+                        linkedin_url=cp.linkedin_url,
+                    )
                 )
-            )
-    elif sig.person:
+                connected_person_ids_set.add(cp.id)
+    elif sig.person and not sig.person.is_internal:
         p_name = (
             f"{sig.person.first_name or ''} {sig.person.last_name or ''}".strip()
             or "Unnamed Contact"
@@ -77,12 +84,13 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
                 linkedin_url=sig.person.linkedin_url,
             )
         )
+        connected_person_ids_set.add(sig.person.id)
 
     if len(connected_persons) > 1:
         person_name = ", ".join(p.name for p in connected_persons)
     elif connected_persons:
         person_name = connected_persons[0].name
-    elif sig.person:
+    elif sig.person and not sig.person.is_internal:
         person_name = f"{sig.person.first_name or ''} {sig.person.last_name or ''}".strip() or None
     else:
         person_name = None
@@ -98,6 +106,33 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
     else:
         conf_score = None
 
+    # Parse suggested persons from metadata payload
+    suggested_persons: list[SuggestedPersonResponse] = []
+    raw_suggested = meta.get("suggested_persons") or []
+    for sp_item in raw_suggested:
+        sp_id = None
+        if sp_item.get("person_id"):
+            try:
+                sp_id = uuid.UUID(str(sp_item["person_id"]))
+            except Exception:
+                pass
+        # Only suggest if not already connected
+        if sp_id and sp_id in connected_person_ids_set:
+            continue
+        suggested_persons.append(
+            SuggestedPersonResponse(
+                person_id=sp_id,
+                name=sp_item.get("name") or "Candidate Contact",
+                first_name=sp_item.get("first_name"),
+                role=sp_item.get("role"),
+                company_id=uuid.UUID(str(sp_item["company_id"]))
+                if sp_item.get("company_id")
+                else None,
+                company_name=sp_item.get("company_name"),
+                confidence=sp_item.get("confidence"),
+            )
+        )
+
     return DetectedSignalResponse(
         id=sig.id,
         signal_id=sig.signal_id,
@@ -107,6 +142,7 @@ def _to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         person_id=primary_person_id,
         person_name=person_name,
         connected_persons=connected_persons,
+        suggested_persons=suggested_persons,
         opportunity_id=sig.opportunity_id,
         opportunity_title=opp_title,
         engagement_id=sig.engagement_id,
@@ -316,6 +352,8 @@ async def update_detected_signal(
             selectinload(DetectedSignal.person),
             selectinload(DetectedSignal.opportunity),
             selectinload(DetectedSignal.engagement),
+            selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
+            selectinload(DetectedSignal.connected_persons),
         )
     )
     sig = (await db.execute(stmt)).scalar_one_or_none()
@@ -340,3 +378,99 @@ async def update_detected_signal(
     await db.commit()
     await db.refresh(sig)
     return _to_detected_response(sig)
+
+
+async def link_person_to_detected_signal(
+    db: AsyncSession,
+    signal_instance_id: uuid.UUID,
+    person_id: uuid.UUID,
+    role: str = "counterparty",
+) -> DetectedSignalResponse | None:
+    """
+    Links a person to a detected signal with a specific role.
+    """
+    sig = await db.get(DetectedSignal, signal_instance_id)
+    if not sig:
+        return None
+
+    person = await db.get(Person, person_id)
+    if not person:
+        return None
+
+    link_stmt = select(DetectedSignalPerson).where(
+        DetectedSignalPerson.detected_signal_id == signal_instance_id,
+        DetectedSignalPerson.person_id == person_id,
+    )
+    existing_link = (await db.execute(link_stmt)).scalar_one_or_none()
+    if not existing_link:
+        db.add(
+            DetectedSignalPerson(
+                detected_signal_id=signal_instance_id,
+                person_id=person_id,
+                role=role,
+            )
+        )
+    else:
+        existing_link.role = role
+
+    # If the signal currently has no person_id and person is not internal, set as person_id
+    if not sig.person_id and not person.is_internal:
+        sig.person_id = person_id
+
+    # Update metadata person_roles
+    meta = dict(sig.metadata_payload or {})
+    roles = dict(meta.get("person_roles") or {})
+    roles[str(person_id)] = role
+    meta["person_roles"] = roles
+    sig.metadata_payload = meta
+    sig.updated_at = utc_now()
+
+    await db.commit()
+    db.expire_all()
+    return await get_detected_signal(db, signal_instance_id)
+
+
+async def unlink_person_from_detected_signal(
+    db: AsyncSession,
+    signal_instance_id: uuid.UUID,
+    person_id: uuid.UUID,
+) -> DetectedSignalResponse | None:
+    """
+    Unlinks a person from a detected signal.
+    """
+    sig = await db.get(DetectedSignal, signal_instance_id)
+    if not sig:
+        return None
+
+    link_stmt = select(DetectedSignalPerson).where(
+        DetectedSignalPerson.detected_signal_id == signal_instance_id,
+        DetectedSignalPerson.person_id == person_id,
+    )
+    existing_link = (await db.execute(link_stmt)).scalar_one_or_none()
+    if existing_link:
+        await db.delete(existing_link)
+
+    # If primary person_id was this person, clear or fallback to next connected person
+    if sig.person_id == person_id:
+        remaining_stmt = (
+            select(DetectedSignalPerson)
+            .where(
+                DetectedSignalPerson.detected_signal_id == signal_instance_id,
+                DetectedSignalPerson.person_id != person_id,
+            )
+            .limit(1)
+        )
+        remaining = (await db.execute(remaining_stmt)).scalar_one_or_none()
+        sig.person_id = remaining.person_id if remaining else None
+
+    # Update metadata person_roles
+    meta = dict(sig.metadata_payload or {})
+    roles = dict(meta.get("person_roles") or {})
+    roles.pop(str(person_id), None)
+    meta["person_roles"] = roles
+    sig.metadata_payload = meta
+    sig.updated_at = utc_now()
+
+    await db.commit()
+    db.expire_all()
+    return await get_detected_signal(db, signal_instance_id)

@@ -431,20 +431,24 @@ async def ingest_notion_meeting_notes(
                     .first()
                 )
                 if act:
-                    matched_p_id, matched_c_id, clean_title = attendee_index.resolve_meeting(
+                    res = attendee_index.detect_meeting_entities(
                         title=existing.title,
                         attendees=existing.attendees,
                         url=existing.url,
                         content=existing.content,
                     )
-                    if matched_p_id:
-                        act.person_id = matched_p_id
-                    if matched_c_id:
-                        act.company_id = matched_c_id
-                    if clean_title:
-                        act.title = clean_title
+                    if res.primary_person_id:
+                        act.person_id = res.primary_person_id
+                    if res.company_id:
+                        act.company_id = res.company_id
+                    if res.clean_title:
+                        act.title = res.clean_title
                     if rec.content and (not act.summary or len(rec.content) > len(act.summary)):
                         act.summary = rec.content
+                    act_attr = dict(act.attributes or {})
+                    act_attr["entities"] = [e.to_dict() for e in res.entities]
+                    act_attr["suggested_persons"] = res.suggested_persons
+                    act.attributes = act_attr
 
             if updated:
                 queued += 1
@@ -452,7 +456,7 @@ async def ingest_notion_meeting_notes(
                 duplicates_skipped += 1
             continue
 
-        matched_person_id, matched_company_id, clean_title = attendee_index.resolve_meeting(
+        res = attendee_index.detect_meeting_entities(
             title=rec.title,
             attendees=rec.attendees,
             url=rec.url,
@@ -462,34 +466,36 @@ async def ingest_notion_meeting_notes(
         intake = IntakeNotionMeetingNote(
             page_id=rec.page_id,
             database_name=rec.database_name,
-            title=clean_title,
+            title=res.clean_title,
             meeting_date=rec.meeting_date,
             attendees=rec.attendees,
             content=rec.content,
             to_dos=rec.to_dos,
             url=rec.url,
             raw_payload=rec.raw_payload,
-            status="resolved" if matched_person_id else "ingested",
+            status="resolved" if res.primary_person_id else "ingested",
         )
         db.add(intake)
         await db.flush()
 
-        if matched_person_id or matched_company_id:
+        if res.primary_person_id or res.company_id:
             act = Activity(
-                person_id=matched_person_id,
-                company_id=matched_company_id,
+                person_id=res.primary_person_id,
+                company_id=res.company_id,
                 type="meeting",
                 source="notion",
                 source_id=f"notion:{rec.page_id}",
                 occurred_at=rec.meeting_date or datetime.datetime.now(datetime.UTC),
-                title=clean_title,
-                summary=rec.content or f"Notion Meeting Note: {clean_title}",
+                title=res.clean_title,
+                summary=rec.content or f"Notion Meeting Note: {res.clean_title}",
                 raw_content=rec.content,
                 attributes={
                     "database_name": rec.database_name,
                     "url": rec.url,
                     "to_dos": rec.to_dos,
                     "attendees": rec.attendees,
+                    "entities": [e.to_dict() for e in res.entities],
+                    "suggested_persons": res.suggested_persons,
                 },
             )
             db.add(act)

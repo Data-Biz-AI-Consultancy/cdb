@@ -1373,6 +1373,27 @@ Update the lifecycle status and resolution notes of a detected signal.
 
 **Response 200:** Updated `DetectedSignalResponse` with `actioned_at` timestamp.
 
+### `POST /signals/detected/{signal_instance_id}/persons`
+
+Link a person to a detected signal with a specific role (e.g., `counterparty`, `interviewer`, `recruiter`, `hiring_manager`).
+
+**Request:**
+```json
+{
+  "person_id": "<uuid>",
+  "role": "recruiter"
+}
+```
+
+**Response 200:** Updated `DetectedSignalResponse` with updated `connected_persons` and `person_roles`.
+
+### `DELETE /signals/detected/{signal_instance_id}/persons/{person_id}`
+
+Unlink a person from a detected signal.
+
+**Response 200:** Updated `DetectedSignalResponse` with the person removed from `connected_persons`.
+
 ---
 
 *See [Database Schema](src/backend/db/README.md) for field definitions and [Signal Catalog Specification](src/backend/cdb/services/signals/README.md) for business interpretation details.*
+

@@ -18,6 +18,7 @@ from cdb.schemas.signals import (
     SignalCategory,
     SignalDefinition,
     SignalEvaluationResult,
+    SignalPersonLinkRequest,
     SignalSeverity,
     SignalTargetEntity,
 )
@@ -265,5 +266,60 @@ async def update_detected_signal_status(
         raise NotFoundError(
             message=f"Detected signal with id '{signal_instance_id}' not found",
             details={"id": str(signal_instance_id)},
+        )
+    return updated
+
+
+@router.post(
+    "/detected/{signal_instance_id}/persons",
+    response_model=DetectedSignalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def link_person_to_signal(
+    signal_instance_id: uuid.UUID,
+    payload: SignalPersonLinkRequest,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> DetectedSignalResponse:
+    """
+    Links a person to a detected signal with a given role (e.g. interviewer, recruiter).
+    """
+    updated = await detected_signal_service.link_person_to_detected_signal(
+        db,
+        signal_instance_id=signal_instance_id,
+        person_id=payload.person_id,
+        role=payload.role,
+    )
+    if not updated:
+        raise NotFoundError(
+            message=f"Detected signal '{signal_instance_id}' or person '{payload.person_id}' not found",
+            details={"signal_id": str(signal_instance_id), "person_id": str(payload.person_id)},
+        )
+    return updated
+
+
+@router.delete(
+    "/detected/{signal_instance_id}/persons/{person_id}",
+    response_model=DetectedSignalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def unlink_person_from_signal(
+    signal_instance_id: uuid.UUID,
+    person_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> DetectedSignalResponse:
+    """
+    Unlinks a person from a detected signal.
+    """
+    updated = await detected_signal_service.unlink_person_from_detected_signal(
+        db,
+        signal_instance_id=signal_instance_id,
+        person_id=person_id,
+    )
+    if not updated:
+        raise NotFoundError(
+            message=f"Detected signal '{signal_instance_id}' not found",
+            details={"signal_id": str(signal_instance_id), "person_id": str(person_id)},
         )
     return updated

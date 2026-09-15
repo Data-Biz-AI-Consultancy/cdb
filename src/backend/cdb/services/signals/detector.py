@@ -1,5 +1,6 @@
 import datetime
 import re
+import uuid
 from decimal import Decimal
 from typing import Any
 
@@ -195,6 +196,34 @@ async def _upsert_detected_signal(
             if "evidence" in metadata_payload and isinstance(metadata_payload["evidence"], dict):
                 metadata_payload["evidence"].setdefault("account_name", company.name)
 
+    # Protect against attributing client signals to internal employees/host
+    person_roles: dict[str, str] = dict(metadata_payload.get("person_roles") or {})
+    if person_id:
+        target_person = await db.get(Person, person_id)
+        if target_person and target_person.is_internal:
+            # Swap with first non-internal connected person if available
+            replacement_id = None
+            for cpid in connected_person_ids or []:
+                if cpid != person_id:
+                    cp = await db.get(Person, cpid)
+                    if cp and not cp.is_internal:
+                        replacement_id = cp.id
+                        break
+            person_id = replacement_id
+
+    # Filter internal employees out of primary target_person_ids for client opportunity/risk signals
+    clean_target_ids: list[Any] = []
+    for pid in connected_person_ids or []:
+        if not pid:
+            continue
+        p_rec = await db.get(Person, pid)
+        if p_rec and not p_rec.is_internal:
+            if pid not in clean_target_ids:
+                clean_target_ids.append(pid)
+
+    if person_id and person_id not in clean_target_ids:
+        clean_target_ids.insert(0, person_id)
+
     stmt = select(DetectedSignal).where(
         DetectedSignal.signal_id == signal_id,
         DetectedSignal.status.in_(["active", "acknowledged"]),
@@ -219,10 +248,6 @@ async def _upsert_detected_signal(
 
     existing = (await db.execute(stmt)).scalars().first()
     now = utc_now()
-
-    target_person_ids: list[Any] = [pid for pid in (connected_person_ids or []) if pid]
-    if person_id and person_id not in target_person_ids:
-        target_person_ids.insert(0, person_id)
 
     if existing:
         existing.title = title
@@ -263,21 +288,26 @@ async def _upsert_detected_signal(
         target_sig = new_sig
         is_new = True
 
-    # Link all connected persons
-    for pid in target_person_ids:
+    # Link all connected non-internal persons
+    for pid in clean_target_ids:
         link_stmt = select(DetectedSignalPerson).where(
             DetectedSignalPerson.detected_signal_id == target_sig.id,
             DetectedSignalPerson.person_id == pid,
         )
         existing_link = (await db.execute(link_stmt)).scalar_one_or_none()
+        assigned_role = person_roles.get(str(pid)) or (
+            "primary" if pid == person_id else "participant"
+        )
         if not existing_link:
             db.add(
                 DetectedSignalPerson(
                     detected_signal_id=target_sig.id,
                     person_id=pid,
-                    role="primary" if pid == person_id else "participant",
+                    role=assigned_role,
                 )
             )
+        elif existing_link.role != assigned_role and assigned_role != "participant":
+            existing_link.role = assigned_role
 
     return target_sig, is_new
 
@@ -856,6 +886,30 @@ async def detect_hiring_funding_events(
             f"'{matched_phrase}'. Potential advisory or capability acceleration opportunity."
         )
 
+        # Extract connected persons, roles, and suggested persons from activity
+        connected_pids: list[Any] = []
+        person_roles: dict[str, str] = {}
+        act_attrs = act.attributes or {}
+        act_entities = act_attrs.get("entities", [])
+        act_suggested = act_attrs.get("suggested_persons", [])
+
+        for e in act_entities:
+            epid = e.get("person_id")
+            erole = e.get("role") or "counterparty"
+            if epid and not e.get("is_internal"):
+                try:
+                    uuid_val = uuid.UUID(epid) if isinstance(epid, str) else epid
+                    if uuid_val not in connected_pids:
+                        connected_pids.append(uuid_val)
+                    person_roles[str(uuid_val)] = erole
+                except Exception:
+                    pass
+
+        if act.person_id and act.person_id not in connected_pids:
+            p_obj = await db.get(Person, act.person_id)
+            if p_obj and not p_obj.is_internal:
+                connected_pids.insert(0, act.person_id)
+
         meta = {
             "event_type": event_type.lower(),
             "matched_phrase": matched_phrase,
@@ -866,6 +920,8 @@ async def detect_hiring_funding_events(
             "is_uncertain": is_uncertain,
             "uncertainty_reasons": uncert_reasons,
             "evidence": evidence,
+            "person_roles": person_roles,
+            "suggested_persons": act_suggested,
         }
 
         res = await _upsert_detected_signal(
@@ -873,6 +929,7 @@ async def detect_hiring_funding_events(
             signal_id="hiring_funding_event",
             company_id=act.company_id,
             person_id=act.person_id,
+            connected_person_ids=connected_pids,
             activity_id=act.id,
             title=title,
             summary=summary,
@@ -1171,6 +1228,17 @@ async def detect_competitor_signals(
             for extra_pid in act.attributes.get("participant_person_ids", []):
                 if extra_pid not in connected_pids:
                     connected_pids.append(extra_pid)
+            for e in act.attributes.get("entities", []):
+                epid = e.get("person_id")
+                if epid and not e.get("is_internal"):
+                    try:
+                        uuid_val = uuid.UUID(epid) if isinstance(epid, str) else epid
+                        if uuid_val not in connected_pids:
+                            connected_pids.append(uuid_val)
+                    except Exception:
+                        pass
+            if act.attributes.get("suggested_persons"):
+                meta["suggested_persons"] = act.attributes.get("suggested_persons")
 
         res = await _upsert_detected_signal(
             db,

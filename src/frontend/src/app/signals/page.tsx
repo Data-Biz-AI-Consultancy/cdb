@@ -42,6 +42,16 @@ export interface ConnectedPerson {
   linkedin_url?: string | null;
 }
 
+export interface SuggestedPerson {
+  person_id?: string | null;
+  name: string;
+  first_name?: string | null;
+  role?: string | null;
+  company_id?: string | null;
+  company_name?: string | null;
+  confidence?: number | null;
+}
+
 export interface DetectedSignal {
   id: string;
   signal_id: string;
@@ -51,6 +61,7 @@ export interface DetectedSignal {
   person_id?: string | null;
   person_name?: string | null;
   connected_persons?: ConnectedPerson[];
+  suggested_persons?: SuggestedPerson[];
   opportunity_id?: string | null;
   opportunity_title?: string | null;
   engagement_id?: string | null;
@@ -271,6 +282,36 @@ export default function SignalsPage() {
       await loadData();
     } catch (err) {
       console.error('Failed to update signal:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleLinkPerson = async (signalId: string, personId: string, role: string) => {
+    try {
+      setActionInProgress(signalId);
+      await apiFetch(`/api/v1/signals/detected/${signalId}/persons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: personId, role }),
+      });
+      await loadData();
+    } catch (err) {
+      console.error('Failed to link person to signal:', err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleUnlinkPerson = async (signalId: string, personId: string) => {
+    try {
+      setActionInProgress(signalId);
+      await apiFetch(`/api/v1/signals/detected/${signalId}/persons/${personId}`, {
+        method: 'DELETE',
+      });
+      await loadData();
+    } catch (err) {
+      console.error('Failed to unlink person from signal:', err);
     } finally {
       setActionInProgress(null);
     }
@@ -555,15 +596,36 @@ export default function SignalsPage() {
                 const pName =
                   p.name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Contact';
                 return (
-                  <Link
+                  <span
                     key={p.id}
-                    href={`/persons/${p.id}`}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition font-medium text-[11px]"
-                    title={p.role ? `${pName} (${p.role})` : pName}
+                    className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-medium"
                   >
                     <span>👤</span>
-                    <span className="truncate max-w-[140px]">{pName}</span>
-                  </Link>
+                    <Link
+                      href={`/persons/${p.id}`}
+                      className="hover:underline truncate max-w-[130px]"
+                      title={p.role ? `${pName} (${p.role})` : pName}
+                    >
+                      {pName}
+                    </Link>
+                    {p.role && (
+                      <span className="text-[9px] uppercase font-bold text-emerald-600 bg-emerald-100/80 px-1 rounded">
+                        {p.role}
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleUnlinkPerson(sig.id, p.id);
+                      }}
+                      disabled={actionInProgress === sig.id}
+                      className="text-emerald-500 hover:text-rose-600 hover:bg-emerald-100/50 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[10px] ml-0.5 cursor-pointer"
+                      title={`Unlink ${pName}`}
+                    >
+                      ✕
+                    </button>
+                  </span>
                 );
               })
             ) : sig.person_name ? (
@@ -598,6 +660,34 @@ export default function SignalsPage() {
               </Link>
             )}
           </div>
+
+          {/* Suggested People Prompt Bar */}
+          {sig.suggested_persons && sig.suggested_persons.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-indigo-50/60 border border-indigo-100 rounded-lg text-xs">
+              <span className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider flex items-center gap-1">
+                <span>💡 Suggested:</span>
+              </span>
+              {sig.suggested_persons.map((sp, idx) => (
+                sp.person_id ? (
+                  <button
+                    key={sp.person_id || idx}
+                    onClick={() => handleLinkPerson(sig.id, sp.person_id!, sp.role || 'counterparty')}
+                    disabled={actionInProgress === sig.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
+                    title={`Click to link ${sp.name} (${sp.role || 'contact'}) to this signal`}
+                  >
+                    <span className="text-indigo-600 font-bold">+</span>
+                    <span>{sp.name}</span>
+                    {sp.role && (
+                      <span className="text-[9px] uppercase font-bold text-indigo-600">
+                        ({sp.role})
+                      </span>
+                    )}
+                  </button>
+                ) : null
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Card Actions Footer */}
