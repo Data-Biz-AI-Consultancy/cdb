@@ -283,10 +283,10 @@ class NotionAttendeeIndex:
                 matched_company_name = fadi_comp.name
 
         if not matched_company_id:
-            # Strip out biographical self-introduction patterns like "ex-HelloFresh", "ex-Metro", "ex-Vestiaire"
+            # Strip out biographical self-introduction and past-work references like "ex-HelloFresh", "met at HelloFresh", "worked at Metro"
             # so past employment doesn't hijack current meeting counterparty resolution
             sanitized_content = re.sub(
-                r"\b(?:ex\s*[-/]|formerly\s+at\s+|past\s+at\s+)[a-zA-Z0-9_\-\.]+\b",
+                r"\b(?:ex\s*[-/]?|formerly\s+(?:at\s+)?|past\s+(?:at\s+)?|met\s+at\s+|worked\s+at\s+|prior\s+(?:at\s+)?|left\s+|alumni\s+of\s+)[a-zA-Z0-9_\-\. ]{1,30}\b",
                 " ",
                 content_norm[:2500],
                 flags=re.IGNORECASE,

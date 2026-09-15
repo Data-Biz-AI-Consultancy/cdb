@@ -36,9 +36,8 @@ COMMERCIAL_OPPORTUNITY_REGEX = re.compile(
     re.IGNORECASE,
 )
 
-# Keyword regexes
 FUNDING_REGEX = re.compile(
-    r"\b(seed|series\s+[abcde]|funding round|raised\s+[\$€£]?\d+|venture round|new capital|investment round)\b",
+    r"\b(seed\s+(?:round|funding|stage|investment|capital)|series\s+[abcde]|funding round|raised\s+[\$€£]?\d+|venture round|new capital|investment round)\b",
     re.IGNORECASE,
 )
 HIRING_REGEX = re.compile(
