@@ -1,3 +1,11 @@
+# [1.32.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.31.0...v1.32.0) (2026-09-16)
+
+
+### Features
+
+* add signal performance and ROI analytics page and navigation ([2e4ace9](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/2e4ace92303e4dfc44ff342ce69295a720c70c03))
+* add success and quality metrics framework for signals with API endpoint, service, and schemas ([f81c016](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/f81c01625afbe504e02957ff498b7b43d25c4ed5))
+
 # [1.31.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.30.0...v1.31.0) (2026-09-15)
 
 
