@@ -177,13 +177,11 @@ export default function HomePage() {
       cards: [
         {
           title: 'Ingestion',
-          count: 'Ready',
           href: '/ingestion',
           desc: 'Intake pipelines for LinkedIn archives, Notion exports, Substack subscriptions, and CSV data',
         },
         {
           title: 'Settings',
-          count: 'Active',
           href: '/settings',
           desc: 'Platform configuration, entity resolution thresholds, database health, and system status',
         },
