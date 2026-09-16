@@ -76,6 +76,17 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    name: 'Analytics',
+    items: [
+      {
+        href: '/analytics',
+        label: 'Signal Performance & ROI',
+        desc: 'Precision, SLA latency & revenue metrics',
+        badge: 'New',
+      },
+    ],
+  },
+  {
     name: 'Settings',
     items: [
       {

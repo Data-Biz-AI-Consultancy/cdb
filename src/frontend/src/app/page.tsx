@@ -156,6 +156,21 @@ export default function HomePage() {
       ],
     },
     {
+      group: 'Analytics',
+      tag: 'Intelligence, SLA & Revenue ROI',
+      color: 'border-purple-200 bg-purple-50/30',
+      tagColor: 'bg-purple-100 text-purple-800',
+      cards: [
+        {
+          title: 'Signal Performance & ROI',
+          count: '90d Window',
+          href: '/analytics',
+          desc: 'Opportunity & risk detection precision, MTTA latency, downstream deal creation & revenue attribution',
+          badge: 'New',
+        },
+      ],
+    },
+    {
       group: 'Settings',
       tag: 'Data Pipelines & Platform Health',
       color: 'border-slate-200 bg-slate-50/50',

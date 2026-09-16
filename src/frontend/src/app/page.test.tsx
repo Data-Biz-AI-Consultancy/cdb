@@ -40,7 +40,12 @@ describe('HomePage Dashboard Overview', () => {
     expect(screen.getByText('Engagements')).toBeInTheDocument();
     expect(screen.getByText('Signals Radar')).toBeInTheDocument();
 
-    // Section 3: Settings
+    // Section 3: Analytics
+    expect(screen.getByText('Analytics')).toBeInTheDocument();
+    expect(screen.getByText('Intelligence, SLA & Revenue ROI')).toBeInTheDocument();
+    expect(screen.getByText('Signal Performance & ROI')).toBeInTheDocument();
+
+    // Section 4: Settings
     expect(screen.getAllByText('Settings').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Data Pipelines & Platform Health')).toBeInTheDocument();
     expect(screen.getByText('Ingestion')).toBeInTheDocument();
