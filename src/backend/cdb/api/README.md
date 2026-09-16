@@ -1268,6 +1268,62 @@ Triggers the automated Signal Detection Engine to scan the initial catalog acros
 }
 ```
 
+### `GET /signals/metrics`
+
+Computes comprehensive success, quality, operational latency (MTTA), downstream opportunity/reactivation outcomes, and revenue attribution metrics across a configurable lookback window (default: 90 days).
+
+**Query params:**
+- `lookback_days`: Lookback window in days (default: `90`; allowable: `1` to `730`)
+- `signal_id`: Optional filter by signal slug ID
+- `category`: Optional filter by category (`opportunity`, `risk`, `hybrid`)
+- `severity`: Optional filter by severity (`critical`, `high`, `medium`, `low`)
+
+**Response 200:**
+```json
+{
+  "lookback_days": 90,
+  "evaluated_at": "2026-09-16T12:00:00Z",
+  "quality": {
+    "total_detected": 24,
+    "total_actioned": 14,
+    "total_dismissed": 4,
+    "total_resolved": 2,
+    "total_active": 4,
+    "action_rate": 0.6667,
+    "dismissal_rate": 0.1667,
+    "precision_proxy": 0.8333,
+    "needs_verification_rate": 0.0833,
+    "conflict_rate": 0.125
+  },
+  "latency": {
+    "mean_time_to_action_hours": 18.5,
+    "median_time_to_action_hours": 12.0,
+    "sla_breach_count": 1,
+    "sla_breach_rate": 0.0625,
+    "total_actioned_measured": 16
+  },
+  "outcomes": {
+    "attribution_window_days": 90,
+    "opportunities_created_count": 6,
+    "opportunity_conversion_rate": 0.375,
+    "account_reactivations_count": 8,
+    "account_reactivation_rate": 0.5,
+    "contracts_renewed_count": 3,
+    "contract_renewal_rate": 1.0
+  },
+  "revenue": {
+    "influenced_pipeline_total": "285000.00",
+    "weighted_influenced_pipeline_total": "228000.00",
+    "protected_revenue_total": "145000.00",
+    "currency": "USD",
+    "value_coverage_rate": 1.0
+  },
+  "by_signal": [ ... ],
+  "by_category": [ ... ],
+  "by_severity": [ ... ]
+}
+```
+
 ### `GET /signals/detected/stats`
 
 Retrieve real-time aggregate count metrics of active detected signals by severity, category, and signal type, including conflicting signals and uncertain signals needing verification.
