@@ -203,3 +203,68 @@ class SignalEvaluationResult(BaseModel):
     new_signals_detected: int
     refreshed_signals: int
     by_signal: dict[str, int]
+
+
+class SignalQualityMetrics(BaseModel):
+    total_detected: int = 0
+    total_actioned: int = 0
+    total_dismissed: int = 0
+    total_resolved: int = 0
+    total_active: int = 0
+    action_rate: float = 0.0
+    dismissal_rate: float = 0.0
+    precision_proxy: float = 0.0
+    needs_verification_rate: float = 0.0
+    conflict_rate: float = 0.0
+
+
+class SignalLatencyMetrics(BaseModel):
+    mean_time_to_action_hours: float | None = None
+    median_time_to_action_hours: float | None = None
+    sla_breach_count: int = 0
+    sla_breach_rate: float = 0.0
+    total_actioned_measured: int = 0
+
+
+class SignalOutcomeMetrics(BaseModel):
+    attribution_window_days: int = 90
+    opportunities_created_count: int = 0
+    opportunity_conversion_rate: float = 0.0
+    account_reactivations_count: int = 0
+    account_reactivation_rate: float = 0.0
+    contracts_renewed_count: int = 0
+    contract_renewal_rate: float = 0.0
+
+
+class SignalRevenueMetrics(BaseModel):
+    influenced_pipeline_total: Decimal = Decimal("0.00")
+    weighted_influenced_pipeline_total: Decimal = Decimal("0.00")
+    protected_revenue_total: Decimal = Decimal("0.00")
+    currency: str = "USD"
+    value_coverage_rate: float = 0.0
+
+
+class SignalMetricsBreakdownItem(BaseModel):
+    key: str
+    label: str
+    category: str | None = None
+    severity: str | None = None
+    total_detected: int = 0
+    actioned_count: int = 0
+    dismissed_count: int = 0
+    action_rate: float = 0.0
+    mean_time_to_action_hours: float | None = None
+    opportunities_created_count: int = 0
+    influenced_pipeline: Decimal = Decimal("0.00")
+
+
+class SignalMetricsResponse(BaseModel):
+    lookback_days: int
+    evaluated_at: datetime
+    quality: SignalQualityMetrics
+    latency: SignalLatencyMetrics
+    outcomes: SignalOutcomeMetrics
+    revenue: SignalRevenueMetrics
+    by_signal: list[SignalMetricsBreakdownItem] = Field(default_factory=list)
+    by_category: list[SignalMetricsBreakdownItem] = Field(default_factory=list)
+    by_severity: list[SignalMetricsBreakdownItem] = Field(default_factory=list)

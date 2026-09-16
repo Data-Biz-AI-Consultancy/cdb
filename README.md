@@ -67,8 +67,12 @@ Pipeline & Engagements (CRM Lifecycle)       │
     ├── Engagements ─────────────────────────┤
     │   (active jobs & client delivery)      │
     │                                        │
-    └── Signals Radar ───────────────────────┘
-        (opportunity & risk detection triage)
+    └── Signals Radar ───────────────────────┤
+        (opportunity & risk detection triage)│
+                                             │
+Analytics (Intelligence & ROI)               │
+    └── Signal Performance & ROI ────────────┘
+        (precision, MTTA & revenue impact)
 ```
 
 ---
@@ -112,7 +116,9 @@ Pipeline & Engagements (CRM Lifecycle)       │
 * **Multi-Entity Conflict Detection**: Automated conflict detector flags contradictory polarities across Company (e.g. dormant account vs new funding), Opportunity (e.g. contract renewal vs competitor displacement), and Person (e.g. unanswered thread vs leadership change) scopes, preventing ill-informed outreach.
 * **Intelligent Stateful Tagging (`detected_signals` & `detected_signal_persons`)**: Bridge/fact table linking active signal events directly to Companies, Persons, Opportunities, Engagements, and triggering Activity evidence with structured JSON evidence contracts. Supports native multi-person signal connectivity via `detected_signal_persons` for group touchpoints and conversations, and guarantees affected account attribution (`company_id` and `company_name`) on every detected signal.
 * **Multi-Source Detection Engine**: Idempotent scanner detecting signals across activity touchpoints, active delivery engagements, contract milestones, and structured company enrichment data (e.g. funding rounds, headcount growth). Runs via on-demand API/UI sweeps as well as scheduled background execution via Celery Beat (every 6 hours).
-* **Signals Radar & Detail Investigation Web UI (`/signals`, `/signals/[id]`)**: Fast, streamlined triage dashboard featuring a **3-Column Command Center** (`🟢 Opportunities`, `🔴 Risks`, `🟡 Hybrid & Conflicts`) with minimal scannable cards on `/signals` for rapid team triage (`Acknowledge`, `Take Action`, `Dismiss`), user-selectable sorting controls (**Sort: Newest First (Default)**, **Highest Severity**, **Highest Confidence**, **Lowest Confidence**, **Oldest First**), dedicated filtering tabs (**All Active**, **⚠️ Conflicting Signals**, **🔍 Needs Verification**, **Signal Dimension Catalog**), and deep-dive investigation pages on `/signals/[id]` presenting full supporting evidence dossiers, multi-entity conflict analysis, uncertainty rationale, and playbook recommendations.
+* **Signals Radar & Detail Investigation Web UI (`/signals`, `/signals/[id]`)**: Fast, streamlined triage dashboard featuring a **3-Column Command Center** (`🟢 Opportunities`, `🔴 Risks`, `🟡 Hybrid & Conflicts`) with minimal scannable cards on `/signals` for rapid team triage (`Acknowledge`, `Take Action`, `Dismiss`), user-selectable sorting controls (**Sort: Newest First (Default)**, **Highest Severity**, **Highest Confidence**, **Lowest Confidence**, **Oldest First**), dedicated filtering tabs (**All Active**, **⚠️ Conflicting Signals**, **🔍 Needs Verification**, **📊 Success & Quality Metrics**, **Signal Dimension Catalog**), and deep-dive investigation pages on `/signals/[id]` presenting full supporting evidence dossiers, multi-entity conflict analysis, uncertainty rationale, and playbook recommendations.
+* **Standalone Analytics & ROI Portal (`/analytics`)**: Dedicated executive and operational intelligence page accessible directly from the top navigation. Displays primary KPI summary cards (Action/Acceptance Rate, MTTA turnaround latency with SLA breach rates, Influenced & Protected Pipeline Revenue, and 90-day downstream opportunity & account reactivation conversions), precision proxies, dynamic lookback timeframes (30d, 90d, 180d, 1y, 2y), and breakdowns by signal rule, category, and severity.
+* **Success & Quality Metrics Framework (`GET /api/v1/signals/metrics`)**: Multi-dimensional measurement layer tracking detection precision, action/dismissal acceptance rates, triage latency (mean & median MTTA, SLA breach tracking), 90-day downstream opportunity creation & account reactivation conversion rates, and influenced/protected revenue attribution.
 * **Account-Centric Surfacing (`/companies/[id]`)**: High-visibility **Active Opportunity & Risk Signals** alert banners and a dedicated **⚡ Signals** tab directly on company profiles, presenting severity badges, evidence excerpts, and one-click triage links.
 
 ---

@@ -22,6 +22,7 @@ src/frontend/
 │   │   ├── opportunities/        # Pipeline & Engagements: Deal & Partnership Kanban/List
 │   │   ├── engagements/          # Pipeline & Engagements: Active Client Engagements
 │   │   ├── signals/              # Pipeline & Engagements: Signals Radar & Detail Investigation (/signals, /signals/[id])
+│   │   ├── analytics/            # Analytics: Signal Performance, SLA Latency & Revenue ROI (/analytics)
 │   │   ├── ingestion/            # Settings: Data Intake & File Upload Portal (LinkedIn/CSV/Notion)
 │   │   └── settings/             # Settings: System, API Keys & Platform Configurations
 │   │
@@ -48,7 +49,7 @@ src/frontend/
 
 ## 🧭 Grouped Navigation Hierarchy
 
-The application navigation is organized into 3 clear functional categories:
+The application navigation is organized into 4 clear functional categories:
 
 1. **Directory**
    - **Persons** (`/persons`, `/persons/[id]`): Golden records of natural persons, contact intelligence, segment badges, engagement temperature, full history timeline (LinkedIn messages, Notion meeting notes, emails, calls), employment history, attached opportunities, attached leads, and the **`person_history` audit changelog** with field-level diffs and action dimensions.
@@ -60,9 +61,12 @@ The application navigation is organized into 3 clear functional categories:
    - **Leads** (`/leads`): Interest qualification funnel (`New` → `Contacted` → `Qualified` → `Converted`) with conversation transcript & description viewer, default recency sorting (most recent lead first), signal strength badges, search, and one-click opportunity conversion modal.
    - **Opportunities** (`/opportunities`): Interactive drag-and-drop Kanban deal pipeline with pipeline forecasting KPIs (Active Pipeline, Confidence-Adjusted Weighted Value, Win Rate %), first-class Title & Description fields, Confidence Level meters, automated Stale (30d+) & Expired (90d+) inactivity alerts, overdue resolution target warnings (`🚨 Overdue`), attached contact persons & companies management, and a complete opportunity history (audit log & activity timeline).
    - **Client Engagements** (`/engagements`, `/engagements/[id]`): Workspace for ongoing client projects and contracted delivery work. Connects client organization, attached contact person(s) with roles, signed contracts (ID / URL link / status / signed date), key terms & conditions (T&Cs), billing rates (daily, hourly, monthly, fixed), total contract budgets, timeline countdowns, and linked Notion meeting notes & activity feeds.
-    - **Signals Radar & Detail Investigation** (`/signals`, `/signals/[id]`): Real-time Opportunity & Risk Signals Radar scanning dormant strategic accounts, unanswered conversations, expiring contracts, leadership changes, market events (hiring/funding), and competitor signals. Features a **3-Column Command Center** layout on `/signals` that cleanly splits detected signals into dedicated side-by-side columns: **🟢 Opportunities** (upside & expansion momentum), **🟡 Mixed** (opposing polarities & ambiguity), and **🔴 Risks** (loss prevention & churn threats). Includes user-selectable sorting controls (**Sort: Newest First (Default)**, **Highest Severity**, **Highest Confidence**, **Lowest Confidence**, **Oldest First**), quick triage actions (`Acknowledge`, `Take Action`, `Dismiss`), dedicated filtering tabs (**All Active Signals**, **⚠️ Conflicting Signals**, **🔍 Needs Verification**, and **Signal Dimension Catalog**), and a comprehensive single-signal investigation dossier on `/signals/[id]` featuring supporting evidence contracts, multi-entity conflict analysis across Company, Opportunity, and Person scopes, classification uncertainty rationale, actionable advisory playbooks, direct entity navigation (`/persons/[id]`, `/companies/[id]`), and native multi-person signal connectivity via `connected_persons` rendering individual cards, role tags, and direct links for each participant.
+   - **Signals Radar & Detail Investigation** (`/signals`, `/signals/[id]`): Real-time Opportunity & Risk Signals Radar scanning dormant strategic accounts, unanswered conversations, expiring contracts, leadership changes, market events (hiring/funding), and competitor signals. Features a **3-Column Command Center** layout on `/signals` that cleanly splits detected signals into dedicated side-by-side columns: **🟢 Opportunities** (upside & expansion momentum), **🟡 Mixed** (opposing polarities & ambiguity), and **🔴 Risks** (loss prevention & churn threats). Includes user-selectable sorting controls (**Sort: Newest First (Default)**, **Highest Severity**, **Highest Confidence**, **Lowest Confidence**, **Oldest First**), quick triage actions (`Acknowledge`, `Take Action`, `Dismiss`), dedicated filtering tabs (**All Active Signals**, **⚠️ Conflicting Signals**, **🔍 Needs Verification**, **📊 Success & Quality Metrics**, and **Signal Dimension Catalog**), and a comprehensive single-signal investigation dossier on `/signals/[id]` featuring supporting evidence contracts, multi-entity conflict analysis across Company, Opportunity, and Person scopes, classification uncertainty rationale, actionable advisory playbooks, direct entity navigation (`/persons/[id]`, `/companies/[id]`), and native multi-person signal connectivity via `connected_persons` rendering individual cards, role tags, and direct links for each participant.
 
-3. **Settings**
+3. **Analytics**
+   - **Signal Performance & ROI** (`/analytics`): Standalone executive and operational intelligence portal for Opportunity & Risk detection. Features dynamic lookback timeframes (30d, 90d default, 180d, 1y, 2y), category filters (Opportunities, Risks, Mixed), primary KPI summary cards (Action/Acceptance Rate, MTTA latency with SLA breach rates, Influenced & Protected Revenue, and 90-day downstream opportunity & account reactivation conversions), precision proxies ($1 - \text{dismissal\_rate}$), and granular breakdowns by individual signal type rule, category, and severity level.
+
+4. **Settings**
    - **Data Ingestion** (`/ingestion`): File upload and intake portal for LinkedIn, Notion, and CSV imports.
    - **System & Platform** (`/settings`): API keys, environment settings, user preferences, and service status.
 

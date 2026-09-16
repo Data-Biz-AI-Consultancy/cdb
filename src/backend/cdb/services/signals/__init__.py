@@ -20,6 +20,7 @@ from cdb.services.signals.detected import (
     list_detected_signals,
     update_detected_signal,
 )
+from cdb.services.signals.metrics import compute_signal_success_metrics
 from cdb.services.signals.orchestrator import evaluate_all_signals
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     "list_detected_signals",
     "get_detected_signal_stats",
     "update_detected_signal",
+    "compute_signal_success_metrics",
     "SIGNAL_CLASSIFICATION_RULES",
     "ConflictScope",
     "SignalConfidenceTier",

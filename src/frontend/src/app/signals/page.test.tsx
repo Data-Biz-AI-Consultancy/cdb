@@ -132,6 +132,91 @@ const mockStats = {
   by_status: { active: 2 },
 };
 
+const mockMetrics = {
+  lookback_days: 90,
+  evaluated_at: '2026-09-16T12:00:00Z',
+  quality: {
+    total_detected: 10,
+    total_actioned: 6,
+    total_dismissed: 2,
+    total_resolved: 1,
+    total_active: 1,
+    action_rate: 0.7,
+    dismissal_rate: 0.2,
+    precision_proxy: 0.8,
+    needs_verification_rate: 0.1,
+    conflict_rate: 0.1,
+  },
+  latency: {
+    mean_time_to_action_hours: 18.5,
+    median_time_to_action_hours: 12.0,
+    sla_breach_count: 1,
+    sla_breach_rate: 0.14,
+    total_actioned_measured: 7,
+  },
+  outcomes: {
+    attribution_window_days: 90,
+    opportunities_created_count: 3,
+    opportunity_conversion_rate: 0.43,
+    account_reactivations_count: 4,
+    account_reactivation_rate: 0.57,
+    contracts_renewed_count: 2,
+    contract_renewal_rate: 1.0,
+  },
+  revenue: {
+    influenced_pipeline_total: '150000.00',
+    weighted_influenced_pipeline_total: '120000.00',
+    protected_revenue_total: '85000.00',
+    currency: 'USD',
+    value_coverage_rate: 1.0,
+  },
+  by_signal: [
+    {
+      key: 'dormant_strategic_account',
+      label: 'Dormant Strategic Account',
+      category: 'risk',
+      severity: 'high',
+      total_detected: 4,
+      actioned_count: 3,
+      dismissed_count: 1,
+      action_rate: 0.75,
+      mean_time_to_action_hours: 14.0,
+      opportunities_created_count: 1,
+      influenced_pipeline: '50000.00',
+    },
+  ],
+  by_category: [
+    {
+      key: 'risk',
+      label: 'Risk',
+      category: 'risk',
+      severity: null,
+      total_detected: 6,
+      actioned_count: 4,
+      dismissed_count: 1,
+      action_rate: 0.67,
+      mean_time_to_action_hours: 16.0,
+      opportunities_created_count: 1,
+      influenced_pipeline: '50000.00',
+    },
+  ],
+  by_severity: [
+    {
+      key: 'high',
+      label: 'High',
+      category: null,
+      severity: 'high',
+      total_detected: 5,
+      actioned_count: 4,
+      dismissed_count: 1,
+      action_rate: 0.8,
+      mean_time_to_action_hours: 15.0,
+      opportunities_created_count: 2,
+      influenced_pipeline: '100000.00',
+    },
+  ],
+};
+
 describe('SignalsPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -141,6 +226,9 @@ describe('SignalsPage Component', () => {
       }
       if (url.includes('/signals/detected/stats')) {
         return Promise.resolve(mockStats);
+      }
+      if (url.includes('/signals/metrics')) {
+        return Promise.resolve(mockMetrics);
       }
       if (url.includes('/signals/detected') && (!options || options.method === 'GET')) {
         return Promise.resolve({ data: mockDetectedSignals });
@@ -448,6 +536,32 @@ describe('SignalsPage Component', () => {
         '/api/v1/signals/evaluate?lookback_days=180',
         expect.objectContaining({ method: 'POST' })
       );
+    });
+  });
+
+  it('renders the Success & Quality Metrics tab with KPIs, MTTA, and breakdown tables', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('📊 Success & Quality Metrics')).toBeInTheDocument();
+    });
+
+    // Switch to Metrics Tab
+    const metricsTabBtn = screen.getByText('📊 Success & Quality Metrics');
+    fireEvent.click(metricsTabBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Signal Performance & Success Metrics')).toBeInTheDocument();
+      // Check Action Rate KPI
+      expect(screen.getByText('70.0%')).toBeInTheDocument();
+      // Check MTTA
+      expect(screen.getByText('18.5 hrs')).toBeInTheDocument();
+      // Check Influenced Pipeline
+      expect(screen.getByText('$150,000')).toBeInTheDocument();
+      // Check Deals Created
+      expect(screen.getByText('3 Deals')).toBeInTheDocument();
+      // Check Breakdown by Signal table
+      expect(screen.getByText('Performance Breakdown by Signal Type')).toBeInTheDocument();
     });
   });
 });

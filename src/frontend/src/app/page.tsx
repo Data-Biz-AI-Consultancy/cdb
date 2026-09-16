@@ -6,7 +6,7 @@ import { apiFetch, ApiResponse } from '@/lib/api';
 
 interface DashboardCard {
   title: string;
-  count: number | string;
+  count?: number | string;
   countSuffix?: string;
   href: string;
   desc: string;
@@ -86,31 +86,16 @@ export default function HomePage() {
 
   const sections: DashboardSection[] = [
     {
-      group: 'Directory',
-      tag: 'Core Entities & Identity Graph',
-      color: 'border-emerald-200 bg-emerald-50/30',
-      tagColor: 'bg-emerald-100 text-emerald-800',
+      group: 'Analytics',
+      tag: 'Intelligence, SLA & Revenue ROI',
+      color: 'border-purple-200 bg-purple-50/30',
+      tagColor: 'bg-purple-100 text-purple-800',
       cards: [
         {
-          title: 'Persons',
-          count: stats.persons,
-          href: '/persons',
-          desc: 'The very first class citizen in CDB',
-          badge: 'Primary',
-        },
-        {
-          title: 'Entity Resolution',
-          count: stats.erQueue,
-          countSuffix: 'in queue',
-          href: '/entity-resolution',
-          desc: 'ML feature to merge different records of the same natural person into the same golden record (e.g. LinkedIn + Substack + Manual ingestion)',
-          badge: 'ML Engine',
-        },
-        {
-          title: 'Companies',
-          count: stats.companies,
-          href: '/companies',
-          desc: 'Potential Clients & peer organizations with historical relationships',
+          title: 'Signal Performance & ROI',
+          href: '/analytics',
+          desc: 'Opportunity & risk detection precision, MTTA latency, downstream deal creation & revenue attribution',
+          badge: 'New',
         },
       ],
     },
@@ -156,6 +141,35 @@ export default function HomePage() {
       ],
     },
     {
+      group: 'Directory',
+      tag: 'Core Entities & Identity Graph',
+      color: 'border-emerald-200 bg-emerald-50/30',
+      tagColor: 'bg-emerald-100 text-emerald-800',
+      cards: [
+        {
+          title: 'Persons',
+          count: stats.persons,
+          href: '/persons',
+          desc: 'The very first class citizen in CDB',
+          badge: 'Primary',
+        },
+        {
+          title: 'Entity Resolution',
+          count: stats.erQueue,
+          countSuffix: 'in queue',
+          href: '/entity-resolution',
+          desc: 'ML feature to merge different records of the same natural person into the same golden record (e.g. LinkedIn + Substack + Manual ingestion)',
+          badge: 'ML Engine',
+        },
+        {
+          title: 'Companies',
+          count: stats.companies,
+          href: '/companies',
+          desc: 'Potential Clients & peer organizations with historical relationships',
+        },
+      ],
+    },
+    {
       group: 'Settings',
       tag: 'Data Pipelines & Platform Health',
       color: 'border-slate-200 bg-slate-50/50',
@@ -163,13 +177,11 @@ export default function HomePage() {
       cards: [
         {
           title: 'Ingestion',
-          count: 'Ready',
           href: '/ingestion',
           desc: 'Intake pipelines for LinkedIn archives, Notion exports, Substack subscriptions, and CSV data',
         },
         {
           title: 'Settings',
-          count: 'Active',
           href: '/settings',
           desc: 'Platform configuration, entity resolution thresholds, database health, and system status',
         },
@@ -239,14 +251,16 @@ export default function HomePage() {
                           </span>
                         )}
                       </div>
-                      <span className="text-2xl font-bold text-slate-900 shrink-0">
-                        {loading ? '...' : card.count}
-                        {card.countSuffix && (
-                          <span className="text-xs font-normal text-slate-500 ml-1">
-                            {card.countSuffix}
-                          </span>
-                        )}
-                      </span>
+                      {card.count !== undefined && (
+                        <span className="text-2xl font-bold text-slate-900 shrink-0">
+                          {loading ? '...' : card.count}
+                          {card.countSuffix && (
+                            <span className="text-xs font-normal text-slate-500 ml-1">
+                              {card.countSuffix}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-600 mt-2.5 leading-relaxed">{card.desc}</p>
                   </div>

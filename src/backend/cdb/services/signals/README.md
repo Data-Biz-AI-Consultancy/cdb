@@ -407,7 +407,39 @@ When detected:
 * `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities, detects conflicts, and returns execution statistics.
 * `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`, `is_uncertain`, `has_conflict`).
 * `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, signal type, plus `total_conflicting` and `total_uncertain`.
+* `GET /api/v1/signals/metrics`: Comprehensive success, quality, operational latency (MTTA), downstream outcomes, and revenue attribution metrics across a configurable lookback window (`lookback_days`, default: 90).
 * `PATCH /api/v1/signals/detected/{id}`: Update signal state (`acknowledged`, `actioned`, `dismissed`) with resolution notes.
+
+---
+
+## 📈 Success & Quality Metrics Framework
+
+CDB defines a multi-dimensional measurement framework to quantify detection accuracy, team responsiveness, downstream deal creation, and revenue impact across a **90-day correlation window**:
+
+### 1. Quality & Precision Metrics
+- **Action / Acceptance Rate**: $\frac{\text{Total Actioned} + \text{Total Resolved}}{\text{Total Detected}}$ — measures commercial relevance and team adoption.
+- **Dismissal Rate**: $\frac{\text{Total Dismissed}}{\text{Total Detected}}$ — percentage of signals closed without action.
+- **Precision Proxy**: $1 - \text{Dismissal Rate}$ — pragmatic indicator of detection rule accuracy and noise suppression.
+- **Needs-Verification Rate**: $\frac{\text{Uncertain Signals}}{\text{Total Detected}}$ — tracks classifier ambiguity and data completeness.
+- **Conflict Rate**: $\frac{\text{Conflicting Signals}}{\text{Total Detected}}$ — tracks multi-entity opposing commercial signals.
+
+### 2. Operational Latency (Time-to-Action)
+- **Mean Time-to-Action (MTTA)**: $\text{AVG}(\text{actioned\_at} - \text{detected\_at})$ in hours/days.
+- **Median Time-to-Action (p50)**: Midpoint response turnaround unaffected by historical outliers.
+- **SLA Breach Rate**: For high-urgency signals like `unanswered_conversation` (warning SLA: 72h / 3 days), percentage of signals taking $> 72\text{h}$ to action.
+
+### 3. Downstream Outcomes & 90-Day Attribution
+- **Signal-to-Opportunity Conversion**: Actioned opportunity signals where a new `Opportunity` was created on the associated `company_id` within 90 days after `actioned_at`.
+- **Account Reactivations**: Actioned risk signals where a new client touchpoint (`Activity`) was logged for that account within 90 days after `actioned_at`.
+- **Contract Renewals**: Actioned `expiring_contract` signals where the client engagement was renewed or maintained active status.
+
+### 4. Revenue & Pipeline Impact
+- **Influenced Pipeline**: $\sum \text{Opportunity.value}$ for opportunities created within the 90-day window following an actioned signal on the account.
+- **Weighted Pipeline Forecast**: $\sum (\text{Opportunity.value} \times \frac{\text{probability}}{100})$.
+- **Protected Revenue**: $\sum \text{Engagement.total\_value}$ for contracts renewed after an expiring contract signal triage.
+- **Value Coverage %**: Percentage of attributed records having non-null contract or deal valuations.
+
+---
 
 ### Automated Background Execution (Celery Beat)
 * **Periodic Schedule**: Configured in `celery_app.py` under `evaluate-signals-periodic`.

@@ -18,6 +18,7 @@ describe('SimpleNav Component', () => {
     expect(screen.getByText('Overview')).toBeInTheDocument();
     expect(screen.getByText('Directory')).toBeInTheDocument();
     expect(screen.getByText('Pipeline & Engagements')).toBeInTheDocument();
+    expect(screen.getByText('Analytics')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
@@ -47,6 +48,12 @@ describe('SimpleNav Component', () => {
     expect(screen.getByText('Opportunities')).toBeInTheDocument();
     expect(screen.getByText('Engagements')).toBeInTheDocument();
     expect(screen.getByText('Signals Radar')).toBeInTheDocument();
+
+    // Open Analytics dropdown
+    const analyticsBtn = screen.getByText('Analytics');
+    fireEvent.click(analyticsBtn);
+
+    expect(screen.getByText('Signal Performance & ROI')).toBeInTheDocument();
 
     // Open Settings dropdown
     const settingsBtn = screen.getByText('Settings');
