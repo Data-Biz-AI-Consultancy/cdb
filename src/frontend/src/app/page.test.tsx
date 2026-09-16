@@ -20,16 +20,13 @@ describe('HomePage Dashboard Overview', () => {
     expect(screen.getByText('View Persons')).toBeInTheDocument();
   });
 
-  it('renders all three categorized visual sections with cards', () => {
+  it('renders all four categorized visual sections with cards in prioritized order', () => {
     render(<HomePage />);
 
-    // Section 1: Directory
-    expect(screen.getByText('Directory')).toBeInTheDocument();
-    expect(screen.getByText('Core Entities & Identity Graph')).toBeInTheDocument();
-    expect(screen.getByText('Persons')).toBeInTheDocument();
-    expect(screen.getByText('The very first class citizen in CDB')).toBeInTheDocument();
-    expect(screen.getByText('Entity Resolution')).toBeInTheDocument();
-    expect(screen.getByText('Companies')).toBeInTheDocument();
+    // Section 1: Analytics
+    expect(screen.getByText('Analytics')).toBeInTheDocument();
+    expect(screen.getByText('Intelligence, SLA & Revenue ROI')).toBeInTheDocument();
+    expect(screen.getByText('Signal Performance & ROI')).toBeInTheDocument();
 
     // Section 2: Pipeline & Engagements
     expect(screen.getByText('Pipeline & Engagements')).toBeInTheDocument();
@@ -40,10 +37,13 @@ describe('HomePage Dashboard Overview', () => {
     expect(screen.getByText('Engagements')).toBeInTheDocument();
     expect(screen.getByText('Signals Radar')).toBeInTheDocument();
 
-    // Section 3: Analytics
-    expect(screen.getByText('Analytics')).toBeInTheDocument();
-    expect(screen.getByText('Intelligence, SLA & Revenue ROI')).toBeInTheDocument();
-    expect(screen.getByText('Signal Performance & ROI')).toBeInTheDocument();
+    // Section 3: Directory
+    expect(screen.getByText('Directory')).toBeInTheDocument();
+    expect(screen.getByText('Core Entities & Identity Graph')).toBeInTheDocument();
+    expect(screen.getByText('Persons')).toBeInTheDocument();
+    expect(screen.getByText('The very first class citizen in CDB')).toBeInTheDocument();
+    expect(screen.getByText('Entity Resolution')).toBeInTheDocument();
+    expect(screen.getByText('Companies')).toBeInTheDocument();
 
     // Section 4: Settings
     expect(screen.getAllByText('Settings').length).toBeGreaterThanOrEqual(2);
