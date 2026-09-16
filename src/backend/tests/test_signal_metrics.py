@@ -190,3 +190,83 @@ async def test_signal_metrics_api_endpoint(
     assert data["quality"]["total_detected"] >= 1
     assert data["quality"]["total_actioned"] >= 1
     assert data["latency"]["mean_time_to_action_hours"] == 24.0
+
+
+@pytest.mark.asyncio
+async def test_compute_signal_metrics_reactivations_renewals_and_sla_breach(
+    db_session: AsyncSession,
+):
+    from cdb.models.engagement import Engagement
+
+    await ensure_signals_dimension(db_session)
+    now = datetime.datetime.now(datetime.UTC)
+
+    company = Company(name="Renewal Corp", domain="renewalcorp.com")
+    db_session.add(company)
+    await db_session.flush()
+
+    # 1. Unanswered conversation with SLA breach (>72h)
+    det_at_1 = now - datetime.timedelta(days=15)
+    act_at_1 = det_at_1 + datetime.timedelta(hours=80)  # > 72h SLA breach
+
+    sig1 = DetectedSignal(
+        signal_id="unanswered_conversation",
+        company_id=company.id,
+        status="actioned",
+        severity="critical",
+        title="Unanswered thread",
+        detected_at=det_at_1,
+        actioned_at=act_at_1,
+        metadata_payload={},
+    )
+    db_session.add(sig1)
+
+    # 2. Risk signal followed by reactivation activity
+    act = Activity(
+        company_id=company.id,
+        type="email",
+        source="manual",
+        occurred_at=act_at_1 + datetime.timedelta(days=2),
+        title="Re-engagement email",
+    )
+    db_session.add(act)
+
+    # 3. Expiring contract renewed within 90 days
+    det_at_2 = now - datetime.timedelta(days=12)
+    act_at_2 = det_at_2 + datetime.timedelta(hours=12)
+    sig2 = DetectedSignal(
+        signal_id="expiring_contract",
+        company_id=company.id,
+        status="actioned",
+        severity="high",
+        title="Expiring retainer",
+        detected_at=det_at_2,
+        actioned_at=act_at_2,
+        metadata_payload={},
+    )
+    db_session.add(sig2)
+
+    eng = Engagement(
+        company_id=company.id,
+        title="Retainer Extension 2026",
+        status="active",
+        contract_status="signed",
+        total_value=Decimal("120000.00"),
+        signed_at=act_at_2.date(),
+    )
+    db_session.add(eng)
+
+    await db_session.commit()
+
+    # Compute metrics
+    metrics = await compute_signal_success_metrics(
+        db_session,
+        lookback_days=90,
+    )
+
+    assert metrics.quality.total_detected == 2
+    assert metrics.quality.total_actioned == 2
+    assert metrics.latency.sla_breach_count == 1
+    assert metrics.outcomes.account_reactivations_count >= 1
+    assert metrics.outcomes.contracts_renewed_count >= 1
+    assert metrics.revenue.protected_revenue_total == Decimal("120000.00")
