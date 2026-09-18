@@ -30,6 +30,11 @@ from cdb.services.signals.classification.polarity import (
     SignalPolarity,
     resolve_signal_effective_polarity,
 )
+from cdb.services.signals.classification.prioritization import (
+    PriorityBreakdown,
+    SignalPriorityTier,
+    calculate_signal_priority,
+)
 from cdb.services.signals.classification.rules import (
     SIGNAL_CLASSIFICATION_RULES,
     ClassificationRule,
@@ -38,6 +43,8 @@ from cdb.services.signals.classification.rules import (
 __all__ = [
     "SignalPolarity",
     "SignalConfidenceTier",
+    "SignalPriorityTier",
+    "PriorityBreakdown",
     "EvidenceStatus",
     "ConflictScope",
     "CONFIDENCE_HIGH_THRESHOLD",
@@ -48,6 +55,7 @@ __all__ = [
     "build_signal_meta",
     "determine_evidence_status",
     "assess_confidence",
+    "calculate_signal_priority",
     "resolve_signal_effective_polarity",
     "detect_signal_conflicts",
     "apply_conflict_metadata",

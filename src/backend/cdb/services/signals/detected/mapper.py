@@ -151,6 +151,24 @@ def to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
     elif raw_evidence is not None:
         evidence_payload = raw_evidence
 
+    priority_score = sig.score
+    priority_tier = meta.get("priority_tier")
+    effective_polarity = meta.get("effective_polarity")
+    priority_breakdown = meta.get("priority_breakdown")
+
+    # If priority tier is not explicitly in metadata, infer from score
+    if not priority_tier and priority_score is not None:
+        if priority_score >= 90:
+            priority_tier = "P0"
+        elif priority_score >= 75:
+            priority_tier = "P1"
+        elif priority_score >= 50:
+            priority_tier = "P2"
+        elif priority_score >= 25:
+            priority_tier = "P3"
+        else:
+            priority_tier = "P4"
+
     return DetectedSignalResponse(
         id=sig.id,
         signal_id=sig.signal_id,
@@ -169,6 +187,10 @@ def to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         status=DetectedSignalStatus(sig.status),
         severity=SignalSeverity(sig.severity),
         score=sig.score,
+        priority_score=priority_score,
+        priority_tier=priority_tier,
+        effective_polarity=effective_polarity,
+        priority_breakdown=priority_breakdown,
         confidence_score=conf_score,
         confidence_tier=meta.get("confidence_tier"),
         is_uncertain=meta.get("is_uncertain", False),
