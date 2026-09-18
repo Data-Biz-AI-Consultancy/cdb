@@ -1,3 +1,11 @@
+# [1.33.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.32.0...v1.33.0) (2026-09-18)
+
+
+### Features
+
+* implement signal deduplication, evidence fingerprinting, snooze lifecycle, and account-level grouping views ([86db6aa](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/86db6aa412118139671cdc28078748fa5ae3d2ac))
+* improve evidence fingerprinting with set sorting and float rounding ([9023fd1](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/9023fd1fe9c5b79f921b1dcbb15408e41f5fd993))
+
 # [1.32.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.31.0...v1.32.0) (2026-09-16)
 
 
