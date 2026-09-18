@@ -1,3 +1,10 @@
+# [1.34.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.33.0...v1.34.0) (2026-09-18)
+
+
+### Features
+
+* add structured supporting evidence schema and frontend health badges for signals ([4ac375a](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/4ac375a6fd3abf15f81040ba202c6ee7d2901159))
+
 # [1.33.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.32.0...v1.33.0) (2026-09-18)
 
 
