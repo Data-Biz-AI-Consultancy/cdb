@@ -279,3 +279,161 @@ async def test_api_snooze_and_bulk_status(
     grouped_data = grouped_resp.json()
     assert grouped_data["total_groups"] >= 1
     assert any(g["company_id"] == str(company.id) for g in grouped_data["data"])
+
+
+@pytest.mark.asyncio
+async def test_fingerprint_edge_cases():
+    from enum import StrEnum
+
+    class SampleEnum(StrEnum):
+        VAL_A = "val_a"
+        VAL_B = "val_b"
+
+    # Test with mixed types, None, sets, floats, enums
+    payload_1 = {
+        "float_val": 12.3456789,
+        "none_val": None,
+        "list_val": [3, 2, 1],
+        "set_val": {"x", "y"},
+        "nested": {"b": 2, "a": 1},
+        "enum_val": SampleEnum.VAL_A,
+    }
+    payload_2 = {
+        "enum_val": "val_a",
+        "nested": {"a": 1, "b": 2},
+        "set_val": {"y", "x"},
+        "list_val": [3, 2, 1],
+        "none_val": None,
+        "float_val": 12.34567,  # rounds to 12.3457
+    }
+    fp1 = compute_evidence_fingerprint("test_signal", target_id="t1", evidence=payload_1)
+    fp2 = compute_evidence_fingerprint("test_signal", target_id="t1", evidence=payload_2)
+    assert fp1 == fp2
+
+    # None evidence should hash cleanly
+    fp_none = compute_evidence_fingerprint("test_signal", target_id="t1", evidence=None)
+    assert isinstance(fp_none, str)
+    assert len(fp_none) == 64
+
+
+@pytest.mark.asyncio
+async def test_bulk_status_lifecycle_all_transitions(
+    client: AsyncClient, db_session: AsyncSession, auth_headers: dict[str, str]
+):
+    await ensure_signals_dimension(db_session)
+    company = Company(name="Omega Corp", domain="omega.corp")
+    db_session.add(company)
+    await db_session.flush()
+
+    s1, _ = await upsert_detected_signal(
+        db_session,
+        signal_id="dormant_strategic_account",
+        title="Dormant: Omega Corp",
+        severity="high",
+        company_id=company.id,
+    )
+    s2, _ = await upsert_detected_signal(
+        db_session,
+        signal_id="unanswered_conversation",
+        title="Unanswered: Omega Contact",
+        severity="medium",
+        company_id=company.id,
+    )
+    await db_session.commit()
+
+    # 1. Bulk Acknowledge
+    resp_ack = await client.post(
+        "/api/v1/signals/detected/bulk-status",
+        json={"signal_ids": [str(s1.id), str(s2.id)], "status": "acknowledged"},
+        headers=auth_headers,
+    )
+    assert resp_ack.status_code == 200
+    assert resp_ack.json()["updated_count"] == 2
+
+    # 2. Bulk Resolve with notes
+    resp_res = await client.post(
+        "/api/v1/signals/detected/bulk-status",
+        json={
+            "signal_ids": [str(s1.id), str(s2.id)],
+            "status": "resolved",
+            "resolution_notes": "Handled in pipeline meeting",
+        },
+        headers=auth_headers,
+    )
+    assert resp_res.status_code == 200
+    assert resp_res.json()["updated_count"] == 2
+
+    # 3. Bulk Snooze with custom date
+    future_dt = (datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=21)).isoformat()
+    resp_snz = await client.post(
+        "/api/v1/signals/detected/bulk-status",
+        json={
+            "signal_ids": [str(s1.id)],
+            "status": "snoozed",
+            "snoozed_until": future_dt,
+            "resolution_notes": "Snoozed for 3 weeks",
+        },
+        headers=auth_headers,
+    )
+    assert resp_snz.status_code == 200
+    assert resp_snz.json()["updated_count"] == 1
+
+    # 4. Bulk Action with non-existent ID ignores missing gracefully
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp_mixed = await client.post(
+        "/api/v1/signals/detected/bulk-status",
+        json={"signal_ids": [str(s2.id), fake_id], "status": "actioned"},
+        headers=auth_headers,
+    )
+    assert resp_mixed.status_code == 200
+    assert resp_mixed.json()["updated_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_grouped_signals_filtering_and_search(
+    client: AsyncClient, db_session: AsyncSession, auth_headers: dict[str, str]
+):
+    await ensure_signals_dimension(db_session)
+    comp_a = Company(name="Alpha Holdings", domain="alpha.com")
+    comp_b = Company(name="Zeta Partners", domain="zeta.com")
+    db_session.add_all([comp_a, comp_b])
+    await db_session.flush()
+
+    # Create signals for both companies
+    await upsert_detected_signal(
+        db_session,
+        signal_id="dormant_strategic_account",
+        title="Dormant: Alpha Holdings",
+        severity="high",
+        company_id=comp_a.id,
+    )
+    await upsert_detected_signal(
+        db_session,
+        signal_id="competitor_signal",
+        title="Competitor threat: Zeta Partners",
+        severity="critical",
+        company_id=comp_b.id,
+    )
+    await db_session.commit()
+
+    # Filter by comp_a company_id
+    resp_alpha = await client.get(
+        "/api/v1/signals/detected/grouped",
+        params={"company_id": str(comp_a.id)},
+        headers=auth_headers,
+    )
+    assert resp_alpha.status_code == 200
+    data_alpha = resp_alpha.json()
+    assert any(g["group_name"] == "Alpha Holdings" for g in data_alpha["data"])
+    assert not any(g["group_name"] == "Zeta Partners" for g in data_alpha["data"])
+
+    # Filter by severity "critical"
+    resp_crit = await client.get(
+        "/api/v1/signals/detected/grouped",
+        params={"severity": "critical"},
+        headers=auth_headers,
+    )
+    assert resp_crit.status_code == 200
+    data_crit = resp_crit.json()
+    assert any(g["group_name"] == "Zeta Partners" for g in data_crit["data"])
+    assert not any(g["group_name"] == "Alpha Holdings" for g in data_crit["data"])

@@ -14,8 +14,12 @@ def _normalize_dict(d: Any) -> Any:
     """Recursively normalizes dictionary values for canonical JSON serialization."""
     if isinstance(d, dict):
         return {str(k): _normalize_dict(v) for k, v in sorted(d.items())}
-    elif isinstance(d, list | tuple | set):
+    elif isinstance(d, set):
+        return [_normalize_dict(x) for x in sorted(d, key=lambda item: str(item))]
+    elif isinstance(d, list | tuple):
         return [_normalize_dict(x) for x in d]
+    elif isinstance(d, float):
+        return round(d, 4)
     elif d is None:
         return None
     return str(d)
