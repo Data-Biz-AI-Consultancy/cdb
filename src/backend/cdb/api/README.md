@@ -1326,7 +1326,7 @@ Computes comprehensive success, quality, operational latency (MTTA), downstream 
 
 ### `GET /signals/detected/stats`
 
-Retrieve real-time aggregate count metrics of active detected signals by severity, category, and signal type, including conflicting signals and uncertain signals needing verification.
+Retrieve real-time aggregate count metrics of active detected signals by severity, category, signal type, priority tier, and effective polarity, including conflicting signals and uncertain signals needing verification.
 
 **Query params:**
 - `lookback_days`: Optional lookback window in days (`1` to `730`)
@@ -1339,6 +1339,8 @@ Retrieve real-time aggregate count metrics of active detected signals by severit
   "total_uncertain": 1,
   "by_severity": { "critical": 3, "high": 7, "medium": 2 },
   "by_category": { "risk": 7, "opportunity": 3, "hybrid": 2 },
+  "by_priority_tier": { "P0": 2, "P1": 5, "P2": 3, "P3": 2, "P4": 0 },
+  "by_effective_polarity": { "risk": 7, "opportunity": 5 },
   "by_signal": { "dormant_strategic_account": 3, "unanswered_conversation": 2 },
   "by_status": { "active": 12, "acknowledged": 2, "actioned": 5 }
 }
@@ -1346,9 +1348,12 @@ Retrieve real-time aggregate count metrics of active detected signals by severit
 
 ### `GET /signals/detected`
 
-List detected signal event instances (paginated) with multi-dimensional filtering, confidence scoring, supporting evidence, deduplication fingerprints, and conflict detection.
+List detected signal event instances (paginated) ranked by **Business Impact Priority** by default, with multi-dimensional filtering, confidence scoring, supporting evidence, deduplication fingerprints, and conflict detection.
 
 **Query params:**
+- `sort_by`: Sort ordering (`priority` [default, highest business impact score first], `detected_at`, `severity`, `confidence_score`)
+- `priority_tier`: Filter by operational priority tier (`P0`, `P1`, `P2`, `P3`, `P4`)
+- `effective_polarity`: Filter by resolved polarity (`opportunity`, `risk`)
 - `signal_id`: Filter by signal slug ID
 - `category`: Filter by category (`opportunity`, `risk`, `hybrid`)
 - `status`: Filter by status (`active`, `acknowledged`, `actioned`, `snoozed`, `dismissed`, `resolved`)
@@ -1390,6 +1395,17 @@ List detected signal event instances (paginated) with multi-dimensional filterin
   "reopen_count": 0,
   "last_reopened_at": null,
   "severity": "high",
+  "priority_score": 88,
+  "priority_tier": "P1",
+  "effective_polarity": "risk",
+  "priority_breakdown": {
+    "account_importance": 25,
+    "relationship_context": 18,
+    "urgency": 25,
+    "business_impact": 20,
+    "composite_score": 88,
+    "rationale": "High business risk on Tier 1 strategic account. Dormancy SLA breach (>75d)."
+  },
   "title": "Dormant Strategic Account: Acme Corp",
   "summary": "No activity recorded in 75 days.",
   "confidence_score": 0.85,

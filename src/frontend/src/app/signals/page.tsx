@@ -76,6 +76,19 @@ export interface SupportingEvidence {
   verification_status?: string;
 }
 
+export type PriorityTier = 'P0' | 'P1' | 'P2' | 'P3' | 'P4';
+
+export interface PriorityBreakdown {
+  account_importance_score: number;
+  relationship_context_score: number;
+  urgency_score: number;
+  business_impact_score: number;
+  total_score: number;
+  priority_tier: PriorityTier;
+  effective_polarity: string;
+  impact_rationale: string;
+}
+
 export interface DetectedSignal {
   id: string;
   signal_id: string;
@@ -94,6 +107,10 @@ export interface DetectedSignal {
   status: DetectedSignalStatus;
   severity: SignalSeverity;
   score?: number | null;
+  priority_score?: number | null;
+  priority_tier?: PriorityTier | string | null;
+  effective_polarity?: 'opportunity' | 'risk' | string | null;
+  priority_breakdown?: PriorityBreakdown | Record<string, any> | null;
   confidence_score?: number | null;
   confidence_tier?: 'high' | 'medium' | 'low' | string | null;
   is_uncertain?: boolean;
@@ -261,7 +278,8 @@ export default function SignalsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [signalTypeFilter, setSignalTypeFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<string>('newest');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('priority');
   const [lookbackDays, setLookbackDays] = useState<number>(90);
 
   // Dynamic catalog options based on active category filter
@@ -291,7 +309,7 @@ export default function SignalsPage() {
       const [catRes, sigRes, statRes, metricsRes] = await Promise.allSettled([
         apiFetch<SignalCatalogResponse>('/api/v1/signals/catalog'),
         apiFetch<ApiResponse<DetectedSignal[]>>(
-          `/api/v1/signals/detected?page_size=200&lookback_days=${lookback}`
+          `/api/v1/signals/detected?page_size=200&lookback_days=${lookback}&sort_by=priority`
         ),
         apiFetch<DetectedSignalStatsResponse>(
           `/api/v1/signals/detected/stats?lookback_days=${lookback}`
@@ -547,6 +565,26 @@ export default function SignalsPage() {
         }
       }
 
+      // Priority Tier filter
+      if (priorityFilter !== 'all') {
+        const pTier = (
+          s.priority_tier ||
+          s.metadata?.priority_tier ||
+          (s.score && s.score >= 90
+            ? 'P0'
+            : s.score && s.score >= 75
+            ? 'P1'
+            : s.score && s.score >= 50
+            ? 'P2'
+            : s.score && s.score >= 25
+            ? 'P3'
+            : 'P4')
+        )?.toUpperCase();
+        if (pTier !== priorityFilter.toUpperCase()) {
+          return false;
+        }
+      }
+
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -575,6 +613,24 @@ export default function SignalsPage() {
 
     // Sorting
     return list.sort((a, b) => {
+      if (sortBy === 'priority') {
+        const scoreA =
+          a.priority_score !== undefined && a.priority_score !== null
+            ? Number(a.priority_score)
+            : a.score !== undefined && a.score !== null
+            ? Number(a.score)
+            : 0;
+        const scoreB =
+          b.priority_score !== undefined && b.priority_score !== null
+            ? Number(b.priority_score)
+            : b.score !== undefined && b.score !== null
+            ? Number(b.score)
+            : 0;
+        if (scoreB !== scoreA) {
+          return scoreB - scoreA;
+        }
+        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
+      }
       if (sortBy === 'newest') {
         return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
       }
@@ -604,6 +660,7 @@ export default function SignalsPage() {
     categoryFilter,
     severityFilter,
     signalTypeFilter,
+    priorityFilter,
     searchQuery,
     sortBy,
   ]);
@@ -696,6 +753,57 @@ export default function SignalsPage() {
     }
   };
 
+  const getPriorityBadge = (priorityTier?: string | null, effectivePolarity?: string | null) => {
+    const tier = (priorityTier || 'P2').toUpperCase();
+    const pol = (effectivePolarity || '').toLowerCase();
+    const isOpp = pol === 'opportunity';
+
+    switch (tier) {
+      case 'P0':
+        return {
+          tier: 'P0',
+          label: isOpp ? 'P0 • Critical Opportunity' : 'P0 • Critical Risk',
+          shortLabel: 'P0 Critical',
+          className: isOpp
+            ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm font-bold'
+            : 'bg-rose-600 text-white border-rose-700 shadow-sm font-bold',
+        };
+      case 'P1':
+        return {
+          tier: 'P1',
+          label: isOpp ? 'P1 • High Opportunity' : 'P1 • High Risk',
+          shortLabel: 'P1 High',
+          className: isOpp
+            ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold'
+            : 'bg-rose-100 text-rose-900 border-rose-300 font-bold',
+        };
+      case 'P2':
+        return {
+          tier: 'P2',
+          label: isOpp ? 'P2 • Medium Opportunity' : 'P2 • Medium Risk',
+          shortLabel: 'P2 Medium',
+          className: isOpp
+            ? 'bg-teal-50 text-teal-800 border-teal-200 font-semibold'
+            : 'bg-amber-50 text-amber-800 border-amber-200 font-semibold',
+        };
+      case 'P3':
+        return {
+          tier: 'P3',
+          label: isOpp ? 'P3 • Moderate Opportunity' : 'P3 • Moderate Risk',
+          shortLabel: 'P3 Moderate',
+          className: 'bg-slate-100 text-slate-700 border-slate-200 font-medium',
+        };
+      case 'P4':
+      default:
+        return {
+          tier: 'P4',
+          label: 'P4 • Low Impact',
+          shortLabel: 'P4 Low',
+          className: 'bg-slate-50 text-slate-500 border-slate-200 font-normal',
+        };
+    }
+  };
+
   const getEvidenceHealthBadge = (evidenceStatus?: string, isUncertain?: boolean, hasConflict?: boolean) => {
     if (hasConflict || evidenceStatus === 'conflicting') {
       return {
@@ -752,6 +860,36 @@ export default function SignalsPage() {
 
     const healthBadge = getEvidenceHealthBadge(evidenceStatus, sig.is_uncertain, sig.has_conflict);
 
+    const priorityTier =
+      sig.priority_tier ||
+      sig.metadata?.priority_tier ||
+      (sig.score && sig.score >= 90
+        ? 'P0'
+        : sig.score && sig.score >= 75
+        ? 'P1'
+        : sig.score && sig.score >= 50
+        ? 'P2'
+        : sig.score && sig.score >= 25
+        ? 'P3'
+        : 'P4');
+
+    const effPolarity =
+      sig.effective_polarity ||
+      sig.metadata?.effective_polarity ||
+      sig.signal?.category ||
+      columnVariant;
+
+    const priorityBadge = getPriorityBadge(priorityTier, effPolarity);
+    const priorityScore =
+      sig.priority_score !== undefined && sig.priority_score !== null
+        ? Math.round(Number(sig.priority_score))
+        : sig.score !== undefined && sig.score !== null
+        ? Math.round(Number(sig.score))
+        : null;
+
+    const breakdown: PriorityBreakdown | Record<string, any> | undefined =
+      sig.priority_breakdown || sig.metadata?.priority_breakdown;
+
     return (
       <div
         key={sig.id}
@@ -770,6 +908,22 @@ export default function SignalsPage() {
               className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer mr-1"
               title="Select signal for bulk actions"
             />
+
+            {/* Priority Tier & Impact Badge */}
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full border font-bold flex items-center gap-1 ${priorityBadge.className}`}
+              title={
+                breakdown?.impact_rationale ||
+                `Priority Tier: ${priorityTier} (Business Impact Score: ${priorityScore ?? 'N/A'}/100)`
+              }
+            >
+              <span>⭐</span>
+              <span>{priorityBadge.label}</span>
+              {priorityScore !== null && (
+                <span className="opacity-80 font-normal">({priorityScore} pts)</span>
+              )}
+            </span>
+
             <span
               className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${getSeverityBadge(
                 sig.severity
@@ -846,6 +1000,35 @@ export default function SignalsPage() {
               {new Date(sig.detected_at).toLocaleDateString()}
             </span>
           </div>
+
+          {/* Business Impact 4-Dimension Mini Breakdown Meter */}
+          {breakdown && (
+            <div
+              className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-lg text-[10px] text-slate-600"
+              title={breakdown.impact_rationale || 'Business Impact Breakdown'}
+            >
+              <span className="font-semibold text-slate-700">Impact Drivers:</span>
+              <span className="flex items-center gap-0.5">
+                <span className="text-slate-400">Account:</span>
+                <span className="font-bold text-slate-800">{breakdown.account_importance_score ?? 0}/25</span>
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-0.5">
+                <span className="text-slate-400">Relationship:</span>
+                <span className="font-bold text-slate-800">{breakdown.relationship_context_score ?? 0}/25</span>
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-0.5">
+                <span className="text-slate-400">Urgency:</span>
+                <span className="font-bold text-slate-800">{breakdown.urgency_score ?? 0}/25</span>
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-0.5">
+                <span className="text-slate-400">Impact:</span>
+                <span className="font-bold text-slate-800">{breakdown.business_impact_score ?? 0}/25</span>
+              </span>
+            </div>
+          )}
 
           {/* Title and Short Summary */}
           <div>
@@ -1519,13 +1702,29 @@ export default function SignalsPage() {
               </select>
 
               <select
+                id="priority-filter"
+                aria-label="Filter by Priority Tier"
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className="px-3 py-2 text-xs font-semibold bg-amber-50/60 border border-amber-300/80 rounded-lg text-amber-950 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="all">Priority: All Tiers</option>
+                <option value="P0">P0 • Critical Emergency</option>
+                <option value="P1">P1 • High Impact</option>
+                <option value="P2">P2 • Medium Impact</option>
+                <option value="P3">P3 • Moderate Impact</option>
+                <option value="P4">P4 • Low Impact</option>
+              </select>
+
+              <select
                 id="sort-by-filter"
                 aria-label="Sort Signals"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="px-3 py-2 text-xs font-semibold bg-emerald-50/70 border border-emerald-300 rounded-lg text-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="newest">Sort: Newest First (Default)</option>
+                <option value="priority">Sort: Business Impact (Default)</option>
+                <option value="newest">Sort: Newest First</option>
                 <option value="oldest">Sort: Oldest First</option>
                 <option value="severity">Sort: Highest Severity</option>
                 <option value="confidence_desc">Sort: Highest Confidence</option>
@@ -1549,7 +1748,8 @@ export default function SignalsPage() {
                 categoryFilter !== 'all' ||
                 severityFilter !== 'all' ||
                 signalTypeFilter !== 'all' ||
-                sortBy !== 'newest' ||
+                priorityFilter !== 'all' ||
+                sortBy !== 'priority' ||
                 lookbackDays !== 90 ||
                 searchQuery.trim().length > 0) && (
                 <button
@@ -1559,7 +1759,8 @@ export default function SignalsPage() {
                     setCategoryFilter('all');
                     setSeverityFilter('all');
                     setSignalTypeFilter('all');
-                    setSortBy('newest');
+                    setPriorityFilter('all');
+                    setSortBy('priority');
                     setSearchQuery('');
                     setLookbackDays(90);
                     loadData(90);

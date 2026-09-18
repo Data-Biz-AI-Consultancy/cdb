@@ -409,7 +409,7 @@ All core technical specifications are colocated directly alongside their respect
 | **Database Schema** | [`src/backend/db/README.md`](src/backend/db/README.md) | Authoritative PostgreSQL 16 schema reference (core, junction, dimension tables, triggers, indexes) |
 | **API Specification** | [`src/backend/cdb/api/README.md`](src/backend/cdb/api/README.md) | REST API contracts, endpoints, error envelopes, and authentication |
 | **Entity Resolution Engine** | [`src/backend/cdb/services/entity_resolution/README.md`](src/backend/cdb/services/entity_resolution/README.md) | Normalization rules, matching signal hierarchy, and merge precedence |
-| **Opportunity & Risk Signal Catalog** | [`src/backend/cdb/services/signals/README.md`](src/backend/cdb/services/signals/README.md) | Commercial opportunity and churn risk taxonomy, business interpretations, and playbooks |
+| **Opportunity & Risk Signal Catalog** | [`src/backend/cdb/services/signals/README.md`](src/backend/cdb/services/signals/README.md) | Commercial opportunity and churn risk taxonomy, 4-dimension business impact prioritization, playbooks |
 | **Backend Architecture** | [`src/backend/README.md`](src/backend/README.md) | Clean Architecture layer structure, services, models, and workers |
 | **Frontend Architecture** | [`src/frontend/README.md`](src/frontend/README.md) | Next.js 15 App Router structure, categorized navigation, and state patterns |
 | **Scripts & DB Utilities** | [`scripts/README.md`](scripts/README.md) | Production-to-dev clone script and database operations |

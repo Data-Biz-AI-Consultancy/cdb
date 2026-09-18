@@ -444,8 +444,8 @@ describe('SignalsPage Component', () => {
 
     const sortSelect = screen.getByLabelText('Sort Signals') as HTMLSelectElement;
     expect(sortSelect).toBeInTheDocument();
-    expect(sortSelect.value).toBe('newest');
-    expect(screen.getByText('Sort: Newest First (Default)')).toBeInTheDocument();
+    expect(sortSelect.value).toBe('priority');
+    expect(screen.getByText('Sort: Business Impact (Default)')).toBeInTheDocument();
 
     // Switch to Highest Severity
     fireEvent.change(sortSelect, { target: { value: 'severity' } });
@@ -462,7 +462,28 @@ describe('SignalsPage Component', () => {
     // Reset filters restores default sort
     const resetBtn = screen.getByText('Reset filters');
     fireEvent.click(resetBtn);
-    expect(sortSelect.value).toBe('newest');
+    expect(sortSelect.value).toBe('priority');
+  });
+
+  it('filters detected signals by Priority Tier using the priority filter dropdown', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+    });
+
+    const prioritySelect = screen.getByLabelText('Filter by Priority Tier');
+    expect(prioritySelect).toBeInTheDocument();
+
+    // Filter to P0
+    fireEvent.change(prioritySelect, { target: { value: 'P0' } });
+
+    // Reset back to All
+    fireEvent.change(prioritySelect, { target: { value: 'all' } });
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+    });
   });
 
   it('renders multiple connected person pills and supports filtering by connected person name', async () => {

@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.signal import DetectedSignal
+from cdb.services.signals.classification import calculate_signal_priority
 from cdb.services.signals.utils.account import resolve_account_for_signal
 from cdb.services.signals.utils.enrichment import (
     enrich_company_context,
@@ -77,7 +78,54 @@ async def upsert_detected_signal(
             evidence=evidence_dict,
         )
 
-    # 5. Look up existing signal across all lifecycle states
+    # 5. Calculate composite Priority Score & Business Impact Breakdown
+    evidence_obj = metadata_payload.get("evidence") or {}
+    evidence_dict = evidence_obj if isinstance(evidence_obj, dict) else {}
+    company_tier = metadata_payload.get("company_tier") or metadata_payload.get("tier")
+    company_segment = metadata_payload.get("company_segment") or metadata_payload.get("segment")
+    is_client = bool(metadata_payload.get("is_client", False))
+    role = (
+        metadata_payload.get("person_role")
+        or (person_roles.get(str(person_id)) if person_id else None)
+        or evidence_dict.get("relationship_context", {}).get("role")
+    )
+    days_elapsed = (
+        metadata_payload.get("days_inactive")
+        or metadata_payload.get("days_unanswered")
+        or evidence_dict.get("days_elapsed")
+    )
+    days_remaining = metadata_payload.get("days_remaining") or evidence_dict.get(
+        "key_metrics", {}
+    ).get("days_remaining")
+    commercial_value = (
+        metadata_payload.get("commercial_value")
+        or evidence_dict.get("commercial_context", {}).get("rate_value")
+        or (score if score and score > 1.0 else None)
+    )
+
+    priority_res = calculate_signal_priority(
+        signal_id=signal_id,
+        severity=severity,
+        company_tier=company_tier,
+        is_client=is_client,
+        company_segment=company_segment,
+        role=role,
+        connected_persons_count=len(clean_target_ids) if clean_target_ids else 0,
+        is_champion=bool(metadata_payload.get("is_champion", False)),
+        days_elapsed=days_elapsed,
+        days_remaining=days_remaining,
+        commercial_value=commercial_value,
+        metadata_payload=metadata_payload,
+    )
+
+    priority_score = Decimal(str(priority_res.total_score))
+    metadata_payload["priority_tier"] = priority_res.priority_tier.value
+    metadata_payload["effective_polarity"] = priority_res.effective_polarity
+    metadata_payload["priority_breakdown"] = priority_res.model_dump()
+    if score and score <= 1.0:
+        metadata_payload.setdefault("confidence_score", float(score))
+
+    # 6. Look up existing signal across all lifecycle states
     existing = await find_existing_signal_record(
         db,
         signal_id=signal_id,
@@ -88,7 +136,7 @@ async def upsert_detected_signal(
         activity_id=activity_id,
     )
 
-    # 6. Persist, update, suppress, or re-alert signal record
+    # 7. Persist, update, suppress, or re-alert signal record
     target_sig, is_new = await persist_signal_record(
         db,
         existing=existing,
@@ -101,7 +149,7 @@ async def upsert_detected_signal(
         opportunity_id=opportunity_id,
         engagement_id=engagement_id,
         activity_id=activity_id,
-        score=score,
+        score=priority_score,
         evidence_fingerprint=evidence_fingerprint,
         metadata_payload=metadata_payload,
         expires_at=expires_at,

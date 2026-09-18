@@ -37,25 +37,24 @@ async def list_detected_signals(
     engagement_id: uuid.UUID | None = None,
     is_uncertain: bool | None = None,
     has_conflict: bool | None = None,
+    priority_tier: str | None = None,
+    effective_polarity: str | None = None,
+    sort_by: str = "priority",
     lookback_days: int | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[DetectedSignalResponse], int]:
     """
-    Lists detected signals with multi-dimensional filtering.
+    Lists detected signals with multi-dimensional filtering and priority/business impact sorting.
     """
-    stmt: Select = (
-        select(DetectedSignal)
-        .options(
-            selectinload(DetectedSignal.signal),
-            selectinload(DetectedSignal.company),
-            selectinload(DetectedSignal.person),
-            selectinload(DetectedSignal.opportunity),
-            selectinload(DetectedSignal.engagement),
-            selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
-            selectinload(DetectedSignal.connected_persons),
-        )
-        .order_by(DetectedSignal.detected_at.desc())
+    stmt: Select = select(DetectedSignal).options(
+        selectinload(DetectedSignal.signal),
+        selectinload(DetectedSignal.company),
+        selectinload(DetectedSignal.person),
+        selectinload(DetectedSignal.opportunity),
+        selectinload(DetectedSignal.engagement),
+        selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
+        selectinload(DetectedSignal.connected_persons),
     )
 
     if signal_id:
@@ -105,6 +104,61 @@ async def list_detected_signals(
                 DetectedSignal.metadata_payload["has_conflict"].as_boolean() == has_conflict
             )
 
+    if priority_tier is not None:
+        if is_sqlite:
+            stmt = stmt.where(
+                func.json_extract(DetectedSignal.metadata_payload, "$.priority_tier")
+                == priority_tier
+            )
+        else:
+            stmt = stmt.where(
+                DetectedSignal.metadata_payload["priority_tier"].as_string() == priority_tier
+            )
+
+    if effective_polarity is not None:
+        if is_sqlite:
+            stmt = stmt.where(
+                func.json_extract(DetectedSignal.metadata_payload, "$.effective_polarity")
+                == effective_polarity
+            )
+        else:
+            stmt = stmt.where(
+                DetectedSignal.metadata_payload["effective_polarity"].as_string()
+                == effective_polarity
+            )
+
+    # Sort ordering
+    if sort_by == "priority":
+        stmt = stmt.order_by(
+            DetectedSignal.score.desc().nullslast(), DetectedSignal.detected_at.desc()
+        )
+    elif sort_by == "newest":
+        stmt = stmt.order_by(DetectedSignal.detected_at.desc())
+    elif sort_by == "oldest":
+        stmt = stmt.order_by(DetectedSignal.detected_at.asc())
+    elif sort_by == "severity":
+        from sqlalchemy import case
+
+        sev_order = case(
+            (DetectedSignal.severity == "critical", 4),
+            (DetectedSignal.severity == "high", 3),
+            (DetectedSignal.severity == "medium", 2),
+            else_=1,
+        )
+        stmt = stmt.order_by(sev_order.desc(), DetectedSignal.detected_at.desc())
+    elif sort_by == "confidence_desc":
+        stmt = stmt.order_by(
+            DetectedSignal.score.desc().nullslast(), DetectedSignal.detected_at.desc()
+        )
+    elif sort_by == "confidence_asc":
+        stmt = stmt.order_by(
+            DetectedSignal.score.asc().nullslast(), DetectedSignal.detected_at.desc()
+        )
+    else:
+        stmt = stmt.order_by(
+            DetectedSignal.score.desc().nullslast(), DetectedSignal.detected_at.desc()
+        )
+
     # Count total matching records
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.scalar(count_stmt)) or 0
@@ -122,6 +176,8 @@ async def list_grouped_detected_signals(
     status: DetectedSignalStatus | None = None,
     severity: SignalSeverity | None = None,
     company_id: uuid.UUID | None = None,
+    priority_tier: str | None = None,
+    sort_by: str = "priority",
     lookback_days: int | None = None,
     limit: int = 100,
 ) -> GroupedDetectedSignalsResponse:
@@ -135,6 +191,8 @@ async def list_grouped_detected_signals(
         status=status,
         severity=severity,
         company_id=company_id,
+        priority_tier=priority_tier,
+        sort_by=sort_by,
         lookback_days=lookback_days,
         limit=limit,
         offset=0,
@@ -204,6 +262,8 @@ async def get_detected_signal_stats(
     by_category: dict[str, int] = {}
     by_signal: dict[str, int] = {}
     by_status: dict[str, int] = {}
+    by_priority_tier: dict[str, int] = {}
+    by_effective_polarity: dict[str, int] = {}
     total_active = 0
     total_snoozed = 0
     total_conflicting = 0
@@ -218,6 +278,27 @@ async def get_detected_signal_stats(
                 total_conflicting += 1
             if meta.get("is_uncertain"):
                 total_uncertain += 1
+            p_tier = meta.get("priority_tier")
+            if not p_tier and r.score is not None:
+                if r.score >= 90:
+                    p_tier = "P0"
+                elif r.score >= 75:
+                    p_tier = "P1"
+                elif r.score >= 50:
+                    p_tier = "P2"
+                elif r.score >= 25:
+                    p_tier = "P3"
+                else:
+                    p_tier = "P4"
+            if p_tier:
+                by_priority_tier[p_tier] = by_priority_tier.get(p_tier, 0) + 1
+
+            eff_pol = meta.get("effective_polarity")
+            if not eff_pol and r.signal:
+                eff_pol = r.signal.category
+            if eff_pol:
+                by_effective_polarity[eff_pol] = by_effective_polarity.get(eff_pol, 0) + 1
+
             by_severity[r.severity] = by_severity.get(r.severity, 0) + 1
             if r.signal:
                 by_category[r.signal.category] = by_category.get(r.signal.category, 0) + 1
@@ -234,6 +315,8 @@ async def get_detected_signal_stats(
         by_category=by_category,
         by_signal=by_signal,
         by_status=by_status,
+        by_priority_tier=by_priority_tier,
+        by_effective_polarity=by_effective_polarity,
     )
 
 
