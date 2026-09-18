@@ -76,7 +76,9 @@ async def compute_signal_success_metrics(
     total_actioned = sum(1 for r in records if r.status == "actioned")
     total_dismissed = sum(1 for r in records if r.status == "dismissed")
     total_resolved = sum(1 for r in records if r.status == "resolved")
+    total_snoozed = sum(1 for r in records if r.status == "snoozed")
     total_active = sum(1 for r in records if r.status == "active")
+    total_reopened = sum(1 for r in records if (r.reopen_count or 0) > 0)
 
     action_rate = (
         round((total_actioned + total_resolved) / total_detected, 4) if total_detected > 0 else 0.0
@@ -97,7 +99,9 @@ async def compute_signal_success_metrics(
         total_actioned=total_actioned,
         total_dismissed=total_dismissed,
         total_resolved=total_resolved,
+        total_snoozed=total_snoozed,
         total_active=total_active,
+        total_reopened=total_reopened,
         action_rate=action_rate,
         dismissal_rate=dismissal_rate,
         precision_proxy=precision_proxy,
@@ -247,6 +251,7 @@ async def compute_signal_success_metrics(
                 "total_detected": 0,
                 "actioned_count": 0,
                 "dismissed_count": 0,
+                "snoozed_count": 0,
                 "durations": [],
                 "opp_count": 0,
                 "pipeline": Decimal("0.00"),
@@ -279,6 +284,18 @@ async def compute_signal_success_metrics(
                 breakdown_by_category_map[scat]["dismissed_count"] += 1
             if ssev in breakdown_by_severity_map:
                 breakdown_by_severity_map[ssev]["dismissed_count"] += 1
+        elif sig.status == "snoozed":
+            breakdown_by_signal_map[sid]["snoozed_count"] = (
+                breakdown_by_signal_map[sid].get("snoozed_count", 0) + 1
+            )
+            if scat in breakdown_by_category_map:
+                breakdown_by_category_map[scat]["snoozed_count"] = (
+                    breakdown_by_category_map[scat].get("snoozed_count", 0) + 1
+                )
+            if ssev in breakdown_by_severity_map:
+                breakdown_by_severity_map[ssev]["snoozed_count"] = (
+                    breakdown_by_severity_map[ssev].get("snoozed_count", 0) + 1
+                )
 
     # Analyze 90-day post-action outcomes for actioned signals
     for sig in actioned_signals:
@@ -404,7 +421,8 @@ async def compute_signal_success_metrics(
             severity=data["severity"],
             total_detected=tot,
             actioned_count=act,
-            dismissed_count=data["dismissed_count"],
+            dismissed_count=data.get("dismissed_count", 0),
+            snoozed_count=data.get("snoozed_count", 0),
             action_rate=round(act / tot, 4) if tot > 0 else 0.0,
             mean_time_to_action_hours=round(statistics.mean(durs), 2) if durs else None,
             opportunities_created_count=data["opp_count"],

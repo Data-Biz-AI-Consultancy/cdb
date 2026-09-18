@@ -1,7 +1,7 @@
 """
 cdb.services.signals.detected.query
 
-Querying, statistical aggregation, and single-record retrieval for detected signals.
+Querying, statistical aggregation, account-level grouping, and single-record retrieval for detected signals.
 """
 
 import datetime
@@ -18,6 +18,8 @@ from cdb.schemas.signals import (
     DetectedSignalResponse,
     DetectedSignalStatsResponse,
     DetectedSignalStatus,
+    GroupedDetectedSignalsItem,
+    GroupedDetectedSignalsResponse,
     SignalSeverity,
 )
 from cdb.services.signals.detected.mapper import to_detected_response
@@ -113,6 +115,78 @@ async def list_detected_signals(
     return [to_detected_response(r) for r in records], total
 
 
+async def list_grouped_detected_signals(
+    db: AsyncSession,
+    signal_id: str | None = None,
+    category: str | None = None,
+    status: DetectedSignalStatus | None = None,
+    severity: SignalSeverity | None = None,
+    company_id: uuid.UUID | None = None,
+    lookback_days: int | None = None,
+    limit: int = 100,
+) -> GroupedDetectedSignalsResponse:
+    """
+    Groups detected signals by Account / Company for unified organization-level triage.
+    """
+    signals, total = await list_detected_signals(
+        db,
+        signal_id=signal_id,
+        category=category,
+        status=status,
+        severity=severity,
+        company_id=company_id,
+        lookback_days=lookback_days,
+        limit=limit,
+        offset=0,
+    )
+
+    groups_dict: dict[str, list[DetectedSignalResponse]] = {}
+    names_dict: dict[str, str] = {}
+    company_ids_dict: dict[str, uuid.UUID | None] = {}
+
+    for sig in signals:
+        if sig.company_id:
+            g_key = str(sig.company_id)
+            g_name = sig.company_name or "Unknown Company"
+            c_id = sig.company_id
+        elif sig.person_id:
+            g_key = f"person_{sig.person_id}"
+            g_name = f"Contact: {sig.person_name or 'Direct Contact'}"
+            c_id = None
+        else:
+            g_key = "unaffiliated"
+            g_name = "Unaffiliated Signals"
+            c_id = None
+
+        if g_key not in groups_dict:
+            groups_dict[g_key] = []
+            names_dict[g_key] = g_name
+            company_ids_dict[g_key] = c_id
+
+        groups_dict[g_key].append(sig)
+
+    items: list[GroupedDetectedSignalsItem] = []
+    for g_key, group_signals in groups_dict.items():
+        items.append(
+            GroupedDetectedSignalsItem(
+                group_key=g_key,
+                group_name=names_dict[g_key],
+                company_id=company_ids_dict[g_key],
+                total_signals=len(group_signals),
+                signals=group_signals,
+            )
+        )
+
+    # Sort groups by count descending
+    items.sort(key=lambda x: x.total_signals, reverse=True)
+
+    return GroupedDetectedSignalsResponse(
+        data=items,
+        total_groups=len(items),
+        total_signals=total,
+    )
+
+
 async def get_detected_signal_stats(
     db: AsyncSession, lookback_days: int | None = None
 ) -> DetectedSignalStatsResponse:
@@ -131,6 +205,7 @@ async def get_detected_signal_stats(
     by_signal: dict[str, int] = {}
     by_status: dict[str, int] = {}
     total_active = 0
+    total_snoozed = 0
     total_conflicting = 0
     total_uncertain = 0
 
@@ -147,9 +222,12 @@ async def get_detected_signal_stats(
             if r.signal:
                 by_category[r.signal.category] = by_category.get(r.signal.category, 0) + 1
             by_signal[r.signal_id] = by_signal.get(r.signal_id, 0) + 1
+        elif r.status == "snoozed":
+            total_snoozed += 1
 
     return DetectedSignalStatsResponse(
         total_active=total_active,
+        total_snoozed=total_snoozed,
         total_conflicting=total_conflicting,
         total_uncertain=total_uncertain,
         by_severity=by_severity,
@@ -187,6 +265,7 @@ async def get_detected_signal(
 
 __all__ = [
     "list_detected_signals",
+    "list_grouped_detected_signals",
     "get_detected_signal_stats",
     "get_detected_signal",
 ]

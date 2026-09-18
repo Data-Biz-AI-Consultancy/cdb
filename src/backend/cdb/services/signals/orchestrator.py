@@ -1,14 +1,14 @@
 """
 cdb.services.signals.orchestrator
 
-Master orchestrator that runs all six catalog signal detectors, retires stale
-active signals that no longer meet detection criteria, and evaluates
-multi-entity conflicts across Company, Opportunity, and Person scopes.
+Master orchestrator that runs all six catalog signal detectors, handles deduplication
+fingerprinting, retires stale active signals that no longer meet detection criteria,
+and evaluates multi-entity conflicts across Company, Opportunity, and Person scopes.
 """
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cdb.models.base import utc_now
@@ -73,15 +73,29 @@ async def evaluate_all_signals(db: AsyncSession, lookback_days: int = 90) -> dic
     conflict_map = detect_signal_conflicts(active_signals)
     total_conflicting, total_uncertain = apply_conflict_metadata(active_signals, conflict_map)
 
+    # Query snoozed and reopened counts
+    snoozed_count_stmt = select(func.count()).select_from(
+        select(DetectedSignal).where(DetectedSignal.status == "snoozed").subquery()
+    )
+    total_snoozed = (await db.scalar(snoozed_count_stmt)) or 0
+
+    reopened_count_stmt = select(func.count()).select_from(
+        select(DetectedSignal).where(DetectedSignal.reopen_count > 0).subquery()
+    )
+    total_reopened = (await db.scalar(reopened_count_stmt)) or 0
+
     await db.commit()
 
     by_signal: dict[str, int] = {}
     new_count = 0
     refreshed_count = 0
+    suppressed_count = 0
 
     for sig, is_new in all_pairs:
         by_signal[sig.signal_id] = by_signal.get(sig.signal_id, 0) + 1
-        if is_new:
+        if sig.status in ("dismissed", "resolved", "snoozed"):
+            suppressed_count += 1
+        elif is_new:
             new_count += 1
         else:
             refreshed_count += 1
@@ -93,6 +107,9 @@ async def evaluate_all_signals(db: AsyncSession, lookback_days: int = 90) -> dic
         "evaluated_at": now,
         "lookback_days": lookback_days,
         "total_active_signals": total_active,
+        "total_snoozed_signals": total_snoozed,
+        "total_suppressed_duplicates": suppressed_count,
+        "total_reopened_signals": total_reopened,
         "total_conflicting": total_conflicting,
         "total_uncertain": total_uncertain,
         "new_signals_detected": new_count,

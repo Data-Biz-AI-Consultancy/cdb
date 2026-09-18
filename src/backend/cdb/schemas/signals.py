@@ -38,6 +38,7 @@ class DetectedSignalStatus(StrEnum):
     ACTIVE = "active"
     ACKNOWLEDGED = "acknowledged"
     ACTIONED = "actioned"
+    SNOOZED = "snoozed"
     DISMISSED = "dismissed"
     RESOLVED = "resolved"
 
@@ -162,6 +163,7 @@ class DetectedSignalResponse(BaseModel):
     conflicting_signal_ids: list[str] = Field(default_factory=list)
     conflict_summary: str | None = None
     evidence: dict[str, Any] | None = None
+    evidence_fingerprint: str | None = None
 
     title: str
     summary: str | None = None
@@ -170,6 +172,9 @@ class DetectedSignalResponse(BaseModel):
     actioned_at: datetime | None = None
     actioned_by_id: uuid.UUID | None = None
     resolution_notes: str | None = None
+    snoozed_until: datetime | None = None
+    reopen_count: int = 0
+    last_reopened_at: datetime | None = None
     detected_at: datetime
     expires_at: datetime | None = None
     created_at: datetime
@@ -181,10 +186,56 @@ class DetectedSignalUpdate(BaseModel):
     resolution_notes: str | None = Field(
         None, description="Optional notes detailing what action was taken or reason for dismissal"
     )
+    snooze_days: int | None = Field(
+        None, ge=1, le=365, description="Number of days to snooze the signal for"
+    )
+    snooze_until: datetime | None = Field(
+        None, description="Exact timestamp until which the signal should remain snoozed"
+    )
+
+
+class BulkSignalStatusUpdateRequest(BaseModel):
+    signal_ids: list[uuid.UUID] = Field(
+        ..., min_length=1, description="List of signal IDs to update"
+    )
+    status: DetectedSignalStatus = Field(
+        ..., description="Target status (dismissed, snoozed, resolved, etc.)"
+    )
+    resolution_notes: str | None = Field(
+        None, description="Optional reason or resolution notes to apply"
+    )
+    snooze_days: int | None = Field(
+        None, ge=1, le=365, description="Number of days to snooze if status is snoozed"
+    )
+    snooze_until: datetime | None = Field(
+        None, description="Exact timestamp until which signals should remain snoozed"
+    )
+
+
+class BulkSignalStatusUpdateResponse(BaseModel):
+    success: bool = True
+    updated_count: int
+    affected_ids: list[uuid.UUID]
+    message: str
+
+
+class GroupedDetectedSignalsItem(BaseModel):
+    group_key: str
+    group_name: str
+    company_id: uuid.UUID | None = None
+    total_signals: int
+    signals: list[DetectedSignalResponse]
+
+
+class GroupedDetectedSignalsResponse(BaseModel):
+    data: list[GroupedDetectedSignalsItem]
+    total_groups: int
+    total_signals: int
 
 
 class DetectedSignalStatsResponse(BaseModel):
     total_active: int
+    total_snoozed: int = 0
     total_conflicting: int = 0
     total_uncertain: int = 0
     by_severity: dict[str, int]
@@ -198,6 +249,9 @@ class SignalEvaluationResult(BaseModel):
     evaluated_at: datetime
     lookback_days: int = 90
     total_active_signals: int
+    total_snoozed_signals: int = 0
+    total_suppressed_duplicates: int = 0
+    total_reopened_signals: int = 0
     total_conflicting: int = 0
     total_uncertain: int = 0
     new_signals_detected: int
@@ -210,7 +264,9 @@ class SignalQualityMetrics(BaseModel):
     total_actioned: int = 0
     total_dismissed: int = 0
     total_resolved: int = 0
+    total_snoozed: int = 0
     total_active: int = 0
+    total_reopened: int = 0
     action_rate: float = 0.0
     dismissal_rate: float = 0.0
     precision_proxy: float = 0.0
@@ -252,6 +308,7 @@ class SignalMetricsBreakdownItem(BaseModel):
     total_detected: int = 0
     actioned_count: int = 0
     dismissed_count: int = 0
+    snoozed_count: int = 0
     action_rate: float = 0.0
     mean_time_to_action_hours: float | None = None
     opportunities_created_count: int = 0

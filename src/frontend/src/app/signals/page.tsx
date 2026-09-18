@@ -6,7 +6,13 @@ import { apiFetch, ApiResponse } from '@/lib/api';
 
 export type SignalCategory = 'opportunity' | 'risk' | 'hybrid';
 export type SignalSeverity = 'critical' | 'high' | 'medium' | 'low';
-export type DetectedSignalStatus = 'active' | 'acknowledged' | 'actioned' | 'dismissed' | 'resolved';
+export type DetectedSignalStatus =
+  | 'active'
+  | 'acknowledged'
+  | 'actioned'
+  | 'snoozed'
+  | 'dismissed'
+  | 'resolved';
 
 export interface RecommendedAction {
   playbook?: string;
@@ -79,11 +85,16 @@ export interface DetectedSignal {
   conflict_summary?: string | null;
   conflict_scope?: string | null;
   evidence?: Record<string, any> | null;
+  evidence_fingerprint?: string | null;
   title: string;
   summary?: string | null;
   metadata?: Record<string, any>;
   actioned_at?: string | null;
+  actioned_by_id?: string | null;
   resolution_notes?: string | null;
+  snoozed_until?: string | null;
+  reopen_count?: number;
+  last_reopened_at?: string | null;
   detected_at: string;
   expires_at?: string | null;
   created_at: string;
@@ -105,7 +116,9 @@ export interface SignalQualityMetrics {
   total_actioned: number;
   total_dismissed: number;
   total_resolved: number;
+  total_snoozed: number;
   total_active: number;
+  total_reopened: number;
   action_rate: number;
   dismissal_rate: number;
   precision_proxy: number;
@@ -147,6 +160,7 @@ export interface SignalMetricsBreakdownItem {
   total_detected: number;
   actioned_count: number;
   dismissed_count: number;
+  snoozed_count?: number;
   action_rate: number;
   mean_time_to_action_hours?: number | null;
   opportunities_created_count: number;
@@ -167,6 +181,7 @@ export interface SignalMetricsResponse {
 
 export interface DetectedSignalStatsResponse {
   total_active: number;
+  total_snoozed?: number;
   total_conflicting?: number;
   total_uncertain?: number;
   by_severity: Record<string, number>;
@@ -180,6 +195,9 @@ export interface SignalEvaluationResult {
   evaluated_at: string;
   lookback_days?: number;
   total_active_signals: number;
+  total_snoozed_signals?: number;
+  total_suppressed_duplicates?: number;
+  total_reopened_signals?: number;
   total_conflicting?: number;
   total_uncertain?: number;
   new_signals_detected: number;
@@ -202,7 +220,10 @@ const normalizeSlug = (slug?: string | null): string => {
 };
 
 export default function SignalsPage() {
-  const [activeTab, setActiveTab] = useState<'triage' | 'conflicts' | 'uncertain' | 'metrics' | 'catalog'>('triage');
+  const [activeTab, setActiveTab] = useState<
+    'triage' | 'conflicts' | 'uncertain' | 'metrics' | 'catalog'
+  >('triage');
+  const [viewMode, setViewMode] = useState<'feed' | 'account_group'>('feed');
   const [catalog, setCatalog] = useState<SignalDefinition[]>([]);
   const [signals, setSignals] = useState<DetectedSignal[]>([]);
   const [stats, setStats] = useState<DetectedSignalStatsResponse | null>(null);
@@ -211,6 +232,9 @@ export default function SignalsPage() {
   const [evaluating, setEvaluating] = useState(false);
   const [evaluationBanner, setEvaluationBanner] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
+  // Multi-selection state for Bulk Actions
+  const [selectedSignalIds, setSelectedSignalIds] = useState<string[]>([]);
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState('');
@@ -231,10 +255,15 @@ export default function SignalsPage() {
     );
   }, [catalog, categoryFilter]);
 
-  // Modal state for Action / Dismiss notes
+  // Modal state for Action / Dismiss / Snooze / Resolve
   const [modalSignal, setModalSignal] = useState<DetectedSignal | null>(null);
-  const [modalActionType, setModalActionType] = useState<'actioned' | 'dismissed' | null>(null);
+  const [modalActionType, setModalActionType] = useState<
+    'actioned' | 'dismissed' | 'snoozed' | 'resolved' | null
+  >(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [dismissalReason, setDismissalReason] = useState('Not Relevant');
+  const [snoozeDays, setSnoozeDays] = useState<number>(14);
+  const [customSnoozeDate, setCustomSnoozeDate] = useState<string>('');
 
   // Load initial data
   const loadData = async (lookback: number = lookbackDays) => {
@@ -243,7 +272,7 @@ export default function SignalsPage() {
       const [catRes, sigRes, statRes, metricsRes] = await Promise.allSettled([
         apiFetch<SignalCatalogResponse>('/api/v1/signals/catalog'),
         apiFetch<ApiResponse<DetectedSignal[]>>(
-          `/api/v1/signals/detected?page_size=100&lookback_days=${lookback}`
+          `/api/v1/signals/detected?page_size=200&lookback_days=${lookback}`
         ),
         apiFetch<DetectedSignalStatsResponse>(
           `/api/v1/signals/detected/stats?lookback_days=${lookback}`
@@ -301,8 +330,16 @@ export default function SignalsPage() {
             : lookbackDays === 365
             ? '1 year'
             : '2 years';
+        const suppressedText =
+          res.total_suppressed_duplicates !== undefined && res.total_suppressed_duplicates > 0
+            ? `, ${res.total_suppressed_duplicates} duplicates suppressed`
+            : '';
+        const reopenedText =
+          res.total_reopened_signals !== undefined && res.total_reopened_signals > 0
+            ? `, ${res.total_reopened_signals} re-opened`
+            : '';
         setEvaluationBanner(
-          `Radar sweep completed (${windowDesc} lookback): ${res.new_signals_detected} new signals flagged, ${res.refreshed_signals} refreshed. Total active: ${res.total_active_signals}.`
+          `Radar sweep completed (${windowDesc} lookback): ${res.new_signals_detected} new signals flagged, ${res.refreshed_signals} refreshed${suppressedText}${reopenedText}. Total active: ${res.total_active_signals}.`
         );
         await loadData(lookbackDays);
       }
@@ -330,24 +367,50 @@ export default function SignalsPage() {
     }
   };
 
-  const handleOpenActionModal = (signal: DetectedSignal, action: 'actioned' | 'dismissed') => {
+  const handleOpenActionModal = (
+    signal: DetectedSignal,
+    action: 'actioned' | 'dismissed' | 'snoozed' | 'resolved'
+  ) => {
     setModalSignal(signal);
     setModalActionType(action);
-    setResolutionNotes('');
+    setResolutionNotes(signal.resolution_notes || '');
+    setDismissalReason('Not Relevant');
+    setSnoozeDays(14);
+    setCustomSnoozeDate('');
   };
 
   const handleSaveModalAction = async () => {
     if (!modalSignal || !modalActionType) return;
     try {
       setActionInProgress(modalSignal.id);
+      const payload: Record<string, any> = {
+        status: modalActionType,
+      };
+
+      if (modalActionType === 'dismissed') {
+        const fullNotes = resolutionNotes.trim()
+          ? `[${dismissalReason}] ${resolutionNotes.trim()}`
+          : `[${dismissalReason}] Dismissed by user`;
+        payload.resolution_notes = fullNotes;
+      } else if (modalActionType === 'snoozed') {
+        if (customSnoozeDate) {
+          payload.snooze_until = new Date(customSnoozeDate).toISOString();
+        } else {
+          payload.snooze_days = snoozeDays;
+        }
+        if (resolutionNotes.trim()) {
+          payload.resolution_notes = resolutionNotes.trim();
+        }
+      } else if (resolutionNotes.trim()) {
+        payload.resolution_notes = resolutionNotes.trim();
+      }
+
       await apiFetch(`/api/v1/signals/detected/${modalSignal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: modalActionType,
-          resolution_notes: resolutionNotes.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
+
       setModalSignal(null);
       setModalActionType(null);
       setResolutionNotes('');
@@ -356,6 +419,44 @@ export default function SignalsPage() {
       console.error('Failed to update signal:', err);
     } finally {
       setActionInProgress(null);
+    }
+  };
+
+  // Bulk Actions
+  const handleBulkAction = async (targetStatus: DetectedSignalStatus) => {
+    if (selectedSignalIds.length === 0) return;
+    try {
+      setLoading(true);
+      await apiFetch('/api/v1/signals/detected/bulk-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signal_ids: selectedSignalIds,
+          status: targetStatus,
+          snooze_days: targetStatus === 'snoozed' ? 14 : undefined,
+          resolution_notes: `Bulk updated to ${targetStatus}`,
+        }),
+      });
+      setSelectedSignalIds([]);
+      await loadData();
+    } catch (err) {
+      console.error('Failed bulk update:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSelectSignal = (id: string) => {
+    setSelectedSignalIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSignalIds.length === filteredSignals.length) {
+      setSelectedSignalIds([]);
+    } else {
+      setSelectedSignalIds(filteredSignals.map((s) => s.id));
     }
   };
 
@@ -404,96 +505,105 @@ export default function SignalsPage() {
       if (statusFilter !== 'all' && s.status !== statusFilter) {
         return false;
       }
+
       // Category filter
-      const sCategory = s.signal?.category?.toLowerCase() || '';
-      if (categoryFilter !== 'all' && sCategory !== categoryFilter) {
-        return false;
+      if (categoryFilter !== 'all') {
+        const cat = s.signal?.category?.toLowerCase() || (s as any).category?.toLowerCase();
+        if (cat !== categoryFilter.toLowerCase() && cat !== 'hybrid') {
+          return false;
+        }
       }
+
       // Severity filter
       if (severityFilter !== 'all' && s.severity !== severityFilter) {
         return false;
       }
-      // Signal Type filter
+
+      // Signal type filter
       if (signalTypeFilter !== 'all') {
-        const targetSlug = normalizeSlug(signalTypeFilter);
         const sigSlug = normalizeSlug(s.signal_id);
-        const defSlug = normalizeSlug(s.signal?.id);
-        if (
-          s.signal_id !== signalTypeFilter &&
-          s.signal?.id !== signalTypeFilter &&
-          sigSlug !== targetSlug &&
-          defSlug !== targetSlug
-        ) {
+        const filterSlug = normalizeSlug(signalTypeFilter);
+        if (sigSlug !== filterSlug) {
           return false;
         }
       }
+
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesTitle = s.title.toLowerCase().includes(q);
-        const matchesSummary = s.summary?.toLowerCase().includes(q) ?? false;
-        const matchesCompany = s.company_name?.toLowerCase().includes(q) ?? false;
-        const matchesPerson =
-          (s.person_name?.toLowerCase().includes(q) ?? false) ||
-          (s.connected_persons?.some((p) => {
-            const pName = p.name || [p.first_name, p.last_name].filter(Boolean).join(' ');
-            return pName.toLowerCase().includes(q);
-          }) ?? false);
-        const matchesOpp = s.opportunity_title?.toLowerCase().includes(q) ?? false;
-        const matchesEng = s.engagement_title?.toLowerCase().includes(q) ?? false;
-        if (
-          !matchesTitle &&
-          !matchesSummary &&
-          !matchesCompany &&
-          !matchesPerson &&
-          !matchesOpp &&
-          !matchesEng
-        ) {
-          return false;
-        }
+        const titleMatch = s.title.toLowerCase().includes(q);
+        const summaryMatch = s.summary ? s.summary.toLowerCase().includes(q) : false;
+        const compMatch = s.company_name ? s.company_name.toLowerCase().includes(q) : false;
+        const personMatch = s.person_name ? s.person_name.toLowerCase().includes(q) : false;
+        const connectedPersonMatch = s.connected_persons
+          ? s.connected_persons.some((p) => p.name?.toLowerCase().includes(q))
+          : false;
+        const oppMatch = s.opportunity_title ? s.opportunity_title.toLowerCase().includes(q) : false;
+        const engMatch = s.engagement_title ? s.engagement_title.toLowerCase().includes(q) : false;
+        return (
+          titleMatch ||
+          summaryMatch ||
+          compMatch ||
+          personMatch ||
+          connectedPersonMatch ||
+          oppMatch ||
+          engMatch
+        );
       }
+
       return true;
     });
 
-    const severityWeight: Record<string, number> = {
-      critical: 4,
-      high: 3,
-      medium: 2,
-      low: 1,
-    };
+    // Sorting
+    return list.sort((a, b) => {
+      if (sortBy === 'newest') {
+        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
+      }
+      if (sortBy === 'oldest') {
+        return new Date(a.detected_at).getTime() - new Date(b.detected_at).getTime();
+      }
+      if (sortBy === 'severity') {
+        const weight: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+        return (weight[b.severity] || 0) - (weight[a.severity] || 0);
+      }
+      if (sortBy === 'confidence_desc') {
+        const scoreA = a.confidence_score !== undefined && a.confidence_score !== null ? a.confidence_score : -1;
+        const scoreB = b.confidence_score !== undefined && b.confidence_score !== null ? b.confidence_score : -1;
+        return scoreB - scoreA;
+      }
+      if (sortBy === 'confidence_asc') {
+        const scoreA = a.confidence_score !== undefined && a.confidence_score !== null ? a.confidence_score : 2;
+        const scoreB = b.confidence_score !== undefined && b.confidence_score !== null ? b.confidence_score : 2;
+        return scoreA - scoreB;
+      }
+      return 0;
+    });
+  }, [
+    signals,
+    activeTab,
+    statusFilter,
+    categoryFilter,
+    severityFilter,
+    signalTypeFilter,
+    searchQuery,
+    sortBy,
+  ]);
 
-    const sorted = [...list];
-    if (sortBy === 'newest') {
-      sorted.sort((a, b) => new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime());
-    } else if (sortBy === 'oldest') {
-      sorted.sort((a, b) => new Date(a.detected_at).getTime() - new Date(b.detected_at).getTime());
-    } else if (sortBy === 'severity') {
-      sorted.sort((a, b) => {
-        const diff = (severityWeight[b.severity] || 0) - (severityWeight[a.severity] || 0);
-        if (diff !== 0) return diff;
-        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
-      });
-    } else if (sortBy === 'confidence_desc') {
-      sorted.sort((a, b) => {
-        const scoreA = a.confidence_score ?? 0;
-        const scoreB = b.confidence_score ?? 0;
-        const diff = scoreB - scoreA;
-        if (diff !== 0) return diff;
-        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
-      });
-    } else if (sortBy === 'confidence_asc') {
-      sorted.sort((a, b) => {
-        const scoreA = a.confidence_score ?? 0;
-        const scoreB = b.confidence_score ?? 0;
-        const diff = scoreA - scoreB;
-        if (diff !== 0) return diff;
-        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
-      });
+  // Grouped by Account / Organization
+  const groupedByAccount = useMemo(() => {
+    const map: Record<string, { groupName: string; companyId: string | null; signals: DetectedSignal[] }> = {};
+    for (const sig of filteredSignals) {
+      const key = sig.company_id ? sig.company_id : sig.person_id ? `person_${sig.person_id}` : 'unaffiliated';
+      const name = sig.company_name ? sig.company_name : sig.person_name ? `Contact: ${sig.person_name}` : 'Unaffiliated Signals';
+      if (!map[key]) {
+        map[key] = { groupName: name, companyId: sig.company_id || null, signals: [] };
+      }
+      map[key].signals.push(sig);
     }
+    return Object.entries(map).sort((a, b) => b[1].signals.length - a[1].signals.length);
+  }, [filteredSignals]);
 
-    return sorted;
-  }, [signals, activeTab, statusFilter, categoryFilter, severityFilter, signalTypeFilter, searchQuery, sortBy]);
-
+  // Split into categories for 3-column triage feed
   const opportunitySignals = useMemo(() => {
     return filteredSignals.filter(
       (s) =>
@@ -556,6 +666,10 @@ export default function SignalsPage() {
         return 'bg-sky-50 text-sky-700 border-sky-200';
       case 'actioned':
         return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'snoozed':
+        return 'bg-purple-50 text-purple-700 border-purple-200 font-medium';
+      case 'resolved':
+        return 'bg-teal-50 text-teal-700 border-teal-200 font-medium';
       case 'dismissed':
         return 'bg-slate-100 text-slate-600 border-slate-200';
       default:
@@ -564,6 +678,7 @@ export default function SignalsPage() {
   };
 
   const renderSignalCard = (sig: DetectedSignal, columnVariant: 'opportunity' | 'risk' | 'hybrid') => {
+    const isSelected = selectedSignalIds.includes(sig.id);
     const borderAccent =
       columnVariant === 'opportunity'
         ? 'border-l-4 border-l-emerald-500'
@@ -574,11 +689,21 @@ export default function SignalsPage() {
     return (
       <div
         key={sig.id}
-        className={`bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition p-4 flex flex-col justify-between gap-3 ${borderAccent}`}
+        className={`bg-white rounded-xl border ${
+          isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200'
+        } shadow-sm hover:shadow-md transition p-4 flex flex-col justify-between gap-3 ${borderAccent}`}
       >
         <div className="space-y-2 min-w-0">
           {/* Top Status & Indicator Badges */}
           <div className="flex flex-wrap items-center gap-1.5">
+            {/* Selection Checkbox */}
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => toggleSelectSignal(sig.id)}
+              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer mr-1"
+              title="Select signal for bulk actions"
+            />
             <span
               className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${getSeverityBadge(
                 sig.severity
@@ -600,8 +725,24 @@ export default function SignalsPage() {
                 sig.status
               )}`}
             >
-              {sig.status}
+              {sig.status === 'snoozed' && sig.snoozed_until
+                ? `💤 Snoozed until ${new Date(sig.snoozed_until).toLocaleDateString()}`
+                : sig.status}
             </span>
+
+            {/* Reopened Alert Indicator */}
+            {sig.reopen_count !== undefined && sig.reopen_count > 0 && (
+              <span
+                className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-100 text-amber-900 border-amber-300 font-bold flex items-center gap-1"
+                title={`Signal re-alerted with new evidence (${sig.reopen_count}x). Last reopened: ${
+                  sig.last_reopened_at ? new Date(sig.last_reopened_at).toLocaleDateString() : 'recently'
+                }`}
+              >
+                <span>🔄</span>
+                <span>Reopened ({sig.reopen_count}x)</span>
+              </span>
+            )}
+
             {sig.confidence_score !== undefined && sig.confidence_score !== null && (
               <span
                 className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${
@@ -624,7 +765,7 @@ export default function SignalsPage() {
             {sig.is_uncertain && (
               <span className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200 font-semibold flex items-center gap-1">
                 <span>🔍</span>
-                <span>Classification Uncertainty — Verification Recommended</span>
+                <span>Verification Recommended</span>
               </span>
             )}
             <span className="text-[11px] text-slate-400">
@@ -646,10 +787,15 @@ export default function SignalsPage() {
                 {sig.summary}
               </p>
             )}
+            {sig.resolution_notes && (
+              <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1.5 italic">
+                💬 <strong>Notes:</strong> {sig.resolution_notes}
+              </p>
+            )}
           </div>
 
-          {/* Compact Entity Link Tags */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
+          {/* Associated Context Tags */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
             {sig.company_name && (
               <Link
                 href={
@@ -665,18 +811,16 @@ export default function SignalsPage() {
             )}
             {sig.connected_persons && sig.connected_persons.length > 0 ? (
               sig.connected_persons.map((p) => {
-                const pName =
-                  p.name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Contact';
+                const pName = p.name || 'Contact';
                 return (
                   <span
                     key={p.id}
-                    className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-medium"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px]"
                   >
                     <span>👤</span>
                     <Link
                       href={`/persons/${p.id}`}
-                      className="hover:underline truncate max-w-[130px]"
-                      title={p.role ? `${pName} (${p.role})` : pName}
+                      className="hover:underline font-semibold truncate max-w-[120px]"
                     >
                       {pName}
                     </Link>
@@ -739,11 +883,13 @@ export default function SignalsPage() {
               <span className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider flex items-center gap-1">
                 <span>💡 Suggested:</span>
               </span>
-              {sig.suggested_persons.map((sp, idx) => (
+              {sig.suggested_persons.map((sp, idx) =>
                 sp.person_id ? (
                   <button
                     key={sp.person_id || idx}
-                    onClick={() => handleLinkPerson(sig.id, sp.person_id!, sp.role || 'counterparty')}
+                    onClick={() =>
+                      handleLinkPerson(sig.id, sp.person_id!, sp.role || 'counterparty')
+                    }
                     disabled={actionInProgress === sig.id}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
                     title={`Click to link ${sp.name} (${sp.role || 'contact'}) to this signal`}
@@ -757,7 +903,7 @@ export default function SignalsPage() {
                     )}
                   </button>
                 ) : null
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -772,8 +918,8 @@ export default function SignalsPage() {
             <span>→</span>
           </Link>
 
-          {sig.status === 'active' && (
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1">
+            {sig.status === 'active' && (
               <button
                 onClick={() => handleAcknowledge(sig.id)}
                 disabled={actionInProgress === sig.id}
@@ -782,6 +928,9 @@ export default function SignalsPage() {
               >
                 Acknowledge
               </button>
+            )}
+
+            {(sig.status === 'active' || sig.status === 'acknowledged') && (
               <button
                 onClick={() => handleOpenActionModal(sig, 'actioned')}
                 disabled={actionInProgress === sig.id}
@@ -790,6 +939,34 @@ export default function SignalsPage() {
               >
                 Take Action
               </button>
+            )}
+
+            {/* Snooze Control */}
+            {sig.status !== 'dismissed' && sig.status !== 'resolved' && (
+              <button
+                onClick={() => handleOpenActionModal(sig, 'snoozed')}
+                disabled={actionInProgress === sig.id}
+                className="px-2 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+                title="Snooze Alert"
+              >
+                💤 Snooze
+              </button>
+            )}
+
+            {/* Resolve Control */}
+            {sig.status !== 'resolved' && sig.status !== 'dismissed' && (
+              <button
+                onClick={() => handleOpenActionModal(sig, 'resolved')}
+                disabled={actionInProgress === sig.id}
+                className="px-2 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+                title="Resolve Signal"
+              >
+                Resolve
+              </button>
+            )}
+
+            {/* Dismiss Control */}
+            {sig.status !== 'dismissed' && (
               <button
                 onClick={() => handleOpenActionModal(sig, 'dismissed')}
                 disabled={actionInProgress === sig.id}
@@ -798,33 +975,19 @@ export default function SignalsPage() {
               >
                 Dismiss
               </button>
-            </div>
-          )}
+            )}
 
-          {sig.status === 'acknowledged' && (
-            <div className="flex items-center gap-1">
+            {(sig.status === 'dismissed' || sig.status === 'resolved') && (
               <button
                 onClick={() => handleOpenActionModal(sig, 'actioned')}
                 disabled={actionInProgress === sig.id}
-                className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap"
+                className="px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 cursor-pointer"
+                title="Reopen or take follow-up action"
               >
-                Take Action
+                Reopen
               </button>
-              <button
-                onClick={() => handleOpenActionModal(sig, 'dismissed')}
-                disabled={actionInProgress === sig.id}
-                className="px-1.5 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs transition cursor-pointer"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-
-          {(sig.status === 'actioned' || sig.status === 'dismissed') && (
-            <span className="text-[11px] font-medium text-slate-400 italic">
-              Archived as {sig.status}
-            </span>
-          )}
+            )}
+          </div>
         </div>
       </div>
     );
@@ -846,7 +1009,7 @@ export default function SignalsPage() {
             <p className="text-sm sm:text-base text-slate-300 max-w-3xl leading-relaxed">
               Automated multi-entity detection engine scanning dormant accounts, unanswered client
               messages, contract renewal cliffs, executive departures, market funding, and competitor
-              displacements.
+              displacements with complete lifecycle triage.
             </p>
           </div>
 
@@ -860,10 +1023,18 @@ export default function SignalsPage() {
                 onChange={(e) => handleLookbackChange(Number(e.target.value))}
                 className="bg-transparent text-emerald-300 font-bold focus:outline-none cursor-pointer"
               >
-                <option value={90} className="bg-slate-900 text-white">3 Months (Default)</option>
-                <option value={180} className="bg-slate-900 text-white">6 Months</option>
-                <option value={365} className="bg-slate-900 text-white">1 Year</option>
-                <option value={730} className="bg-slate-900 text-white">2 Years (Max)</option>
+                <option value={90} className="bg-slate-900 text-white">
+                  3 Months (Default)
+                </option>
+                <option value={180} className="bg-slate-900 text-white">
+                  6 Months
+                </option>
+                <option value={365} className="bg-slate-900 text-white">
+                  1 Year
+                </option>
+                <option value={730} className="bg-slate-900 text-white">
+                  2 Years (Max)
+                </option>
               </select>
             </div>
 
@@ -928,7 +1099,7 @@ export default function SignalsPage() {
           </div>
           <button
             onClick={() => setEvaluationBanner(null)}
-            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs uppercase ml-4"
+            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs uppercase ml-4 cursor-pointer"
           >
             Dismiss
           </button>
@@ -949,6 +1120,21 @@ export default function SignalsPage() {
           </div>
           <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-xl text-slate-700">
             📡
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Snoozed Signals
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-purple-600 mt-1">
+              {stats?.total_snoozed ?? signals.filter((s) => s.status === 'snoozed').length}
+            </p>
+            <p className="text-xs text-purple-500 mt-1">Suppressed until review date</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-xl text-purple-600">
+            💤
           </div>
         </div>
 
@@ -979,21 +1165,6 @@ export default function SignalsPage() {
           </div>
           <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-xl text-amber-600">
             🔍
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Critical & High Risks
-            </p>
-            <p className="text-2xl sm:text-3xl font-bold text-rose-600 mt-1">
-              {(stats?.by_severity?.critical ?? 0) + (stats?.by_severity?.high ?? 0)}
-            </p>
-            <p className="text-xs text-rose-500 mt-1">Urgent churn & dormant risks</p>
-          </div>
-          <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-xl text-rose-600">
-            🔥
           </div>
         </div>
 
@@ -1094,6 +1265,68 @@ export default function SignalsPage() {
       {/* TAB: TRIAGE FEED (All, Conflicting, or Needs Verification) */}
       {activeTab !== 'catalog' && activeTab !== 'metrics' && (
         <div className="space-y-6">
+          {/* View Switcher & Bulk Action Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* View Mode Toggle */}
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <button
+                onClick={() => setViewMode('feed')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'feed'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>📋</span>
+                <span>Feed View</span>
+              </button>
+              <button
+                onClick={() => setViewMode('account_group')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'account_group'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>🏢</span>
+                <span>Group by Account / Organization</span>
+              </button>
+            </div>
+
+            {/* Bulk Selection Bar */}
+            {selectedSignalIds.length > 0 && (
+              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs">
+                <span className="font-bold text-emerald-900">
+                  {selectedSignalIds.length} signal(s) selected
+                </span>
+                <button
+                  onClick={() => handleBulkAction('snoozed')}
+                  className="px-2.5 py-1 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition cursor-pointer"
+                >
+                  💤 Bulk Snooze 14d
+                </button>
+                <button
+                  onClick={() => handleBulkAction('resolved')}
+                  className="px-2.5 py-1 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition cursor-pointer"
+                >
+                  Resolve Selected
+                </button>
+                <button
+                  onClick={() => handleBulkAction('dismissed')}
+                  className="px-2.5 py-1 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Dismiss Selected
+                </button>
+                <button
+                  onClick={() => setSelectedSignalIds([])}
+                  className="text-slate-500 hover:text-slate-700 ml-1 cursor-pointer font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Filter Toolbar */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
             {/* Search Input */}
@@ -1129,6 +1362,8 @@ export default function SignalsPage() {
               >
                 <option value="active">Status: Active Only</option>
                 <option value="acknowledged">Status: Acknowledged</option>
+                <option value="snoozed">Status: Snoozed</option>
+                <option value="resolved">Status: Resolved</option>
                 <option value="actioned">Status: Actioned</option>
                 <option value="dismissed">Status: Dismissed</option>
                 <option value="all">Status: All Statuses</option>
@@ -1246,7 +1481,7 @@ export default function SignalsPage() {
                     setLookbackDays(90);
                     loadData(90);
                   }}
-                  className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-dashed border-slate-300 transition-colors"
+                  className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-dashed border-slate-300 transition-colors cursor-pointer"
                 >
                   Reset filters
                 </button>
@@ -1254,7 +1489,28 @@ export default function SignalsPage() {
             </div>
           </div>
 
-          {/* Feed List */}
+          {/* Select All Toggle Bar */}
+          {filteredSignals.length > 0 && (
+            <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedSignalIds.length === filteredSignals.length &&
+                    filteredSignals.length > 0
+                  }
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                />
+                <span>
+                  Select all {filteredSignals.length} filtered signal(s)
+                </span>
+              </label>
+              <span>Showing {filteredSignals.length} items</span>
+            </div>
+          )}
+
+          {/* Feed List / Grouped List */}
           {loading ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-500">
               <svg
@@ -1291,12 +1547,60 @@ export default function SignalsPage() {
               </p>
               <button
                 onClick={handleRunEvaluation}
-                className="mt-4 px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition"
+                className="mt-4 px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition cursor-pointer"
               >
                 Run Detection Sweep Now
               </button>
             </div>
+          ) : viewMode === 'account_group' ? (
+            /* GROUPED BY ACCOUNT VIEW */
+            <div className="space-y-6">
+              {groupedByAccount.map(([key, group]) => (
+                <div
+                  key={key}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                >
+                  <div className="bg-slate-50/80 px-5 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🏢</span>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          {group.companyId ? (
+                            <Link
+                              href={`/companies/${group.companyId}`}
+                              className="hover:text-emerald-600 transition hover:underline"
+                            >
+                              {group.groupName}
+                            </Link>
+                          ) : (
+                            <span>{group.groupName}</span>
+                          )}
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Account Clustered Signals · {group.signals.length} alert(s) detected
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {group.signals.length} Signal{group.signals.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {group.signals.map((sig) => {
+                      const variant =
+                        sig.has_conflict || sig.signal?.category === 'hybrid'
+                          ? 'hybrid'
+                          : sig.signal?.category === 'risk'
+                          ? 'risk'
+                          : 'opportunity';
+                      return renderSignalCard(sig, variant);
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
+            /* 3-COLUMN TRIAGE FEED */
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               {/* Column 1: Opportunities */}
               <div className="space-y-3">
@@ -1317,7 +1621,7 @@ export default function SignalsPage() {
 
                 {opportunitySignals.length === 0 ? (
                   <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
-                    No active opportunity signals
+                    No opportunity signals matching filter
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1362,7 +1666,7 @@ export default function SignalsPage() {
                     <div>
                       <h2 className="text-sm font-bold text-rose-900">Risks</h2>
                       <p className="text-[11px] text-rose-700 font-medium">
-                        Loss Prevention & Churn Threats
+                        Dormancy, Churn & Unanswered Comms
                       </p>
                     </div>
                   </div>
@@ -1373,7 +1677,7 @@ export default function SignalsPage() {
 
                 {riskSignals.length === 0 ? (
                   <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
-                    No active risk signals detected
+                    No risk signals matching filter
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1386,116 +1690,20 @@ export default function SignalsPage() {
         </div>
       )}
 
-      {/* TAB 2: SIGNAL DIMENSION CATALOG */}
-      {activeTab === 'catalog' && (
-        <div className="space-y-6">
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-600 flex items-center justify-between">
-            <p>
-              The <strong>Signal Catalog</strong> acts as the central dimension table defining business
-              interpretations, detection mechanisms, and actionable playbooks across CDB entities.
-            </p>
-            <span className="text-xs font-semibold px-2.5 py-1 bg-white border border-slate-200 rounded-md text-slate-700">
-              6 Core Signals Active
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {catalog.map((def) => (
-              <div
-                key={def.id}
-                className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 flex flex-col justify-between hover:border-slate-300 transition"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl">{def.icon || '⚡'}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full border ${getSeverityBadge(
-                          def.severity
-                        )}`}
-                      >
-                        {def.severity}
-                      </span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full border ${getCategoryBadge(
-                          def.category
-                        )}`}
-                      >
-                        {def.category}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">{def.name}</h3>
-                    <p className="text-xs font-mono text-slate-400 mt-0.5">{def.id}</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-xs text-slate-500 font-medium flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700">
-                        Target: {def.target_entity}
-                      </span>
-                      <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700">
-                        {def.detection_mechanism.replace('_', ' ')}
-                      </span>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100">
-                      <p className="text-xs font-semibold text-slate-800 uppercase tracking-wider mb-1">
-                        Business Interpretation
-                      </p>
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        {def.business_interpretation}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 space-y-2">
-                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-2.5 text-xs text-emerald-900 space-y-1">
-                    <p className="font-semibold flex items-center gap-1">
-                      <span>🎯</span>
-                      <span>Playbook: {def.recommended_action?.title || 'Next Action'}</span>
-                    </p>
-                    {def.recommended_action?.description && (
-                      <p className="text-emerald-800 text-xs">
-                        {def.recommended_action.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {def.parameters && Object.keys(def.parameters).length > 0 && (
-                    <div className="text-[11px] text-slate-400 font-mono">
-                      Params: {JSON.stringify(def.parameters)}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: SUCCESS & QUALITY METRICS */}
+      {/* TAB: SUCCESS & QUALITY METRICS */}
       {activeTab === 'metrics' && (
-        <div className="space-y-6">
-          {/* Header Controls & Timeframe Selector */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-            <div className="space-y-1">
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                <span>📊</span>
-                <span>Signal Performance & Success Metrics</span>
-              </h2>
-              <p className="text-xs text-slate-500">
-                Measures detection quality, operational triage speed (MTTA), downstream opportunity creation, and revenue impact across a 90-day correlation window.
+        <div className="space-y-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Signal Quality, MTTA Latency & Business Outcomes
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Evaluation window: {lookbackDays} days. Comprehensive operational precision and revenue impact.
               </p>
             </div>
-
-            {/* Timeframe Selector */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
               {[
-                { label: '30d', days: 30 },
                 { label: '90d (Default)', days: 90 },
                 { label: '180d', days: 180 },
                 { label: '1 Year', days: 365 },
@@ -1582,7 +1790,7 @@ export default function SignalsPage() {
                         metrics.latency.sla_breach_count > 0 ? 'text-rose-600' : 'text-emerald-600'
                       }`}
                     >
-                      {metrics.latency.sla_breach_count} ({ (metrics.latency.sla_breach_rate * 100).toFixed(1)}%)
+                      {metrics.latency.sla_breach_count} ({(metrics.latency.sla_breach_rate * 100).toFixed(1)}%)
                     </span>
                   </div>
                 </div>
@@ -1649,54 +1857,13 @@ export default function SignalsPage() {
                 </div>
               </div>
 
-              {/* Quality & Detection Health Metrics Bar */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs flex items-center justify-between">
-                  <div>
-                    <p className="text-slate-500 font-medium">Detection Precision Proxy</p>
-                    <p className="text-lg font-bold text-slate-800 mt-0.5">
-                      {(metrics.quality.precision_proxy * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                  <span className="text-slate-400">1 - Dismissal %</span>
-                </div>
-
-                <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 text-xs flex items-center justify-between">
-                  <div>
-                    <p className="text-amber-700 font-medium">Needs Verification Rate</p>
-                    <p className="text-lg font-bold text-amber-900 mt-0.5">
-                      {(metrics.quality.needs_verification_rate * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                  <span className="text-amber-600">Low confidence / Ambiguity</span>
-                </div>
-
-                <div className="bg-rose-50/60 p-4 rounded-xl border border-rose-200 text-xs flex items-center justify-between">
-                  <div>
-                    <p className="text-rose-700 font-medium">Opposing Conflict Rate</p>
-                    <p className="text-lg font-bold text-rose-900 mt-0.5">
-                      {(metrics.quality.conflict_rate * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                  <span className="text-rose-600">Multi-Entity Clashes</span>
-                </div>
-
-                <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 text-xs flex items-center justify-between">
-                  <div>
-                    <p className="text-emerald-700 font-medium">Deal Value Coverage</p>
-                    <p className="text-lg font-bold text-emerald-900 mt-0.5">
-                      {(metrics.revenue.value_coverage_rate * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                  <span className="text-emerald-600">Attributed non-null values</span>
-                </div>
-              </div>
-
               {/* Detailed Breakdown by Signal Type Table */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-5 border-b border-slate-100 flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Performance Breakdown by Signal Type</h3>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Performance Breakdown by Signal Type
+                    </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Triage action rates, latency, and commercial conversion for each signal rule in the catalog.
                     </p>
@@ -1759,7 +1926,8 @@ export default function SignalsPage() {
                             {(row.action_rate * 100).toFixed(1)}%
                           </td>
                           <td className="py-3.5 px-4 text-right font-mono text-slate-700">
-                            {row.mean_time_to_action_hours !== null && row.mean_time_to_action_hours !== undefined
+                            {row.mean_time_to_action_hours !== null &&
+                            row.mean_time_to_action_hours !== undefined
                               ? row.mean_time_to_action_hours
                               : '—'}
                           </td>
@@ -1775,122 +1943,181 @@ export default function SignalsPage() {
                   </table>
                 </div>
               </div>
-
-              {/* Category & Severity Distribution Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* By Category */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Breakdown by Category
-                  </h4>
-                  <div className="space-y-3">
-                    {metrics.by_category.map((cat) => (
-                      <div
-                        key={cat.key}
-                        className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-2 py-0.5 rounded-full border font-semibold text-[11px] ${getCategoryBadge(
-                              cat.key
-                            )}`}
-                          >
-                            {cat.label}
-                          </span>
-                          <span className="text-slate-500">({cat.total_detected} detected)</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-right">
-                          <span className="font-semibold text-emerald-700">
-                            {(cat.action_rate * 100).toFixed(1)}% actioned
-                          </span>
-                          <span className="font-bold text-slate-900">
-                            ${Number(cat.influenced_pipeline).toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* By Severity */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Breakdown by Severity Level
-                  </h4>
-                  <div className="space-y-3">
-                    {metrics.by_severity.map((sev) => (
-                      <div
-                        key={sev.key}
-                        className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-2 py-0.5 rounded-full border font-semibold text-[11px] ${getSeverityBadge(
-                              sev.key
-                            )}`}
-                          >
-                            {sev.label}
-                          </span>
-                          <span className="text-slate-500">({sev.total_detected} detected)</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-right">
-                          <span className="font-semibold text-emerald-700">
-                            {(sev.action_rate * 100).toFixed(1)}% actioned
-                          </span>
-                          <span className="font-bold text-slate-900">
-                            ${Number(sev.influenced_pipeline).toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Action / Dismiss Notes Modal */}
+      {/* TAB: CATALOG */}
+      {activeTab === 'catalog' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {catalog.map((def) => (
+            <div
+              key={def.id}
+              className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition p-6 flex flex-col justify-between space-y-4"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-3xl">{def.icon || '⚡'}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${getSeverityBadge(
+                        def.severity
+                      )}`}
+                    >
+                      {def.severity.toUpperCase()}
+                    </span>
+                    <span
+                      className={`text-xs px-2.5 py-0.5 rounded-full border ${getCategoryBadge(
+                        def.category
+                      )}`}
+                    >
+                      {def.category}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">{def.name}</h3>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">Target: {def.target_entity}</p>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">{def.business_interpretation}</p>
+              </div>
+
+              {def.recommended_action && def.recommended_action.title && (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
+                  <p className="font-bold text-slate-700">
+                    💡 Playbook: {def.recommended_action.title}
+                  </p>
+                  {def.recommended_action.description && (
+                    <p className="text-slate-500 mt-1">{def.recommended_action.description}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Action / Dismiss / Snooze / Resolve Modal */}
       {modalSignal && modalActionType && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-900">
-                {modalActionType === 'actioned' ? 'Record Taken Action' : 'Dismiss Signal Alert'}
+                {modalActionType === 'actioned'
+                  ? 'Record Taken Action'
+                  : modalActionType === 'snoozed'
+                  ? '💤 Snooze Signal Alert'
+                  : modalActionType === 'resolved'
+                  ? '✅ Resolve Signal'
+                  : 'Dismiss Signal Alert'}
               </h3>
               <button
                 onClick={() => {
                   setModalSignal(null);
                   setModalActionType(null);
                 }}
-                className="text-slate-400 hover:text-slate-600 font-bold"
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <p className="text-xs text-slate-500">
                 Signal:{' '}
                 <strong className="text-slate-800 font-semibold">{modalSignal.title}</strong>
               </p>
-              <label className="block text-xs font-semibold text-slate-700">
-                {modalActionType === 'actioned'
-                  ? 'Resolution Notes / Commercial Next Step'
-                  : 'Reason for Dismissal'}
-              </label>
-              <textarea
-                rows={3}
-                value={resolutionNotes}
-                onChange={(e) => setResolutionNotes(e.target.value)}
-                placeholder={
-                  modalActionType === 'actioned'
-                    ? 'e.g., Scheduled executive check-in for next Tuesday via email...'
-                    : 'e.g., False positive, contact already communicated via WhatsApp.'
-                }
-                className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-slate-900"
-              />
+
+              {/* Snooze Options */}
+              {modalActionType === 'snoozed' && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Snooze Duration
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: '7 Days', days: 7 },
+                      { label: '14 Days (Default)', days: 14 },
+                      { label: '30 Days', days: 30 },
+                    ].map((opt) => (
+                      <button
+                        key={opt.days}
+                        type="button"
+                        onClick={() => {
+                          setSnoozeDays(opt.days);
+                          setCustomSnoozeDate('');
+                        }}
+                        className={`py-2 px-3 text-xs rounded-xl border font-semibold transition cursor-pointer ${
+                          snoozeDays === opt.days && !customSnoozeDate
+                            ? 'bg-purple-600 text-white border-purple-600'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="block text-xs font-medium text-slate-500 mb-1">
+                      Or Pick Custom Date
+                    </label>
+                    <input
+                      type="date"
+                      value={customSnoozeDate}
+                      onChange={(e) => setCustomSnoozeDate(e.target.value)}
+                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Dismiss Reason */}
+              {modalActionType === 'dismissed' && (
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Dismissal Category
+                  </label>
+                  <select
+                    value={dismissalReason}
+                    onChange={(e) => setDismissalReason(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500"
+                  >
+                    <option value="Not Relevant">Not Relevant / Ignorable</option>
+                    <option value="False Positive">False Positive / Incorrect Attribution</option>
+                    <option value="Handled Elsewhere">Already Handled Elsewhere</option>
+                    <option value="Other">Other / Miscellaneous</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  {modalActionType === 'actioned'
+                    ? 'Action Notes / Commercial Next Step'
+                    : modalActionType === 'resolved'
+                    ? 'Resolution Notes'
+                    : modalActionType === 'snoozed'
+                    ? 'Optional Snooze Reason'
+                    : 'Additional Context / Notes'}
+                </label>
+                <textarea
+                  rows={3}
+                  value={resolutionNotes}
+                  onChange={(e) => setResolutionNotes(e.target.value)}
+                  placeholder={
+                    modalActionType === 'actioned'
+                      ? 'e.g., Scheduled executive check-in for next Tuesday via email...'
+                      : modalActionType === 'resolved'
+                      ? 'e.g., Re-engagement call completed and QBR scheduled.'
+                      : modalActionType === 'snoozed'
+                      ? 'e.g., Lead asked to reconnect after holiday period.'
+                      : 'e.g., Contact already communicated via WhatsApp.'
+                  }
+                  className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-slate-900"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -1909,10 +2136,20 @@ export default function SignalsPage() {
                 className={`px-4 py-2 text-xs font-semibold text-white rounded-lg transition shadow-sm cursor-pointer ${
                   modalActionType === 'actioned'
                     ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : modalActionType === 'snoozed'
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : modalActionType === 'resolved'
+                    ? 'bg-teal-600 hover:bg-teal-700'
                     : 'bg-slate-800 hover:bg-slate-900'
                 }`}
               >
-                {modalActionType === 'actioned' ? 'Mark as Actioned' : 'Dismiss Signal'}
+                {modalActionType === 'actioned'
+                  ? 'Mark as Actioned'
+                  : modalActionType === 'snoozed'
+                  ? 'Confirm Snooze'
+                  : modalActionType === 'resolved'
+                  ? 'Confirm Resolution'
+                  : 'Dismiss Signal'}
               </button>
             </div>
           </div>

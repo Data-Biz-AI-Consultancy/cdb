@@ -105,7 +105,7 @@ class DetectedSignal(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
         default="active",
         index=True,
-    )  # 'active' | 'acknowledged' | 'actioned' | 'dismissed' | 'resolved'
+    )  # 'active' | 'acknowledged' | 'actioned' | 'snoozed' | 'dismissed' | 'resolved'
 
     severity: Mapped[str] = mapped_column(
         String(50),
@@ -117,6 +117,7 @@ class DetectedSignal(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_fingerprint: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     metadata_payload: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, default=dict
     )
@@ -130,6 +131,13 @@ class DetectedSignal(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
     )
     resolution_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    snoozed_until: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    reopen_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    last_reopened_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     detected_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
