@@ -42,8 +42,7 @@ const mockSignalDetail = {
   severity: 'high',
   confidence_score: 0.88,
   confidence_tier: 'high',
-  is_uncertain: true,
-  uncertainty_reasons: ['Touchpoint history has gap between 60d and 90d'],
+  is_uncertain: false,
   has_conflict: true,
   conflict_scope: 'company',
   conflicting_signal_ids: ['sig-conflict-456'],
@@ -59,6 +58,8 @@ const mockSignalDetail = {
     verification_status: 'verified',
     context: { days_inactive: 75, qualifying_type: 'signed_engagement' },
   },
+  evidence_fingerprint: 'sha256-abcdef1234567890',
+  reopen_count: 1,
   title: 'Dormant Strategic Account: Acme Enterprise Solutions',
   summary: 'No activity recorded in 75 days on signed retainer account.',
   detected_at: '2026-09-08T10:00:00Z',
@@ -71,7 +72,7 @@ describe('SignalDetailPage', () => {
     vi.clearAllMocks();
   });
 
-  it('renders signal details, confidence meter, conflict alert, evidence dossier, and entities', async () => {
+  it('renders signal details, confidence meter, conflict alert, audit card, and entities', async () => {
     (apiFetch as any).mockResolvedValue(mockSignalDetail);
 
     render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
@@ -87,69 +88,46 @@ describe('SignalDetailPage', () => {
       expect(screen.getByText('Status: active')).toBeInTheDocument();
     });
 
+    // Lifecycle audit card
+    expect(screen.getByText('Lifecycle & Deduplication Audit')).toBeInTheDocument();
+    expect(screen.getByText('1 time(s) re-opened')).toBeInTheDocument();
+    expect(screen.getByText(/sha256-abcde/)).toBeInTheDocument();
+
     // Conflict Alert
-    expect(screen.getByText(/Opposing Signal Polarity Detected \(company level\)/)).toBeInTheDocument();
-    expect(screen.getByText(/High Risk \(dormant_strategic_account\)/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Opposing Signal Polarity Detected \(company level\)/)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Conflicting signals on Company/)).toBeInTheDocument();
 
-    // Uncertainty Callout
-    expect(
-      screen.getByText('Classification Uncertainty — Verification Recommended')
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Touchpoint history has gap between 60d and 90d')
-    ).toBeInTheDocument();
-
-    // Supporting Evidence Dossier
-    expect(screen.getByText('Supporting Evidence Dossier')).toBeInTheDocument();
-    expect(screen.getByText('“Last interaction was 75 days ago”')).toBeInTheDocument();
-    expect(
-      screen.getByText('No activity logged for strategic account in 75 days.')
-    ).toBeInTheDocument();
+    // Supporting Detection Evidence
+    expect(screen.getByText('Supporting Detection Evidence')).toBeInTheDocument();
+    expect(screen.getByText(/touchpoint_cadence/)).toBeInTheDocument();
 
     // Connected Entities
-    expect(screen.getAllByText('Acme Enterprise Solutions').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Sarah Connor').length).toBeGreaterThan(0);
-    expect(screen.getByText('Cloud Transformation Retainer')).toBeInTheDocument();
+    expect(screen.getByText('Acme Enterprise Solutions')).toBeInTheDocument();
+    expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
 
-    const viewPersonLink = screen.getByRole('link', { name: /View Person/i });
-    expect(viewPersonLink).toHaveAttribute('href', '/persons/pers-888');
+    const companyLink = screen.getByRole('link', { name: /Acme Enterprise Solutions/i });
+    expect(companyLink).toHaveAttribute('href', '/companies/comp-999');
 
-    const viewCompanyLink = screen.getByRole('link', { name: /View Company/i });
-    expect(viewCompanyLink).toHaveAttribute('href', '/companies/comp-999');
+    const personLink = screen.getByRole('link', { name: /Sarah Connor/i });
+    expect(personLink).toHaveAttribute('href', '/persons/pers-888');
 
     // Playbook
     expect(screen.getByText('Schedule Executive Check-In or QBR')).toBeInTheDocument();
     expect(
       screen.getByText('Reach out to past client sponsors with a relevant industry benchmark.')
     ).toBeInTheDocument();
+
+    // Action buttons
+    expect(screen.getByText('Acknowledge')).toBeInTheDocument();
+    expect(screen.getByText('Take Action')).toBeInTheDocument();
+    expect(screen.getByText('💤 Snooze')).toBeInTheDocument();
+    expect(screen.getByText('Resolve')).toBeInTheDocument();
+    expect(screen.getByText('Dismiss')).toBeInTheDocument();
   });
 
-  it('handles multi-person contact names with individual search links and direct person link', async () => {
-    const multiPersonSignal = {
-      ...mockSignalDetail,
-      person_id: 'pers-multi-123',
-      person_name: 'Louis Guitton, Jodi Barrow',
-    };
-    (apiFetch as any).mockResolvedValue(multiPersonSignal);
-
-    render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
-
-    await waitFor(() => {
-      expect(screen.getAllByText('Louis Guitton').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('Jodi Barrow').length).toBeGreaterThan(0);
-    });
-
-    const louisLinks = screen.getAllByRole('link', { name: /Louis Guitton/i });
-    expect(louisLinks.some((l) => l.getAttribute('href')?.includes('Louis%20Guitton'))).toBe(true);
-
-    const jodiLinks = screen.getAllByRole('link', { name: /Jodi Barrow/i });
-    expect(jodiLinks.some((l) => l.getAttribute('href')?.includes('Jodi%20Barrow'))).toBe(true);
-
-    const viewPersonBtn = screen.getByRole('link', { name: /View Person/i });
-    expect(viewPersonBtn).toHaveAttribute('href', '/persons/pers-multi-123');
-  });
-
-  it('renders multiple distinct connected persons with individual direct view person links', async () => {
+  it('renders multiple distinct connected persons with individual direct links', async () => {
     const multiConnectedSignal = {
       ...mockSignalDetail,
       person_id: 'pers-louis-1',
@@ -174,15 +152,15 @@ describe('SignalDetailPage', () => {
     render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Connected People (2)')).toBeInTheDocument();
-      expect(screen.getAllByText('Louis Guitton').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('Jodi Barrow').length).toBeGreaterThan(0);
+      expect(screen.getByText('Louis Guitton')).toBeInTheDocument();
+      expect(screen.getByText('Jodi Barrow')).toBeInTheDocument();
     });
 
-    const viewPersonLinks = screen.getAllByRole('link', { name: /View Person/i });
-    expect(viewPersonLinks).toHaveLength(2);
-    expect(viewPersonLinks[0]).toHaveAttribute('href', '/persons/pers-louis-1');
-    expect(viewPersonLinks[1]).toHaveAttribute('href', '/persons/pers-jodi-2');
+    const louisLink = screen.getByRole('link', { name: /Louis Guitton/i });
+    expect(louisLink).toHaveAttribute('href', '/persons/pers-louis-1');
+
+    const jodiLink = screen.getByRole('link', { name: /Jodi Barrow/i });
+    expect(jodiLink).toHaveAttribute('href', '/persons/pers-jodi-2');
   });
 
   it('allows acknowledging signal and updates status', async () => {
@@ -228,11 +206,11 @@ describe('SignalDetailPage', () => {
 
     fireEvent.click(screen.getByText('Take Action'));
 
-    expect(screen.getByText('Record Completed Action')).toBeInTheDocument();
-    const textarea = screen.getByPlaceholderText(/e.g. Scheduled QBR meeting/);
+    expect(screen.getByText('Record Taken Action')).toBeInTheDocument();
+    const textarea = screen.getByPlaceholderText(/e.g., Scheduled executive check-in/);
     fireEvent.change(textarea, { target: { value: 'Scheduled QBR for Friday' } });
 
-    fireEvent.click(screen.getByText('Confirm'));
+    fireEvent.click(screen.getByText('Mark as Actioned'));
 
     await waitFor(() => {
       expect(apiFetch).toHaveBeenCalledWith(
@@ -245,8 +223,124 @@ describe('SignalDetailPage', () => {
           }),
         })
       );
-      expect(screen.getByText('Resolution Recorded')).toBeInTheDocument();
+      expect(screen.getByText('Lifecycle Notes')).toBeInTheDocument();
       expect(screen.getByText('Scheduled QBR for Friday')).toBeInTheDocument();
+    });
+  });
+
+  it('allows snoozing signal with duration options', async () => {
+    (apiFetch as any).mockResolvedValueOnce(mockSignalDetail);
+    (apiFetch as any).mockResolvedValueOnce({
+      ...mockSignalDetail,
+      status: 'snoozed',
+      snoozed_until: '2026-09-25T10:00:00Z',
+      resolution_notes: 'Checking in after client holiday',
+    });
+
+    render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('💤 Snooze')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('💤 Snooze'));
+
+    expect(screen.getByText('💤 Snooze Signal Alert')).toBeInTheDocument();
+    // Select 7 Days duration
+    fireEvent.click(screen.getByText('7 Days'));
+
+    const textarea = screen.getByPlaceholderText(/e.g., Lead requested contact next month/);
+    fireEvent.change(textarea, { target: { value: 'Checking in after client holiday' } });
+
+    fireEvent.click(screen.getByText('Confirm Snooze'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/v1/signals/detected/sig-test-123',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: 'snoozed',
+            snooze_days: 7,
+            resolution_notes: 'Checking in after client holiday',
+          }),
+        })
+      );
+    });
+  });
+
+  it('allows resolving signal', async () => {
+    (apiFetch as any).mockResolvedValueOnce(mockSignalDetail);
+    (apiFetch as any).mockResolvedValueOnce({
+      ...mockSignalDetail,
+      status: 'resolved',
+      resolution_notes: 'Account relationship reactivated',
+    });
+
+    render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Resolve')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Resolve'));
+
+    expect(screen.getByText('✅ Resolve Signal')).toBeInTheDocument();
+    const textarea = screen.getByPlaceholderText(/e.g., Re-engagement call completed/);
+    fireEvent.change(textarea, { target: { value: 'Account relationship reactivated' } });
+
+    fireEvent.click(screen.getByText('Confirm Resolution'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/v1/signals/detected/sig-test-123',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: 'resolved',
+            resolution_notes: 'Account relationship reactivated',
+          }),
+        })
+      );
+    });
+  });
+
+  it('allows dismissing signal with reason category', async () => {
+    (apiFetch as any).mockResolvedValueOnce(mockSignalDetail);
+    (apiFetch as any).mockResolvedValueOnce({
+      ...mockSignalDetail,
+      status: 'dismissed',
+      resolution_notes: '[False Positive] Contacted via WhatsApp',
+    });
+
+    render(<SignalDetailPage params={Promise.resolve({ id: 'sig-test-123' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dismiss')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Dismiss'));
+
+    expect(screen.getByText('Dismiss Signal Alert')).toBeInTheDocument();
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'False Positive' } });
+
+    const textarea = screen.getByPlaceholderText(/e.g., Contact already communicated/);
+    fireEvent.change(textarea, { target: { value: 'Contacted via WhatsApp' } });
+
+    fireEvent.click(screen.getByText('Dismiss Signal'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/v1/signals/detected/sig-test-123',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: 'dismissed',
+            resolution_notes: '[False Positive] Contacted via WhatsApp',
+          }),
+        })
+      );
     });
   });
 

@@ -40,8 +40,12 @@ from cdb.services.signals.utils.enrichment import (
     extract_headcount_enrichment,
     sanitize_target_persons,
 )
+from cdb.services.signals.utils.fingerprint import compute_evidence_fingerprint
 from cdb.services.signals.utils.linking import link_signal_persons
-from cdb.services.signals.utils.matching import find_existing_active_signal
+from cdb.services.signals.utils.matching import (
+    find_existing_active_signal,
+    find_existing_signal_record,
+)
 from cdb.services.signals.utils.persistence import persist_signal_record
 from cdb.services.signals.utils.upsert import (
     _upsert_detected_signal,
@@ -69,6 +73,8 @@ __all__ = [
     "get_company_display_name",
     "enrich_company_context",
     "sanitize_target_persons",
+    "compute_evidence_fingerprint",
+    "find_existing_signal_record",
     "find_existing_active_signal",
     "persist_signal_record",
     "link_signal_persons",

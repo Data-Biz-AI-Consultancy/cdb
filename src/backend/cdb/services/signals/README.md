@@ -327,14 +327,26 @@ The detection engine has been refactored from a single `detector.py` into focuse
   - **Opportunity Signals**: (`competitor_signal`) resolve `opportunity_companies.company_id` or linked engagement/activity.
 - Supporting account context (`account_name`, `company_tier`, `company_segment`) is embedded directly in `metadata_payload` and `metadata_payload["evidence"]`.
 
-### Idempotency & Lifecycle State Machine
-* **Idempotency**: Running `evaluate_all_signals` repeatedly does **not** duplicate active signals. Existing active signals for the same entity and signal code have their timestamps, severity, and metadata refreshed in place.
+### Idempotency, Deduplication & Lifecycle State Machine
+* **Deterministic Evidence Fingerprinting**:
+  - Every detected signal computes a canonical SHA-256 hash (`evidence_fingerprint`) across its supporting evidence payload, timestamps, source entity IDs, and matched contextual parameters via `cdb.services.signals.utils.fingerprint.compute_evidence_fingerprint`.
+* **Alert Suppression**:
+  - If a signal was previously `resolved`, `dismissed`, or `actioned`, subsequent detection sweeps compare the incoming evidence fingerprint against the historical fingerprint.
+  - If the evidence fingerprint is unchanged, the alert is strictly suppressed to prevent notification fatigue and maintain a focused detection workflow.
+* **Re-Alerting on Meaningful New Evidence**:
+  - If a resolved or dismissed signal receives fresh or materially different evidence (a different SHA-256 fingerprint), the signal is automatically re-opened (`status = 'active'`).
+  - Its `reopen_count` is incremented, `last_reopened_at` is set, and a re-alert audit entry is recorded for follow-up and review.
+* **Snooze Lifecycle & Auto-Waking**:
+  - Users can suppress alerts temporarily by transitioning them to `snoozed` status with a target review date (`snoozed_until` or `snooze_days: 7, 14, 30`).
+  - While snoozed, identical detection evidence does not trigger alerts.
+  - Once the snooze duration expires (`snoozed_until <= NOW()`), the detection engine automatically wakes the signal back to `active` state or surfaces it for triage.
 * **Lifecycle States**:
-  - `active`: Newly detected signal awaiting review.
+  - `active`: Newly detected or re-opened signal awaiting review.
   - `acknowledged`: Reviewed by a team member (in triage).
   - `actioned`: Recommended action taken (e.g. QBR scheduled, message replied to). Sets `actioned_at` and `actioned_by_id`.
-  - `dismissed`: Flagged as not relevant or false positive.
-  - `resolved`: Naturally cleared or resolved.
+  - `snoozed`: Temporarily suppressed alert until `snoozed_until`.
+  - `resolved`: Successfully addressed or closed with commercial resolution notes.
+  - `dismissed`: Flagged as not relevant or false positive with dismissal category.
 
 ---
 
@@ -404,11 +416,13 @@ When detected:
 ---
 
 ### Detection & Triage Endpoints
-* `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities, detects conflicts, and returns execution statistics.
+* `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities, detects conflicts, suppresses duplicate evidence, and returns execution statistics.
 * `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`, `is_uncertain`, `has_conflict`).
-* `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, signal type, plus `total_conflicting` and `total_uncertain`.
+* `GET /api/v1/signals/detected/grouped`: Account/Organization-clustered detected signals grouped by client company.
+* `POST /api/v1/signals/detected/bulk-status`: Batch updates status (`snoozed`, `resolved`, `dismissed`, `actioned`, `acknowledged`) for an array of signal IDs in a single atomic transaction.
+* `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, signal type, plus `total_snoozed`, `total_conflicting`, and `total_uncertain`.
 * `GET /api/v1/signals/metrics`: Comprehensive success, quality, operational latency (MTTA), downstream outcomes, and revenue attribution metrics across a configurable lookback window (`lookback_days`, default: 90).
-* `PATCH /api/v1/signals/detected/{id}`: Update signal state (`acknowledged`, `actioned`, `dismissed`) with resolution notes.
+* `PATCH /api/v1/signals/detected/{id}`: Update signal state (`acknowledged`, `actioned`, `snoozed`, `resolved`, `dismissed`) with resolution notes and snooze duration.
 
 ---
 
@@ -445,4 +459,5 @@ CDB defines a multi-dimensional measurement framework to quantify detection accu
 * **Periodic Schedule**: Configured in `celery_app.py` under `evaluate-signals-periodic`.
 * **Cadence**: Runs automatically every `SIGNALS_EVALUATION_HOURS_INTERVAL` (default: 6 hours, configured in `config.py`).
 * **Worker Task**: `cdb.workers.tasks.evaluate_signals_background` runs `evaluate_all_signals` asynchronously via Celery worker without blocking the API or UI.
+
 

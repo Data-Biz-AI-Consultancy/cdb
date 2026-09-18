@@ -1346,12 +1346,12 @@ Retrieve real-time aggregate count metrics of active detected signals by severit
 
 ### `GET /signals/detected`
 
-List detected signal event instances (paginated) with multi-dimensional filtering, confidence scoring, supporting evidence, and conflict detection.
+List detected signal event instances (paginated) with multi-dimensional filtering, confidence scoring, supporting evidence, deduplication fingerprints, and conflict detection.
 
 **Query params:**
 - `signal_id`: Filter by signal slug ID
 - `category`: Filter by category (`opportunity`, `risk`, `hybrid`)
-- `status`: Filter by status (`active`, `acknowledged`, `actioned`, `dismissed`, `resolved`)
+- `status`: Filter by status (`active`, `acknowledged`, `actioned`, `snoozed`, `dismissed`, `resolved`)
 - `severity`: Filter by severity (`critical`, `high`, `medium`, `low`)
 - `company_id`: Filter by company UUID
 - `person_id`: Filter by person UUID
@@ -1385,6 +1385,10 @@ List detected signal event instances (paginated) with multi-dimensional filterin
     }
   ],
   "status": "active",
+  "snoozed_until": null,
+  "evidence_fingerprint": "a3f8c2b1e9d0...",
+  "reopen_count": 0,
+  "last_reopened_at": null,
   "severity": "high",
   "title": "Dormant Strategic Account: Acme Corp",
   "summary": "No activity recorded in 75 days.",
@@ -1408,6 +1412,54 @@ List detected signal event instances (paginated) with multi-dimensional filterin
 }
 ```
 
+### `GET /signals/detected/grouped`
+
+Retrieve detected signals clustered by client organization / account entity.
+
+**Query params:** Same filters as `GET /signals/detected`.
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "company_id": "c30164e2-6fd5-4c07-ba71-6ba3b2a26514",
+      "company_name": "Acme Corp",
+      "total_signals": 2,
+      "max_severity": "high",
+      "has_conflict": true,
+      "opportunity_count": 1,
+      "risk_count": 1,
+      "signals": [ ... ]
+    }
+  ],
+  "total_groups": 1
+}
+```
+
+### `POST /signals/detected/bulk-status`
+
+Batch update status and lifecycle controls across multiple detected signals in a single transaction.
+
+**Request:**
+```json
+{
+  "signal_ids": ["e2a4a350-4d40-4100-a6fe-b7d6b38c201a", "f48a1200-8480-492c-b26a-992ca365022e"],
+  "status": "snoozed", // "acknowledged" | "actioned" | "snoozed" | "resolved" | "dismissed"
+  "snooze_days": 14, // optional duration in days
+  "snooze_until": "2026-10-02T00:00:00Z", // optional explicit ISO datetime
+  "resolution_notes": "Bulk snoozed until Q4 planning cycle"
+}
+```
+
+**Response 200:**
+```json
+{
+  "updated_count": 2,
+  "signals": [ ... ]
+}
+```
+
 ### `GET /signals/detected/{signal_instance_id}`
 
 Retrieve full investigation details, structured supporting evidence, conflict analysis, and attached entities for a specific detected signal.
@@ -1417,17 +1469,19 @@ Retrieve full investigation details, structured supporting evidence, conflict an
 
 ### `PATCH /signals/detected/{signal_instance_id}`
 
-Update the lifecycle status and resolution notes of a detected signal.
+Update the lifecycle status, snooze schedule, and resolution notes of a detected signal.
 
 **Request:**
 ```json
 {
-  "status": "actioned", // "acknowledged" | "actioned" | "dismissed" | "resolved"
-  "resolution_notes": "Scheduled QBR meeting with VP of Data"
+  "status": "snoozed", // "acknowledged" | "actioned" | "snoozed" | "dismissed" | "resolved"
+  "snooze_days": 14,
+  "snooze_until": "2026-10-02T00:00:00Z",
+  "resolution_notes": "Lead requested follow-up next sprint"
 }
 ```
 
-**Response 200:** Updated `DetectedSignalResponse` with `actioned_at` timestamp.
+**Response 200:** Updated `DetectedSignalResponse` with `snoozed_until` or `actioned_at` timestamp.
 
 ### `POST /signals/detected/{signal_instance_id}/persons`
 

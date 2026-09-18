@@ -2,8 +2,11 @@
 cdb.services.signals.detected.lifecycle
 
 Lifecycle state machine updates and resolution handling for detected signals.
+Supports acknowledge, action, snooze, dismiss, resolve, bulk status transitions,
+and retiring stale active signals.
 """
 
+import datetime
 import uuid
 from typing import Any
 
@@ -15,6 +18,8 @@ from cdb.models.base import utc_now
 from cdb.models.signal import DetectedSignal, DetectedSignalPerson
 from cdb.models.user import User
 from cdb.schemas.signals import (
+    BulkSignalStatusUpdateRequest,
+    BulkSignalStatusUpdateResponse,
     DetectedSignalResponse,
     DetectedSignalStatus,
     DetectedSignalUpdate,
@@ -29,7 +34,7 @@ async def update_detected_signal(
     user: User | None = None,
 ) -> DetectedSignalResponse | None:
     """
-    Updates status and resolution details of a detected signal.
+    Updates status and resolution details of a detected signal, including snoozing.
     """
     stmt = (
         select(DetectedSignal)
@@ -50,13 +55,29 @@ async def update_detected_signal(
 
     now = utc_now()
     sig.status = payload.status.value
+
     if payload.resolution_notes is not None:
         sig.resolution_notes = payload.resolution_notes
+
+    # Handle Snoozing
+    if payload.status == DetectedSignalStatus.SNOOZED:
+        if payload.snooze_until:
+            sig.snoozed_until = payload.snooze_until
+        elif payload.snooze_days:
+            sig.snoozed_until = now + datetime.timedelta(days=payload.snooze_days)
+        else:
+            # Default snooze: 14 days
+            sig.snoozed_until = now + datetime.timedelta(days=14)
+    else:
+        # If moving to another status, clear snooze timestamp
+        if payload.status != DetectedSignalStatus.SNOOZED:
+            sig.snoozed_until = None
 
     if payload.status in [
         DetectedSignalStatus.ACTIONED,
         DetectedSignalStatus.DISMISSED,
         DetectedSignalStatus.RESOLVED,
+        DetectedSignalStatus.SNOOZED,
     ]:
         sig.actioned_at = now
         if user:
@@ -66,6 +87,69 @@ async def update_detected_signal(
     await db.commit()
     await db.refresh(sig)
     return to_detected_response(sig)
+
+
+async def bulk_update_detected_signals(
+    db: AsyncSession,
+    payload: BulkSignalStatusUpdateRequest,
+    user: User | None = None,
+) -> BulkSignalStatusUpdateResponse:
+    """
+    Bulk updates the status and resolution notes of multiple detected signals.
+    """
+    now = utc_now()
+    stmt = select(DetectedSignal).where(DetectedSignal.id.in_(payload.signal_ids))
+    signals = list((await db.execute(stmt)).scalars().all())
+
+    if not signals:
+        return BulkSignalStatusUpdateResponse(
+            success=False,
+            updated_count=0,
+            affected_ids=[],
+            message="No matching detected signals found.",
+        )
+
+    snoozed_until: datetime.datetime | None = None
+    if payload.status == DetectedSignalStatus.SNOOZED:
+        if payload.snooze_until:
+            snoozed_until = payload.snooze_until
+        elif payload.snooze_days:
+            snoozed_until = now + datetime.timedelta(days=payload.snooze_days)
+        else:
+            snoozed_until = now + datetime.timedelta(days=14)
+
+    affected_ids: list[uuid.UUID] = []
+    for sig in signals:
+        sig.status = payload.status.value
+        if payload.resolution_notes is not None:
+            sig.resolution_notes = payload.resolution_notes
+
+        if payload.status == DetectedSignalStatus.SNOOZED:
+            sig.snoozed_until = snoozed_until
+        else:
+            sig.snoozed_until = None
+
+        if payload.status in [
+            DetectedSignalStatus.ACTIONED,
+            DetectedSignalStatus.DISMISSED,
+            DetectedSignalStatus.RESOLVED,
+            DetectedSignalStatus.SNOOZED,
+        ]:
+            sig.actioned_at = now
+            if user:
+                sig.actioned_by_id = user.id
+
+        sig.updated_at = now
+        affected_ids.append(sig.id)
+
+    await db.commit()
+    action_label = payload.status.value
+    return BulkSignalStatusUpdateResponse(
+        success=True,
+        updated_count=len(affected_ids),
+        affected_ids=affected_ids,
+        message=f"Successfully marked {len(affected_ids)} signal(s) as {action_label}.",
+    )
 
 
 async def retire_stale_detected_signals(
@@ -78,6 +162,7 @@ async def retire_stale_detected_signals(
     """
     Retires (dismisses) active signals for managed catalog signals that were not
     detected in the current run (e.g. aged out or qualification criteria no longer met).
+    Does NOT retire snoozed signals.
     """
     stale_stmt = select(DetectedSignal).where(
         DetectedSignal.status == "active",
@@ -98,4 +183,8 @@ async def retire_stale_detected_signals(
     return stale_signals
 
 
-__all__ = ["update_detected_signal", "retire_stale_detected_signals"]
+__all__ = [
+    "update_detected_signal",
+    "bulk_update_detected_signals",
+    "retire_stale_detected_signals",
+]

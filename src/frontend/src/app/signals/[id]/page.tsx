@@ -32,8 +32,13 @@ export default function SignalDetailPage({
 
   // Triage Action Modal State
   const [actionModalOpen, setActionModalOpen] = useState(false);
-  const [actionType, setActionType] = useState<'actioned' | 'dismissed' | null>(null);
+  const [actionType, setActionType] = useState<
+    'actioned' | 'dismissed' | 'snoozed' | 'resolved' | null
+  >(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [dismissalReason, setDismissalReason] = useState('Not Relevant');
+  const [snoozeDays, setSnoozeDays] = useState<number>(14);
+  const [customSnoozeDate, setCustomSnoozeDate] = useState<string>('');
   const [submittingAction, setSubmittingAction] = useState(false);
 
   const fetchSignal = async () => {
@@ -79,9 +84,14 @@ export default function SignalDetailPage({
     }
   };
 
-  const handleOpenActionModal = (type: 'actioned' | 'dismissed') => {
+  const handleOpenActionModal = (
+    type: 'actioned' | 'dismissed' | 'snoozed' | 'resolved'
+  ) => {
     setActionType(type);
     setResolutionNotes(signal?.resolution_notes || '');
+    setDismissalReason('Not Relevant');
+    setSnoozeDays(14);
+    setCustomSnoozeDate('');
     setActionModalOpen(true);
   };
 
@@ -90,14 +100,34 @@ export default function SignalDetailPage({
     if (!signal || !actionType) return;
     try {
       setSubmittingAction(true);
+      const payload: Record<string, any> = {
+        status: actionType,
+      };
+
+      if (actionType === 'dismissed') {
+        const fullNotes = resolutionNotes.trim()
+          ? `[${dismissalReason}] ${resolutionNotes.trim()}`
+          : `[${dismissalReason}] Dismissed by user`;
+        payload.resolution_notes = fullNotes;
+      } else if (actionType === 'snoozed') {
+        if (customSnoozeDate) {
+          payload.snooze_until = new Date(customSnoozeDate).toISOString();
+        } else {
+          payload.snooze_days = snoozeDays;
+        }
+        if (resolutionNotes.trim()) {
+          payload.resolution_notes = resolutionNotes.trim();
+        }
+      } else if (resolutionNotes.trim()) {
+        payload.resolution_notes = resolutionNotes.trim();
+      }
+
       const updated = await apiFetch<DetectedSignal>(`/api/v1/signals/detected/${signal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: actionType,
-          resolution_notes: resolutionNotes.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
+
       if (updated) {
         setSignal(updated);
       }
@@ -115,11 +145,14 @@ export default function SignalDetailPage({
     if (!signal) return;
     try {
       setSubmittingAction(true);
-      const updated = await apiFetch<DetectedSignal>(`/api/v1/signals/detected/${signal.id}/persons`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: personId, role }),
-      });
+      const updated = await apiFetch<DetectedSignal>(
+        `/api/v1/signals/detected/${signal.id}/persons`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ person_id: personId, role }),
+        }
+      );
       if (updated) {
         setSignal(updated);
       }
@@ -134,9 +167,12 @@ export default function SignalDetailPage({
     if (!signal) return;
     try {
       setSubmittingAction(true);
-      const updated = await apiFetch<DetectedSignal>(`/api/v1/signals/detected/${signal.id}/persons/${personId}`, {
-        method: 'DELETE',
-      });
+      const updated = await apiFetch<DetectedSignal>(
+        `/api/v1/signals/detected/${signal.id}/persons/${personId}`,
+        {
+          method: 'DELETE',
+        }
+      );
       if (updated) {
         setSignal(updated);
       }
@@ -179,15 +215,17 @@ export default function SignalDetailPage({
   const getStatusBadge = (status: DetectedSignalStatus) => {
     switch (status) {
       case 'active':
-        return 'bg-amber-100 text-amber-800 border-amber-300';
+        return 'bg-emerald-50 text-emerald-700 border-emerald-300';
       case 'acknowledged':
         return 'bg-sky-100 text-sky-800 border-sky-300';
       case 'actioned':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+        return 'bg-indigo-100 text-indigo-800 border-indigo-300';
+      case 'snoozed':
+        return 'bg-purple-100 text-purple-800 border-purple-300 font-semibold';
+      case 'resolved':
+        return 'bg-teal-100 text-teal-800 border-teal-300 font-semibold';
       case 'dismissed':
         return 'bg-slate-100 text-slate-600 border-slate-300';
-      case 'resolved':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-300';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
     }
@@ -214,7 +252,9 @@ export default function SignalDetailPage({
         <div className="max-w-5xl mx-auto text-center py-16 bg-white border border-slate-200 rounded-xl shadow-sm">
           <div className="text-4xl mb-3">⚠️</div>
           <h2 className="text-lg font-semibold text-slate-900">Signal Not Found</h2>
-          <p className="text-sm text-slate-500 mt-1">{error || 'The requested signal could not be loaded.'}</p>
+          <p className="text-sm text-slate-500 mt-1">
+            {error || 'The requested signal could not be loaded.'}
+          </p>
           <div className="mt-6">
             <Link
               href="/signals"
@@ -229,9 +269,10 @@ export default function SignalDetailPage({
   }
 
   const evidence = signal.evidence || signal.metadata?.evidence;
-  const confScorePercent = signal.confidence_score !== null && signal.confidence_score !== undefined
-    ? Math.round(signal.confidence_score * 100)
-    : null;
+  const confScorePercent =
+    signal.confidence_score !== null && signal.confidence_score !== undefined
+      ? Math.round(signal.confidence_score * 100)
+      : null;
 
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
@@ -249,7 +290,7 @@ export default function SignalDetailPage({
           <button
             onClick={fetchSignal}
             disabled={loading}
-            className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 transition bg-white px-2.5 py-1.5 rounded-lg border border-slate-200"
+            className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 transition bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 cursor-pointer"
             title="Refresh signal"
           >
             <span>🔄</span>
@@ -260,23 +301,44 @@ export default function SignalDetailPage({
         {/* Main Header Card */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${getSeverityBadge(signal.severity)}`}>
+            <span
+              className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${getSeverityBadge(
+                signal.severity
+              )}`}
+            >
               {signal.severity.toUpperCase()}
             </span>
             {signal.signal?.category && (
-              <span className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${getCategoryBadge(signal.signal.category)}`}>
+              <span
+                className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${getCategoryBadge(
+                  signal.signal.category
+                )}`}
+              >
                 {signal.signal.category.toUpperCase()}
               </span>
             )}
-            <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${getStatusBadge(signal.status)}`}>
-              Status: {signal.status}
+            <span
+              className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${getStatusBadge(
+                signal.status
+              )}`}
+            >
+              Status: {signal.status === 'snoozed' && signal.snoozed_until ? `Snoozed until ${new Date(signal.snoozed_until).toLocaleDateString()}` : signal.status}
             </span>
+
+            {/* Reopened Indicator */}
+            {signal.reopen_count !== undefined && signal.reopen_count > 0 && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full border bg-amber-100 text-amber-900 border-amber-300 font-bold flex items-center gap-1">
+                <span>🔄</span>
+                <span>Reopened ({signal.reopen_count}x)</span>
+              </span>
+            )}
+
             {confScorePercent !== null && (
               <span
                 className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${
-                  (signal.confidence_score! >= 0.8 || signal.confidence_tier === 'high')
+                  signal.confidence_score! >= 0.8 || signal.confidence_tier === 'high'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                    : (signal.confidence_score! >= 0.5 || signal.confidence_tier === 'medium')
+                    : signal.confidence_score! >= 0.5 || signal.confidence_tier === 'medium'
                     ? 'bg-amber-50 text-amber-700 border-amber-300'
                     : 'bg-rose-50 text-rose-700 border-rose-300'
                 }`}
@@ -337,34 +399,17 @@ export default function SignalDetailPage({
                     );
                   })
                 ) : signal.person_name ? (
-                  signal.person_name.includes(',') ? (
-                    signal.person_name.split(',').map((name, idx) => {
-                      const trimmed = name.trim();
-                      if (!trimmed) return null;
-                      return (
-                        <Link
-                          key={idx}
-                          href={`/persons?q=${encodeURIComponent(trimmed)}`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition text-xs font-medium"
-                        >
-                          <span>👤</span>
-                          <span>{trimmed}</span>
-                        </Link>
-                      );
-                    })
-                  ) : (
-                    <Link
-                      href={
-                        signal.person_id
-                          ? `/persons/${signal.person_id}`
-                          : `/persons?q=${encodeURIComponent(signal.person_name)}`
-                      }
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition text-xs font-medium"
-                    >
-                      <span>👤</span>
-                      <span>{signal.person_name}</span>
-                    </Link>
-                  )
+                  <Link
+                    href={
+                      signal.person_id
+                        ? `/persons/${signal.person_id}`
+                        : `/persons?q=${encodeURIComponent(signal.person_name)}`
+                    }
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition text-xs font-medium"
+                  >
+                    <span>👤</span>
+                    <span>{signal.person_name}</span>
+                  </Link>
                 ) : null}
               </div>
             </div>
@@ -391,6 +436,24 @@ export default function SignalDetailPage({
               )}
               {signal.status !== 'dismissed' && signal.status !== 'resolved' && (
                 <button
+                  onClick={() => handleOpenActionModal('snoozed')}
+                  disabled={submittingAction}
+                  className="px-3 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg text-xs font-medium transition cursor-pointer"
+                >
+                  💤 Snooze
+                </button>
+              )}
+              {signal.status !== 'resolved' && signal.status !== 'dismissed' && (
+                <button
+                  onClick={() => handleOpenActionModal('resolved')}
+                  disabled={submittingAction}
+                  className="px-3 py-2 bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 rounded-lg text-xs font-medium transition cursor-pointer"
+                >
+                  Resolve
+                </button>
+              )}
+              {signal.status !== 'dismissed' && (
+                <button
                   onClick={() => handleOpenActionModal('dismissed')}
                   disabled={submittingAction}
                   className="px-3.5 py-2 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-medium transition cursor-pointer"
@@ -398,24 +461,67 @@ export default function SignalDetailPage({
                   Dismiss
                 </button>
               )}
+              {(signal.status === 'dismissed' || signal.status === 'resolved') && (
+                <button
+                  onClick={() => handleOpenActionModal('actioned')}
+                  disabled={submittingAction}
+                  className="px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200 cursor-pointer"
+                >
+                  Reopen Signal
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Resolution Notes Banner if completed */}
+          {/* Resolution / Snooze Notes Banner */}
           {signal.resolution_notes && (
-            <div className="mt-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 space-y-1">
-              <div className="font-semibold flex items-center gap-1 text-emerald-800">
-                <span>✓</span>
-                <span>Resolution Recorded</span>
+            <div className="mt-4 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 space-y-1">
+              <div className="font-semibold flex items-center gap-1 text-slate-800">
+                <span>💬</span>
+                <span>Lifecycle Notes</span>
                 {signal.actioned_at && (
-                  <span className="font-normal text-emerald-600">
+                  <span className="font-normal text-slate-500">
                     — {new Date(signal.actioned_at).toLocaleDateString()}
                   </span>
                 )}
               </div>
-              <p className="text-emerald-800">{signal.resolution_notes}</p>
+              <p className="text-slate-700">{signal.resolution_notes}</p>
             </div>
           )}
+        </div>
+
+        {/* Lifecycle & Deduplication Audit Card */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <span>🛡️</span>
+            <span>Lifecycle & Deduplication Audit</span>
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <span className="text-slate-500 font-medium block">Current Status</span>
+              <span className="text-sm font-bold text-slate-900 mt-1 capitalize block">
+                {signal.status}
+              </span>
+            </div>
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <span className="text-slate-500 font-medium block">Snooze Expiry</span>
+              <span className="text-sm font-bold text-purple-700 mt-1 block">
+                {signal.snoozed_until ? new Date(signal.snoozed_until).toLocaleDateString() : 'Not Snoozed'}
+              </span>
+            </div>
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <span className="text-slate-500 font-medium block">Re-Alert Counter</span>
+              <span className="text-sm font-bold text-slate-900 mt-1 block">
+                {signal.reopen_count || 0} time(s) re-opened
+              </span>
+            </div>
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <span className="text-slate-500 font-medium block">Evidence Fingerprint</span>
+              <span className="text-xs font-mono text-slate-600 mt-1 block truncate" title={signal.evidence_fingerprint || 'None'}>
+                {signal.evidence_fingerprint ? `${signal.evidence_fingerprint.slice(0, 12)}...` : 'None'}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Conflict Analysis Callout (if conflicting) */}
@@ -426,430 +532,171 @@ export default function SignalDetailPage({
               <span>Opposing Signal Polarity Detected ({signal.conflict_scope || 'entity'} level)</span>
             </div>
             <p className="text-sm text-rose-700 leading-relaxed">
-              {signal.conflict_summary || 'This entity is simultaneously exhibiting opposing commercial forces (e.g. Risk of churn vs. Opportunity for expansion). Coordinated outreach is strongly advised before taking definitive commercial action.'}
+              {signal.conflict_summary ||
+                'This entity is simultaneously exhibiting opposing commercial forces (e.g. Risk of churn vs. Opportunity for expansion). Coordinated outreach is strongly advised before taking definitive commercial action.'}
             </p>
-            {signal.conflicting_signal_ids && signal.conflicting_signal_ids.length > 0 && (
-              <div className="pt-2 text-xs flex items-center gap-2 text-rose-800">
-                <span className="font-medium">Conflicting Signal IDs:</span>
-                <div className="flex flex-wrap gap-1">
-                  {signal.conflicting_signal_ids.map((cid) => (
-                    <Link
-                      key={cid}
-                      href={`/signals/${cid}`}
-                      className="underline font-mono hover:text-rose-950 transition"
-                    >
-                      {cid.slice(0, 8)}...
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Classification Uncertainty Callout (if uncertain) */}
-        {signal.is_uncertain && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-amber-900 space-y-2">
-            <div className="flex items-center gap-2 font-semibold text-amber-800 text-sm">
-              <span>🔍</span>
-              <span>Classification Uncertainty — Verification Recommended</span>
-            </div>
-            <p className="text-xs text-amber-700 leading-relaxed">
-              This signal received a confidence score below the definitive threshold. Review the underlying data sources before presenting this finding as conclusive.
-            </p>
-            {signal.uncertainty_reasons && signal.uncertainty_reasons.length > 0 && (
-              <ul className="list-disc list-inside text-xs text-amber-800 space-y-1 pt-1">
-                {signal.uncertainty_reasons.map((reason, idx) => (
-                  <li key={idx}>{reason}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {/* 2-Column Grid: Evidence Dossier & Connected Entities */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Supporting Evidence Dossier */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                <span>📋</span>
-                <span>Supporting Evidence Dossier</span>
-              </h2>
-              {evidence?.verification_status && (
-                <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium capitalize border border-slate-200">
-                  {evidence.verification_status}
-                </span>
-              )}
-            </div>
-
-            {evidence ? (
-              <div className="space-y-3 text-xs">
-                {evidence.summary && (
-                  <div>
-                    <span className="text-slate-400 font-medium block">Evidence Summary</span>
-                    <p className="text-slate-800 mt-0.5 font-medium leading-relaxed">
-                      {evidence.summary}
-                    </p>
-                  </div>
-                )}
-
-                {evidence.excerpt && (
-                  <div>
-                    <span className="text-slate-400 font-medium block">Matched Text Snippet / Excerpt</span>
-                    <blockquote className="mt-1 font-mono text-xs bg-slate-50 border-l-4 border-slate-300 rounded-r px-3 py-2 text-slate-800">
-                      &ldquo;{evidence.excerpt}&rdquo;
-                    </blockquote>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <div>
-                    <span className="text-slate-400 block">Evidence Type</span>
-                    <span className="font-medium text-slate-800 capitalize">
-                      {String(evidence.evidence_type || evidence.type || 'touchpoint').replace(/_/g, ' ')}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block">Timestamp</span>
-                    <span className="font-medium text-slate-800">
-                      {evidence.timestamp || evidence.occurred_at
-                        ? new Date(evidence.timestamp || evidence.occurred_at).toLocaleDateString()
-                        : 'Recent'}
-                    </span>
-                  </div>
-                </div>
-
-                {evidence.context && Object.keys(evidence.context).length > 0 && (
-                  <div className="pt-2 border-t border-slate-100">
-                    <span className="text-slate-400 font-medium block mb-1">Context Parameters</span>
-                    <pre className="bg-slate-50 border border-slate-200 rounded p-2 text-[11px] font-mono text-slate-700 overflow-x-auto">
-                      {JSON.stringify(evidence.context, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500 py-4">
-                No structured evidence payload was recorded for this signal instance.
-              </p>
-            )}
-          </div>
-
-          {/* Connected CRM Entities */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <div className="border-b border-slate-100 pb-3">
-              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                <span>🔗</span>
-                <span>Connected CRM Entities</span>
-              </h2>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              {signal.company_name || signal.company_id ? (
-                <div className="flex items-center justify-between p-3 bg-blue-50/60 border border-blue-100 rounded-lg">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-lg">🏢</span>
-                    <div>
-                      <span className="text-[11px] text-blue-600 font-medium block uppercase tracking-wide">
-                        Client Company
-                      </span>
-                      <span className="font-semibold text-blue-950 text-sm">
-                        {signal.company_name || 'Associated Company'}
-                      </span>
-                    </div>
-                  </div>
-                  <Link
-                    href={
-                      signal.company_id
-                        ? `/companies/${signal.company_id}`
-                        : `/companies?q=${encodeURIComponent(signal.company_name || '')}`
-                    }
-                    className="px-2.5 py-1 bg-white text-blue-700 border border-blue-200 rounded font-medium hover:bg-blue-50 transition shrink-0"
-                  >
-                    View Company →
-                  </Link>
-                </div>
-              ) : null}
-
-              {signal.connected_persons && signal.connected_persons.length > 0 ? (
-                <div className="space-y-2.5">
-                  <span className="text-[11px] text-emerald-600 font-medium block uppercase tracking-wide">
-                    Connected People ({signal.connected_persons.length})
-                  </span>
-                  {signal.connected_persons.map((person) => {
-                    const personName =
-                      person.name ||
-                      [person.first_name, person.last_name].filter(Boolean).join(' ') ||
-                      'Unnamed Contact';
-                    const email = person.email || person.primary_email;
-                    return (
-                      <div
-                        key={person.id}
-                        className="flex items-center justify-between p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg gap-3"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="text-lg shrink-0">👤</span>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-emerald-950 text-sm truncate">
-                                {personName}
-                              </span>
-                              {person.role && (
-                                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                  {person.role}
-                                </span>
-                              )}
-                            </div>
-                            {email && (
-                              <span className="text-[11px] text-slate-500 block truncate">
-                                {email}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Link
-                            href={`/persons/${person.id}`}
-                            className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition text-xs"
-                          >
-                            View Person →
-                          </Link>
-                          <button
-                            onClick={() => handleUnlinkPerson(person.id)}
-                            disabled={submittingAction}
-                            className="px-2 py-1 bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 rounded font-medium transition text-xs cursor-pointer"
-                            title="Unlink Person from Signal"
-                          >
-                            Unlink
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+        {/* Evidence & Details Breakdown */}
+        {evidence && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span>📋</span>
+              <span>Supporting Detection Evidence</span>
+            </h2>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs font-mono space-y-2 text-slate-800 overflow-x-auto">
+              {typeof evidence === 'object' ? (
+                <pre>{JSON.stringify(evidence, null, 2)}</pre>
               ) : (
-                <div className="flex items-center justify-between p-3 bg-slate-50/70 border border-slate-200 rounded-lg gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-lg shrink-0 text-slate-400">👤</span>
-                    <div className="min-w-0">
-                      <span className="text-[11px] text-slate-500 font-medium block uppercase tracking-wide">
-                        Contact Person
-                      </span>
-                      {signal.person_name ? (
-                        <span className="font-semibold text-slate-800 text-sm truncate block">
-                          {signal.person_name}
-                        </span>
-                      ) : (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-medium text-slate-400 text-xs italic">
-                            None (Unable to identify counterparty contact)
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {signal.person_id && signal.person_name && (
-                    <Link
-                      href={`/persons/${signal.person_id}`}
-                      className="px-2.5 py-1 bg-white text-emerald-700 border border-emerald-200 rounded font-medium hover:bg-emerald-50 transition shrink-0 text-xs"
-                    >
-                      View Person →
-                    </Link>
-                  )}
-                </div>
-              )}
-
-                {/* Suggested Counterparty Contacts */}
-                {signal.suggested_persons && signal.suggested_persons.length > 0 && (
-                  <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-lg space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-indigo-700 font-bold uppercase tracking-wide flex items-center gap-1">
-                        <span>💡</span>
-                        <span>Suggested Counterparty Contacts</span>
-                      </span>
-                      <span className="text-[10px] text-indigo-500 font-medium">
-                        Identified from meeting / debrief
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {signal.suggested_persons.map((sp, idx) => (
-                        sp.person_id ? (
-                          <button
-                            key={sp.person_id || idx}
-                            onClick={() => handleLinkPerson(sp.person_id!, sp.role || 'counterparty')}
-                            disabled={submittingAction}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-indigo-100 text-indigo-950 border border-indigo-200 text-xs font-semibold transition cursor-pointer shadow-2xs"
-                            title={`Link ${sp.name} (${sp.role || 'contact'}) to this signal`}
-                          >
-                            <span className="text-indigo-600 font-bold text-sm">+</span>
-                            <span>{sp.name}</span>
-                            {sp.role && (
-                              <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-1 rounded border border-indigo-100">
-                                {sp.role}
-                              </span>
-                            )}
-                          </button>
-                        ) : null
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              {signal.opportunity_title ? (
-                <div className="flex items-center justify-between p-3 bg-purple-50/60 border border-purple-100 rounded-lg">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-lg">💼</span>
-                    <div>
-                      <span className="text-[11px] text-purple-600 font-medium block uppercase tracking-wide">
-                        Pipeline Deal
-                      </span>
-                      <span className="font-semibold text-purple-950 text-sm">
-                        {signal.opportunity_title}
-                      </span>
-                    </div>
-                  </div>
-                  <Link
-                    href={`/opportunities?search=${encodeURIComponent(signal.opportunity_title)}`}
-                    className="px-2.5 py-1 bg-white text-purple-700 border border-purple-200 rounded font-medium hover:bg-purple-50 transition"
-                  >
-                    View Deal →
-                  </Link>
-                </div>
-              ) : null}
-
-              {signal.engagement_title ? (
-                <div className="flex items-center justify-between p-3 bg-amber-50/60 border border-amber-100 rounded-lg">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-lg">📋</span>
-                    <div>
-                      <span className="text-[11px] text-amber-600 font-medium block uppercase tracking-wide">
-                        Client Engagement
-                      </span>
-                      <span className="font-semibold text-amber-950 text-sm">
-                        {signal.engagement_title}
-                      </span>
-                    </div>
-                  </div>
-                  <Link
-                    href="/engagements"
-                    className="px-2.5 py-1 bg-white text-amber-700 border border-amber-200 rounded font-medium hover:bg-amber-50 transition"
-                  >
-                    View Engagement →
-                  </Link>
-                </div>
-              ) : null}
-
-              {signal.activity_id ? (
-                <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-lg">⚡</span>
-                    <div>
-                      <span className="text-[11px] text-slate-500 font-medium block uppercase tracking-wide">
-                        Triggering Activity
-                      </span>
-                      <span className="font-mono text-xs text-slate-800">
-                        {signal.activity_id.slice(0, 12)}...
-                      </span>
-                    </div>
-                  </div>
-                  <Link
-                    href="/activities"
-                    className="px-2.5 py-1 bg-white text-slate-700 border border-slate-200 rounded font-medium hover:bg-slate-100 transition"
-                  >
-                    View Activity Feed →
-                  </Link>
-                </div>
-              ) : null}
-
-              {!signal.company_name && !signal.person_name && !signal.opportunity_title && !signal.engagement_title && (
-                <p className="text-xs text-slate-500 py-4">No associated CRM entities linked to this signal.</p>
+                <p>{String(evidence)}</p>
               )}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Recommended Playbook Card */}
         {signal.signal?.recommended_action && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                <span>💡</span>
-                <span>Recommended Action Playbook</span>
-              </h2>
-              {signal.signal.recommended_action.playbook && (
-                <span className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
-                  {signal.signal.recommended_action.playbook}
-                </span>
-              )}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span>💡</span>
+              <span>Recommended Action Playbook</span>
+            </h2>
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 text-xs space-y-2">
+              <p className="font-bold text-emerald-900 text-sm">
+                {signal.signal.recommended_action.title || 'Recommended Next Best Action'}
+              </p>
+              <p className="text-emerald-800 leading-relaxed">
+                {signal.signal.recommended_action.description ||
+                  'Review account history and initiate prompt executive check-in.'}
+              </p>
             </div>
-
-            <div className="space-y-2">
-              <h3 className="text-base font-semibold text-slate-900">
-                {signal.signal.recommended_action.title}
-              </h3>
-              {signal.signal.recommended_action.description && (
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  {signal.signal.recommended_action.description}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Signal Catalog Business Interpretation Reference */}
-        {signal.signal?.business_interpretation && (
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2 text-xs">
-            <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-              <span>📖</span>
-              <span>Business Interpretation & Commercial Impact:</span>
-            </span>
-            <p className="text-slate-600 leading-relaxed">
-              {signal.signal.business_interpretation}
-            </p>
           </div>
         )}
       </div>
 
-      {/* Action / Dismiss Modal */}
-      {actionModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-900">
-                {actionType === 'actioned' ? 'Record Completed Action' : 'Dismiss Signal'}
+      {/* Action / Dismiss / Snooze / Resolve Modal */}
+      {actionModalOpen && actionType && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-900">
+                {actionType === 'actioned'
+                  ? 'Record Taken Action'
+                  : actionType === 'snoozed'
+                  ? '💤 Snooze Signal Alert'
+                  : actionType === 'resolved'
+                  ? '✅ Resolve Signal'
+                  : 'Dismiss Signal Alert'}
               </h3>
               <button
                 onClick={() => setActionModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleSubmitAction} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Resolution Notes (Optional)
+              <p className="text-xs text-slate-500">
+                Signal: <strong className="text-slate-800 font-semibold">{signal.title}</strong>
+              </p>
+
+              {/* Snooze duration buttons */}
+              {actionType === 'snoozed' && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Snooze Duration
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: '7 Days', days: 7 },
+                      { label: '14 Days (Default)', days: 14 },
+                      { label: '30 Days', days: 30 },
+                    ].map((opt) => (
+                      <button
+                        key={opt.days}
+                        type="button"
+                        onClick={() => {
+                          setSnoozeDays(opt.days);
+                          setCustomSnoozeDate('');
+                        }}
+                        className={`py-2 px-3 text-xs rounded-xl border font-semibold transition cursor-pointer ${
+                          snoozeDays === opt.days && !customSnoozeDate
+                            ? 'bg-purple-600 text-white border-purple-600'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="block text-xs font-medium text-slate-500 mb-1">
+                      Or Pick Custom Date
+                    </label>
+                    <input
+                      type="date"
+                      value={customSnoozeDate}
+                      onChange={(e) => setCustomSnoozeDate(e.target.value)}
+                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Dismissal Reason */}
+              {actionType === 'dismissed' && (
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Dismissal Category
+                  </label>
+                  <select
+                    value={dismissalReason}
+                    onChange={(e) => setDismissalReason(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500"
+                  >
+                    <option value="Not Relevant">Not Relevant / Ignorable</option>
+                    <option value="False Positive">False Positive / Incorrect Attribution</option>
+                    <option value="Handled Elsewhere">Already Handled Elsewhere</option>
+                    <option value="Other">Other / Miscellaneous</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  {actionType === 'actioned'
+                    ? 'Resolution Notes / Commercial Next Step'
+                    : actionType === 'resolved'
+                    ? 'Resolution Notes'
+                    : actionType === 'snoozed'
+                    ? 'Optional Snooze Reason'
+                    : 'Additional Context / Notes'}
                 </label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   value={resolutionNotes}
                   onChange={(e) => setResolutionNotes(e.target.value)}
                   placeholder={
                     actionType === 'actioned'
-                      ? 'e.g. Scheduled QBR meeting with VP of Data, sent proposal extension...'
-                      : 'e.g. False positive, account currently pausing operations...'
+                      ? 'e.g., Scheduled executive check-in for next Tuesday...'
+                      : actionType === 'resolved'
+                      ? 'e.g., Re-engagement call completed.'
+                      : actionType === 'snoozed'
+                      ? 'e.g., Lead requested contact next month.'
+                      : 'e.g., Contact already communicated via WhatsApp.'
                   }
-                  className="w-full text-xs rounded-lg border border-slate-200 p-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-slate-900"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setActionModalOpen(false)}
-                  className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -859,10 +706,20 @@ export default function SignalDetailPage({
                   className={`px-4 py-2 text-xs font-semibold text-white rounded-lg transition shadow-sm cursor-pointer ${
                     actionType === 'actioned'
                       ? 'bg-emerald-600 hover:bg-emerald-700'
-                      : 'bg-slate-700 hover:bg-slate-800'
+                      : actionType === 'snoozed'
+                      ? 'bg-purple-600 hover:bg-purple-700'
+                      : actionType === 'resolved'
+                      ? 'bg-teal-600 hover:bg-teal-700'
+                      : 'bg-slate-800 hover:bg-slate-900'
                   }`}
                 >
-                  {submittingAction ? 'Saving...' : 'Confirm'}
+                  {actionType === 'actioned'
+                    ? 'Mark as Actioned'
+                    : actionType === 'snoozed'
+                    ? 'Confirm Snooze'
+                    : actionType === 'resolved'
+                    ? 'Confirm Resolution'
+                    : 'Dismiss Signal'}
                 </button>
               </div>
             </form>

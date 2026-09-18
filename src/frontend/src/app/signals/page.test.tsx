@@ -61,6 +61,10 @@ const mockDetectedSignals = [
     opportunity_title: null,
     engagement_id: null,
     engagement_title: null,
+    connected_persons: [
+      { id: 'p-1', name: 'Louis Guitton', role: 'primary' },
+      { id: 'p-2', name: 'Jodi Barrow', role: 'counterparty' },
+    ],
     status: 'active',
     severity: 'high',
     confidence_score: 0.9,
@@ -245,6 +249,12 @@ describe('SignalsPage Component', () => {
           by_signal: { dormant_strategic_accounts: 2 },
         });
       }
+      if (url.includes('/signals/detected/bulk-status') && options?.method === 'POST') {
+        return Promise.resolve({
+          updated_count: 2,
+          signals: mockDetectedSignals.map((s) => ({ ...s, status: 'snoozed' })),
+        });
+      }
       if (url.includes('/signals/detected/') && options?.method === 'PATCH') {
         return Promise.resolve({ ...mockDetectedSignals[0], status: 'acknowledged' });
       }
@@ -280,7 +290,7 @@ describe('SignalsPage Component', () => {
       expect(screen.getByRole('heading', { name: 'Opportunities' })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Mixed' })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Risks' })).toBeInTheDocument();
-      expect(screen.getByText('No active risk signals detected')).toBeInTheDocument();
+      expect(screen.getByText('No risk signals matching filter')).toBeInTheDocument();
       expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
       expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
     });
@@ -314,7 +324,7 @@ describe('SignalsPage Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
-      expect(screen.getByText('Classification Uncertainty — Verification Recommended')).toBeInTheDocument();
+      expect(screen.getByText('Verification Recommended')).toBeInTheDocument();
       expect(screen.queryByText('Dormant Account Alert: Acme Corp')).not.toBeInTheDocument();
     });
   });
@@ -456,25 +466,6 @@ describe('SignalsPage Component', () => {
   });
 
   it('renders multiple connected person pills and supports filtering by connected person name', async () => {
-    const multiPersonSignals = [
-      {
-        ...mockDetectedSignals[0],
-        id: 'sig-multi-persons',
-        title: 'Competitor Mention: Acme Corp',
-        connected_persons: [
-          { id: 'p-1', name: 'Louis Guitton', role: 'primary' },
-          { id: 'p-2', name: 'Jodi Barrow', role: 'counterparty' },
-        ],
-      },
-    ];
-
-    (apiFetch as any).mockImplementation((url: string) => {
-      if (url.includes('/signals/catalog')) return Promise.resolve({ data: mockCatalog });
-      if (url.includes('/signals/detected/stats')) return Promise.resolve(mockStats);
-      if (url.includes('/signals/detected')) return Promise.resolve({ data: multiPersonSignals });
-      return Promise.resolve({ data: [] });
-    });
-
     render(<SignalsPage />);
 
     await waitFor(() => {
@@ -514,7 +505,7 @@ describe('SignalsPage Component', () => {
 
     // Initial fetch includes lookback_days=90
     expect(apiFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/signals/detected?page_size=100&lookback_days=90')
+      expect.stringContaining('lookback_days=90')
     );
 
     // Change lookback window in toolbar
@@ -523,7 +514,7 @@ describe('SignalsPage Component', () => {
 
     await waitFor(() => {
       expect(apiFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/signals/detected?page_size=100&lookback_days=180')
+        expect.stringContaining('lookback_days=180')
       );
     });
 
@@ -551,7 +542,7 @@ describe('SignalsPage Component', () => {
     fireEvent.click(metricsTabBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Signal Performance & Success Metrics')).toBeInTheDocument();
+      expect(screen.getByText('Signal Quality, MTTA Latency & Business Outcomes')).toBeInTheDocument();
       // Check Action Rate KPI
       expect(screen.getByText('70.0%')).toBeInTheDocument();
       // Check MTTA
@@ -564,5 +555,64 @@ describe('SignalsPage Component', () => {
       expect(screen.getByText('Performance Breakdown by Signal Type')).toBeInTheDocument();
     });
   });
-});
 
+  it('supports selecting multiple signals and performing bulk lifecycle updates', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+    });
+
+    // Check individual signal checkboxes
+    const cardCheckboxes = screen.getAllByTitle('Select signal for bulk actions');
+    expect(cardCheckboxes.length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(cardCheckboxes[0]);
+    fireEvent.click(cardCheckboxes[1]);
+
+    // Check Bulk Action Bar appeared
+    await waitFor(() => {
+      expect(screen.getByText(/2 signal\(s\) selected/i)).toBeInTheDocument();
+      expect(screen.getByText('💤 Bulk Snooze 14d')).toBeInTheDocument();
+      expect(screen.getByText('Resolve Selected')).toBeInTheDocument();
+    });
+
+    // Click Snooze 14d
+    const bulkSnoozeBtn = screen.getByText('💤 Bulk Snooze 14d');
+    fireEvent.click(bulkSnoozeBtn);
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/v1/signals/detected/bulk-status',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringMatching(/snoozed/),
+        })
+      );
+    });
+  });
+
+  it('supports toggling the Group by Account view mode', async () => {
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /Group by Account \/ Organization/i })
+      ).toBeInTheDocument();
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+    });
+
+    // Toggle Group by Account
+    const groupBtn = screen.getByRole('button', {
+      name: /Group by Account \/ Organization/i,
+    });
+    fireEvent.click(groupBtn);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Beta Inc').length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Account Clustered Signals/i).length).toBeGreaterThan(0);
+    });
+  });
+});

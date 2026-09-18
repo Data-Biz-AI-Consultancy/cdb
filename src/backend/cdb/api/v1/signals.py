@@ -10,10 +10,13 @@ from cdb.core.errors import NotFoundError
 from cdb.models.user import User
 from cdb.schemas.common import PaginatedResponse, PaginationMetadata
 from cdb.schemas.signals import (
+    BulkSignalStatusUpdateRequest,
+    BulkSignalStatusUpdateResponse,
     DetectedSignalResponse,
     DetectedSignalStatsResponse,
     DetectedSignalStatus,
     DetectedSignalUpdate,
+    GroupedDetectedSignalsResponse,
     SignalCatalogResponse,
     SignalCategory,
     SignalDefinition,
@@ -191,6 +194,64 @@ async def get_detected_stats(
 
 
 @router.get(
+    "/detected/grouped",
+    response_model=GroupedDetectedSignalsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_grouped_detected_signals(
+    signal_id: str | None = Query(None, description="Filter by signal slug ID"),
+    category: str | None = Query(
+        None, description="Filter by category (opportunity, risk, hybrid)"
+    ),
+    status_filter: DetectedSignalStatus | None = Query(
+        None,
+        alias="status",
+        description="Filter by status (active, acknowledged, actioned, snoozed, dismissed, resolved)",
+    ),
+    severity: SignalSeverity | None = Query(None, description="Filter by severity level"),
+    company_id: uuid.UUID | None = Query(None, description="Filter by company ID"),
+    lookback_days: int | None = Query(
+        None,
+        ge=1,
+        le=730,
+        description="Filter signals detected within lookback window in days",
+    ),
+    limit: int = Query(100, ge=1, le=500, description="Max signals to evaluate"),
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> GroupedDetectedSignalsResponse:
+    """
+    Returns detected signals grouped by Account / Company for clustered organization triage.
+    """
+    return await detected_signal_service.list_grouped_detected_signals(
+        db,
+        signal_id=signal_id,
+        category=category,
+        status=status_filter,
+        severity=severity,
+        company_id=company_id,
+        lookback_days=lookback_days,
+        limit=limit,
+    )
+
+
+@router.post(
+    "/detected/bulk-status",
+    response_model=BulkSignalStatusUpdateResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def bulk_update_signal_status(
+    payload: BulkSignalStatusUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> BulkSignalStatusUpdateResponse:
+    """
+    Bulk updates the status of multiple detected signals simultaneously (dismiss, snooze, resolve, action).
+    """
+    return await detected_signal_service.bulk_update_detected_signals(db, payload, user=auth_user)
+
+
+@router.get(
     "/detected",
     response_model=PaginatedResponse[DetectedSignalResponse],
     status_code=status.HTTP_200_OK,
@@ -203,7 +264,7 @@ async def list_detected_signals(
     status_filter: DetectedSignalStatus | None = Query(
         None,
         alias="status",
-        description="Filter by status (active, acknowledged, actioned, dismissed)",
+        description="Filter by status (active, acknowledged, actioned, snoozed, dismissed, resolved)",
     ),
     severity: SignalSeverity | None = Query(None, description="Filter by severity level"),
     company_id: uuid.UUID | None = Query(None, description="Filter by company ID"),
@@ -293,8 +354,8 @@ async def update_detected_signal_status(
     auth_user: User | None = Depends(get_current_user_or_api_key),
 ) -> DetectedSignalResponse:
     """
-    Updates the status ('acknowledged', 'actioned', 'dismissed', 'resolved')
-    and optional resolution notes of an active detected signal.
+    Updates the status ('acknowledged', 'actioned', 'snoozed', 'dismissed', 'resolved')
+    and optional resolution notes / snooze duration of a detected signal.
     """
     updated = await detected_signal_service.update_detected_signal(
         db, signal_instance_id, payload, user=auth_user
