@@ -21,8 +21,10 @@ from cdb.services.signals.classification.conflicts import (
     detect_signal_conflicts,
 )
 from cdb.services.signals.classification.evidence import (
+    EvidenceStatus,
     build_evidence_payload,
     build_signal_meta,
+    determine_evidence_status,
 )
 from cdb.services.signals.classification.polarity import (
     SignalPolarity,
@@ -36,6 +38,7 @@ from cdb.services.signals.classification.rules import (
 __all__ = [
     "SignalPolarity",
     "SignalConfidenceTier",
+    "EvidenceStatus",
     "ConflictScope",
     "CONFIDENCE_HIGH_THRESHOLD",
     "CONFIDENCE_MEDIUM_THRESHOLD",
@@ -43,6 +46,7 @@ __all__ = [
     "SIGNAL_CLASSIFICATION_RULES",
     "build_evidence_payload",
     "build_signal_meta",
+    "determine_evidence_status",
     "assess_confidence",
     "resolve_signal_effective_polarity",
     "detect_signal_conflicts",

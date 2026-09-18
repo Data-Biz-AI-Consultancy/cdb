@@ -380,23 +380,48 @@ Every detected signal receives a deterministic confidence score ($0.00$ to $1.00
 - **Medium Confidence ($0.50 - 0.79$)**: Actionable signal with moderate corroboration (e.g. older activity, indirect affiliation).
 - **Low Confidence / Uncertain ($< 0.50$)**: Signals lacking direct contact attribution, fuzzy text matches, or stale evidence. Flagged with `is_uncertain = True` and surfaced in the **Needs Verification** triage tab with explicit `uncertainty_reasons`.
 
-### 4. Supporting Evidence Contract
+### 4. Supporting Evidence & Explanation Contract
 
-All signals store a structured supporting evidence payload in `metadata["evidence"]`:
+All signals store a standardized, rich supporting evidence payload in `metadata["evidence"]` ensuring complete commercial context, clear timestamps, and traceability:
 ```json
 {
-  "type": "activity_text | touchpoint_cadence | contract_end_date | career_history",
-  "summary": "Plain English explanation of the signal trigger",
-  "timestamp": "2026-09-01T10:00:00Z",
-  "source_entity_type": "activity | person | engagement | company",
+  "evidence_type": "temporal_inactivity | message_sla | contract_milestone | relationship_transition | text_pattern | enrichment_data",
+  "source_entity_type": "company | activity | engagement | relationship",
   "source_entity_id": "<uuid>",
-  "excerpt": "Matched snippet, message quote, or metric value",
-  "context": {
-    "days_inactive": 75,
-    "last_activity_date": "2026-06-15"
-  }
+  "source_display": "Account Interaction History (Acme Corp)",
+  "trigger_event_title": "Inbound LINKEDIN message from Alice unreplied for 7 days",
+  "why_it_matters_now": "Client conversion probability and trust decline quickly with response latency. This commercial inquiry is 7 days old and awaiting prompt response.",
+  "occurred_at": "2026-09-01T10:00:00Z",
+  "days_elapsed": 7,
+  "excerpt": "Matched 'proposal and rates' in inbound conversation with Alice",
+  "evidence_status": "fresh | stale | incomplete | conflicting | unverified",
+  "evidence_notes": [
+    "Evidence is 75 days old (exceeds 60d freshness window)"
+  ],
+  "commercial_context": {
+    "account_name": "Acme Corp",
+    "tier": "tier_1",
+    "rate_value": 1500,
+    "currency": "EUR"
+  },
+  "relationship_context": {
+    "person_name": "Alice Smith",
+    "role": "VP Engineering"
+  },
+  "key_metrics": {
+    "days_unanswered": 7,
+    "channel": "linkedin"
+  },
+  "verification_status": "verified"
 }
 ```
+
+#### Evidence Health & Staleness Matrix
+- **`fresh` (🟢)**: Supporting event verified within active temporal lookback ($<60\text{d}$ for touchpoints/growth, valid contract dates).
+- **`stale` (🟡)**: Evidence is older than the freshness SLA ($>60\text{d}$ old touchpoints, expired opportunities) with explicit warnings.
+- **`incomplete` (🟠)**: Lacks complete attribution or critical relationship/commercial metrics.
+- **`conflicting` (🔴)**: Opposing commercial polarity detected on the same entity scope.
+- **`unverified` (🔍)**: Fuzzy pattern match or confidence score below verification threshold ($< 0.50$).
 
 ### 5. Multi-Entity Conflict Detection
 

@@ -742,6 +742,8 @@ CREATE INDEX idx_detected_signals_fingerprint     ON detected_signals (evidence_
 CREATE INDEX idx_detected_signals_snoozed_until   ON detected_signals (snoozed_until);
 ```
 
+> **Supporting Evidence Contract**: `metadata['evidence']` contains standardized evidence payloads (`evidence_type`, `trigger_event_title`, `why_it_matters_now`, `occurred_at`, `days_elapsed`, `excerpt`, `evidence_status`, `evidence_notes`, `commercial_context`, `relationship_context`, and `key_metrics`) enabling end-to-end traceability and evidence health tracking.
+
 ### `detected_signal_persons`
 
 Junction table supporting multi-person association on detected signals (e.g. group messaging threads or multi-stakeholder interactions).

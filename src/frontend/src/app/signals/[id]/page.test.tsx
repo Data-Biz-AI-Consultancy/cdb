@@ -99,15 +99,17 @@ describe('SignalDetailPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Conflicting signals on Company/)).toBeInTheDocument();
 
-    // Supporting Detection Evidence
+    // Supporting Detection Evidence & Why It Matters Now
+    expect(screen.getByText('Why This Signal Matters Now')).toBeInTheDocument();
     expect(screen.getByText('Supporting Detection Evidence')).toBeInTheDocument();
-    expect(screen.getByText(/touchpoint_cadence/)).toBeInTheDocument();
+    expect(screen.getByText('Triggering Event')).toBeInTheDocument();
+    expect(screen.getAllByText(/touchpoint_cadence/)[0]).toBeInTheDocument();
 
     // Connected Entities
-    expect(screen.getByText('Acme Enterprise Solutions')).toBeInTheDocument();
+    expect(screen.getAllByText('Acme Enterprise Solutions')[0]).toBeInTheDocument();
     expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
 
-    const companyLink = screen.getByRole('link', { name: /Acme Enterprise Solutions/i });
+    const companyLink = screen.getAllByRole('link', { name: /Acme Enterprise Solutions/i })[0];
     expect(companyLink).toHaveAttribute('href', '/companies/comp-999');
 
     const personLink = screen.getByRole('link', { name: /Sarah Connor/i });

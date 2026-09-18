@@ -6,6 +6,7 @@ Converts DetectedSignal ORM models into API response schemas.
 
 import uuid
 from decimal import Decimal
+from typing import Any
 
 from cdb.models.signal import DetectedSignal
 from cdb.schemas.signals import (
@@ -15,6 +16,7 @@ from cdb.schemas.signals import (
     SignalDefinition,
     SignalSeverity,
     SuggestedPersonResponse,
+    SupportingEvidenceResponse,
 )
 
 
@@ -133,6 +135,22 @@ def to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
             )
         )
 
+    raw_evidence = meta.get("evidence")
+    evidence_payload: SupportingEvidenceResponse | dict[str, Any] | None = None
+    why_it_matters_now = meta.get("why_it_matters_now")
+
+    if isinstance(raw_evidence, dict):
+        try:
+            evidence_payload = SupportingEvidenceResponse.model_validate(raw_evidence)
+            if not why_it_matters_now:
+                why_it_matters_now = evidence_payload.why_it_matters_now
+        except Exception:
+            evidence_payload = raw_evidence
+            if not why_it_matters_now:
+                why_it_matters_now = raw_evidence.get("why_it_matters_now")
+    elif raw_evidence is not None:
+        evidence_payload = raw_evidence
+
     return DetectedSignalResponse(
         id=sig.id,
         signal_id=sig.signal_id,
@@ -158,7 +176,8 @@ def to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         has_conflict=meta.get("has_conflict", False),
         conflicting_signal_ids=meta.get("conflicting_signal_ids", []),
         conflict_summary=meta.get("conflict_summary"),
-        evidence=meta.get("evidence"),
+        evidence=evidence_payload,
+        why_it_matters_now=why_it_matters_now,
         evidence_fingerprint=sig.evidence_fingerprint,
         title=sig.title,
         summary=sig.summary,

@@ -28,11 +28,13 @@ from cdb.services.signals.catalog import ensure_signals_dimension
 from cdb.services.signals.classification import (
     SIGNAL_CLASSIFICATION_RULES,
     ConflictScope,
+    EvidenceStatus,
     SignalConfidenceTier,
     SignalPolarity,
     assess_confidence,
     build_evidence_payload,
     detect_signal_conflicts,
+    determine_evidence_status,
     resolve_signal_effective_polarity,
 )
 from cdb.services.signals.detector import evaluate_all_signals
@@ -149,25 +151,67 @@ def test_assess_confidence_and_uncertainty():
 
 
 def test_build_evidence_payload_contract():
-    """Evidence payload adheres to standardized schema."""
+    """Evidence payload adheres to standardized schema with rich explanations and context."""
     evidence = build_evidence_payload(
         evidence_type="text_pattern",
         source_entity_type="activity",
         source_entity_id="act-12345",
+        source_display="Email: Competitor Evaluation",
+        trigger_event_title="Competitor bake-off keyword detected",
+        why_it_matters_now="Competitor presence in active deal threatens win rate.",
         occurred_at="2026-09-01T10:00:00Z",
         days_elapsed=8,
         excerpt="evaluating alternative consultancy",
+        commercial_context={"deal_size": 50000, "currency": "USD"},
+        relationship_context={"role": "VP Engineering"},
         key_metrics={"matched_phrase": "evaluating alternative", "is_named": False},
         verification_status="probable",
     )
     assert evidence["evidence_type"] == "text_pattern"
     assert evidence["source_entity_type"] == "activity"
     assert evidence["source_entity_id"] == "act-12345"
+    assert evidence["source_display"] == "Email: Competitor Evaluation"
+    assert evidence["trigger_event_title"] == "Competitor bake-off keyword detected"
+    assert (
+        evidence["why_it_matters_now"] == "Competitor presence in active deal threatens win rate."
+    )
     assert evidence["occurred_at"] == "2026-09-01T10:00:00Z"
     assert evidence["days_elapsed"] == 8
     assert evidence["excerpt"] == "evaluating alternative consultancy"
+    assert evidence["evidence_status"] == "fresh"
+    assert evidence["commercial_context"]["deal_size"] == 50000
+    assert evidence["relationship_context"]["role"] == "VP Engineering"
     assert evidence["key_metrics"]["is_named"] is False
     assert evidence["verification_status"] == "probable"
+
+
+def test_determine_evidence_status_evaluations():
+    """determine_evidence_status accurately identifies fresh, stale, incomplete, conflicting, and unverified states."""
+    # 1. Fresh evidence
+    status, notes = determine_evidence_status(days_elapsed=10, max_fresh_days=60)
+    assert status == EvidenceStatus.FRESH.value
+    assert len(notes) == 0
+
+    # 2. Stale evidence (> max_fresh_days)
+    status, notes = determine_evidence_status(days_elapsed=75, max_fresh_days=60)
+    assert status == EvidenceStatus.STALE.value
+    assert len(notes) > 0
+    assert "75 days old" in notes[0]
+
+    # 3. Incomplete evidence (missing required context)
+    status, notes = determine_evidence_status(missing_required=True)
+    assert status == EvidenceStatus.INCOMPLETE.value
+    assert "lacks complete counterparty" in notes[0]
+
+    # 4. Conflicting evidence (opposing polarity)
+    status, notes = determine_evidence_status(has_conflict=True)
+    assert status == EvidenceStatus.CONFLICTING.value
+    assert "Opposing commercial polarity" in notes[0]
+
+    # 5. Unverified / uncertain evidence
+    status, notes = determine_evidence_status(verification_status="unverified")
+    assert status == EvidenceStatus.UNVERIFIED.value
+    assert "unverified or ambiguous" in notes[0]
 
 
 def test_detect_signal_conflicts_company_level():
@@ -377,6 +421,15 @@ async def test_end_to_end_conflict_and_uncertainty_evaluation(
         assert "evidence" in item
         assert item["evidence"]["evidence_type"] is not None
         assert "verification_status" in item["evidence"]
+        assert item["evidence"]["evidence_status"] in (
+            "fresh",
+            "stale",
+            "incomplete",
+            "conflicting",
+            "unverified",
+        )
+        assert item["evidence"]["trigger_event_title"] is not None
+        assert item["why_it_matters_now"] is not None
 
     # 5. Query specifically with has_conflict=true
     conflict_res = await client.get(

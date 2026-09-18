@@ -58,6 +58,24 @@ export interface SuggestedPerson {
   confidence?: number | null;
 }
 
+export interface SupportingEvidence {
+  evidence_type?: string;
+  source_entity_type?: string;
+  source_entity_id?: string | null;
+  source_display?: string | null;
+  trigger_event_title?: string | null;
+  why_it_matters_now?: string | null;
+  occurred_at?: string | null;
+  days_elapsed?: number | null;
+  excerpt?: string | null;
+  evidence_status?: 'fresh' | 'stale' | 'incomplete' | 'conflicting' | 'unverified' | string;
+  evidence_notes?: string[];
+  commercial_context?: Record<string, any>;
+  relationship_context?: Record<string, any>;
+  key_metrics?: Record<string, any>;
+  verification_status?: string;
+}
+
 export interface DetectedSignal {
   id: string;
   signal_id: string;
@@ -84,7 +102,8 @@ export interface DetectedSignal {
   conflicting_signal_ids?: string[];
   conflict_summary?: string | null;
   conflict_scope?: string | null;
-  evidence?: Record<string, any> | null;
+  evidence?: SupportingEvidence | Record<string, any> | null;
+  why_it_matters_now?: string | null;
   evidence_fingerprint?: string | null;
   title: string;
   summary?: string | null;
@@ -677,6 +696,42 @@ export default function SignalsPage() {
     }
   };
 
+  const getEvidenceHealthBadge = (evidenceStatus?: string, isUncertain?: boolean, hasConflict?: boolean) => {
+    if (hasConflict || evidenceStatus === 'conflicting') {
+      return {
+        label: 'Conflicting',
+        className: 'bg-rose-100 text-rose-800 border-rose-200',
+        icon: '⚠️',
+      };
+    }
+    if (evidenceStatus === 'stale') {
+      return {
+        label: 'Stale (>60d)',
+        className: 'bg-amber-100 text-amber-800 border-amber-200',
+        icon: '🟡',
+      };
+    }
+    if (evidenceStatus === 'incomplete') {
+      return {
+        label: 'Incomplete',
+        className: 'bg-orange-100 text-orange-800 border-orange-200',
+        icon: '🟠',
+      };
+    }
+    if (isUncertain || evidenceStatus === 'unverified') {
+      return {
+        label: 'Unverified',
+        className: 'bg-slate-100 text-slate-700 border-slate-200',
+        icon: '🔍',
+      };
+    }
+    return {
+      label: 'Fresh Evidence',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      icon: '🟢',
+    };
+  };
+
   const renderSignalCard = (sig: DetectedSignal, columnVariant: 'opportunity' | 'risk' | 'hybrid') => {
     const isSelected = selectedSignalIds.includes(sig.id);
     const borderAccent =
@@ -685,6 +740,17 @@ export default function SignalsPage() {
         : columnVariant === 'risk'
         ? 'border-l-4 border-l-rose-500'
         : 'border-l-4 border-l-amber-500';
+
+    const evidence = sig.evidence || sig.metadata?.evidence;
+    const whyItMatters =
+      sig.why_it_matters_now ||
+      (evidence && (evidence as any).why_it_matters_now);
+
+    const evidenceStatus =
+      (evidence && (evidence as any).evidence_status) ||
+      (sig.has_conflict ? 'conflicting' : sig.is_uncertain ? 'unverified' : 'fresh');
+
+    const healthBadge = getEvidenceHealthBadge(evidenceStatus, sig.is_uncertain, sig.has_conflict);
 
     return (
       <div
@@ -728,6 +794,14 @@ export default function SignalsPage() {
               {sig.status === 'snoozed' && sig.snoozed_until
                 ? `💤 Snoozed until ${new Date(sig.snoozed_until).toLocaleDateString()}`
                 : sig.status}
+            </span>
+
+            {/* Evidence Health Pill */}
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full border font-medium flex items-center gap-1 ${healthBadge.className}`}
+            >
+              <span>{healthBadge.icon}</span>
+              <span>{healthBadge.label}</span>
             </span>
 
             {/* Reopened Alert Indicator */}
@@ -787,6 +861,15 @@ export default function SignalsPage() {
                 {sig.summary}
               </p>
             )}
+
+            {/* Why It Matters Callout */}
+            {whyItMatters && (
+              <div className="mt-1.5 p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg text-[11px] text-amber-900 leading-snug">
+                <span className="font-bold">⚡ Why it matters: </span>
+                <span>{whyItMatters}</span>
+              </div>
+            )}
+
             {sig.resolution_notes && (
               <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1.5 italic">
                 💬 <strong>Notes:</strong> {sig.resolution_notes}

@@ -16,6 +16,7 @@ from cdb.services.signals.classification import (
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
+    determine_evidence_status,
 )
 from cdb.services.signals.patterns import FUNDING_REGEX, HIRING_REGEX
 from cdb.services.signals.utils import (
@@ -66,13 +67,43 @@ async def detect_growth_from_activities(
             conf_val, ambiguity_flags=flags
         )
 
+        why_it_matters = (
+            f"Fresh capital investment or rapid hiring expansion ('{matched_phrase}') at {comp_name} "
+            "creates urgent execution pressure. Specialized external consulting bridges delivery gaps "
+            "while permanent headcount is recruited."
+        )
+        trigger_title = (
+            f"{event_type} indicator identified in {act.type or 'touchpoint'}: '{matched_phrase}'"
+        )
+
+        commercial_ctx = {
+            "account_name": comp_name,
+            "domain": company.domain if company else None,
+            "event_type": event_type.lower(),
+            "matched_phrase": matched_phrase,
+            "activity_title": act.title,
+        }
+
+        evidence_status, evidence_notes = determine_evidence_status(
+            days_elapsed=days_ago,
+            max_fresh_days=60,
+            is_uncertain=is_uncertain,
+            verification_status="verified" if not is_uncertain else "probable",
+        )
+
         evidence = build_evidence_payload(
             evidence_type="text_pattern",
             source_entity_type="activity",
             source_entity_id=str(act.id),
+            source_display=f"Interaction Note: {act.title or act.type or 'Touchpoint'}",
+            trigger_event_title=trigger_title,
+            why_it_matters_now=why_it_matters,
             occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
             days_elapsed=days_ago,
             excerpt=f"Matched '{matched_phrase}' in activity: {act.title or act.summary or ''}",
+            evidence_status=evidence_status,
+            evidence_notes=evidence_notes,
+            commercial_context=commercial_ctx,
             key_metrics={
                 "event_type": event_type.lower(),
                 "matched_phrase": matched_phrase,
@@ -100,6 +131,7 @@ async def detect_growth_from_activities(
             company_name=comp_name,
             person_roles=person_roles,
             suggested_persons=suggested,
+            why_it_matters_now=why_it_matters,
         )
 
         res = await _upsert_detected_signal(

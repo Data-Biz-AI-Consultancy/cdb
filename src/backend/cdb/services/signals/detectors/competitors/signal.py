@@ -16,6 +16,7 @@ from cdb.services.signals.classification import (
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
+    determine_evidence_status,
 )
 from cdb.services.signals.detectors.competitors.constants import NAMED_CONSULTANCIES
 from cdb.services.signals.utils import (
@@ -50,13 +51,39 @@ async def create_competitor_signal(
         conf_val, ambiguity_flags=flags
     )
 
+    why_it_matters = (
+        f"Competitor or alternative solution evaluation ('{matched_phrase}') in an active deal creates "
+        "displacement and pricing pressure. Prompt deployment of competitive differentiation battlecards "
+        "and value re-anchoring protects win probability."
+    )
+    trigger_title = f"Competitor evaluation phrase detected: '{matched_phrase}'"
+
+    commercial_ctx = {
+        "matched_phrase": matched_phrase,
+        "is_named_competitor": is_named,
+        "activity_title": act.title,
+    }
+
+    evidence_status, evidence_notes = determine_evidence_status(
+        days_elapsed=days_ago,
+        max_fresh_days=60,
+        is_uncertain=is_uncertain,
+        verification_status="verified" if is_named else "probable",
+    )
+
     evidence = build_evidence_payload(
         evidence_type="text_pattern",
         source_entity_type="activity",
         source_entity_id=str(act.id),
+        source_display=f"Interaction Note: {act.title or act.type or 'Touchpoint'}",
+        trigger_event_title=trigger_title,
+        why_it_matters_now=why_it_matters,
         occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
         days_elapsed=days_ago,
         excerpt=f"Competitor phrase '{matched_phrase}' detected in interaction: {act.title or act.summary or ''}",
+        evidence_status=evidence_status,
+        evidence_notes=evidence_notes,
+        commercial_context=commercial_ctx,
         key_metrics={"matched_phrase": matched_phrase, "is_named_competitor": is_named},
         verification_status="verified" if is_named else "probable",
     )
@@ -77,6 +104,7 @@ async def create_competitor_signal(
         evidence,
         matched_phrase=matched_phrase,
         activity_occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
+        why_it_matters_now=why_it_matters,
     )
     if suggested:
         meta["suggested_persons"] = suggested

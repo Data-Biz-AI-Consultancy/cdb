@@ -18,6 +18,7 @@ from cdb.services.signals.classification import (
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
+    determine_evidence_status,
 )
 from cdb.services.signals.utils import (
     _upsert_detected_signal,
@@ -55,6 +56,12 @@ async def create_leadership_signal(
             f"{person_name} transitioned away from {comp_name} (former role: {rel.title or 'Stakeholder'}). "
             "Opportunity to congratulate and explore relationships at their new destination."
         )
+        why_it_matters = (
+            f"Advisory relationships rely on champion continuity. The departure of {person_name} "
+            f"from {comp_name} risks account drift; outreach is needed both to map the successor at {comp_name} "
+            "and to follow the champion into their new organization."
+        )
+        trigger_title = f"Executive champion departure: {person_name} departed {comp_name}"
     else:
         excerpt = f"{person_name} joined {comp_name} as {rel.title}"
         title = f"New Executive Leader: {person_name} ({rel.title}) at {comp_name}"
@@ -62,14 +69,47 @@ async def create_leadership_signal(
             f"{person_name} recently joined {comp_name} as {rel.title}. "
             "Fresh leadership mandates often unlock new data, AI, or advisory budgets."
         )
+        why_it_matters = (
+            f"Incoming executives ({person_name}, {rel.title}) typically evaluate existing vendors "
+            f"and command discretionary budget for new strategic roadmaps during their first 90–100 days."
+        )
+        trigger_title = f"New executive arrival: {person_name} joined {comp_name} as {rel.title}"
+
+    relationship_ctx = {
+        "person_name": person_name,
+        "role": rel.title,
+        "event_type": event_type,
+        "account_name": comp_name,
+        "is_current": rel.is_current,
+    }
+    commercial_ctx = {
+        "account_name": comp_name,
+        "domain": company.domain if company else None,
+        "event_type": event_type,
+    }
+
+    evidence_status, evidence_notes = determine_evidence_status(
+        days_elapsed=days_elapsed,
+        max_fresh_days=60,
+        is_uncertain=is_uncertain,
+        missing_required=transition_date is None,
+        verification_status="verified" if transition_date else "probable",
+    )
 
     evidence = build_evidence_payload(
         evidence_type="relationship_transition",
         source_entity_type="relationship",
         source_entity_id=str(rel.id),
+        source_display=f"Employment Affiliation: {comp_name}",
+        trigger_event_title=trigger_title,
+        why_it_matters_now=why_it_matters,
         occurred_at=transition_date.isoformat() if transition_date else None,
         days_elapsed=days_elapsed,
         excerpt=excerpt,
+        evidence_status=evidence_status,
+        evidence_notes=evidence_notes,
+        commercial_context=commercial_ctx,
+        relationship_context=relationship_ctx,
         key_metrics={"event_type": event_type, "role": rel.title},
         verification_status="verified" if transition_date else "probable",
     )
@@ -81,6 +121,7 @@ async def create_leadership_signal(
         "role": rel.title,
         "company_name": comp_name,
         "person_name": person_name,
+        "why_it_matters_now": why_it_matters,
     }
 
     meta = build_signal_meta(

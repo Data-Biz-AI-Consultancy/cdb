@@ -16,6 +16,7 @@ from cdb.services.signals.classification import (
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
+    determine_evidence_status,
 )
 from cdb.services.signals.utils import (
     _upsert_detected_signal,
@@ -40,13 +41,48 @@ async def _create_enrichment_signal(
     conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
         Decimal("0.90") if event_type == "funding" else Decimal("0.85")
     )
+
+    if event_type == "funding":
+        why_it_matters = (
+            f"Fresh capital investment ({label}) accelerates roadmap delivery and tech initiatives at {comp.name}. "
+            "High-impact advisory or specialized consulting sprints can immediately relieve technical capacity constraints."
+        )
+        trigger_title = f"Capital round identified in account profile: {label}"
+    else:
+        why_it_matters = (
+            f"Headcount expansion ({label}) signals strategic scaling at {comp.name}. "
+            "Engineering recruitment cycles take 3–6 months; external advisory support offers immediate execution velocity."
+        )
+        trigger_title = f"Headcount expansion recorded: {label}"
+
+    commercial_ctx = {
+        "account_name": comp.name,
+        "domain": comp.domain,
+        "event_type": event_type,
+        "label": label,
+        **{k: v for k, v in extra_meta.items() if k in ("round", "amount", "growth_description")},
+    }
+
+    evidence_status, evidence_notes = determine_evidence_status(
+        days_elapsed=0,
+        max_fresh_days=90,
+        is_uncertain=is_uncertain,
+        verification_status="verified",
+    )
+
     evidence = build_evidence_payload(
         evidence_type="enrichment_data",
         source_entity_type="company",
         source_entity_id=str(comp.id),
+        source_display="Structured Account Enrichment Data",
+        trigger_event_title=trigger_title,
+        why_it_matters_now=why_it_matters,
         occurred_at=occurred_at,
         days_elapsed=0,
         excerpt=evidence_excerpt,
+        evidence_status=evidence_status,
+        evidence_notes=evidence_notes,
+        commercial_context=commercial_ctx,
         key_metrics=key_metrics,
         verification_status="verified",
     )
@@ -59,6 +95,7 @@ async def _create_enrichment_signal(
         event_type=event_type,
         enrichment_source="company_attributes",
         company_name=comp.name,
+        why_it_matters_now=why_it_matters,
         **extra_meta,
     )
     return await _upsert_detected_signal(

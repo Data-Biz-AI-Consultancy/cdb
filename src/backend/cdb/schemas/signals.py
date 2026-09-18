@@ -133,6 +133,26 @@ class SignalPersonLinkRequest(BaseModel):
     role: str = "counterparty"
 
 
+class SupportingEvidenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    evidence_type: str
+    source_entity_type: str
+    source_entity_id: str | None = None
+    source_display: str | None = None
+    trigger_event_title: str | None = None
+    why_it_matters_now: str | None = None
+    occurred_at: str | None = None
+    days_elapsed: int | None = None
+    excerpt: str | None = None
+    evidence_status: str = "fresh"
+    evidence_notes: list[str] = Field(default_factory=list)
+    commercial_context: dict[str, Any] = Field(default_factory=dict)
+    relationship_context: dict[str, Any] = Field(default_factory=dict)
+    key_metrics: dict[str, Any] = Field(default_factory=dict)
+    verification_status: str = "verified"
+
+
 class DetectedSignalResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -162,7 +182,8 @@ class DetectedSignalResponse(BaseModel):
     has_conflict: bool = False
     conflicting_signal_ids: list[str] = Field(default_factory=list)
     conflict_summary: str | None = None
-    evidence: dict[str, Any] | None = None
+    evidence: SupportingEvidenceResponse | dict[str, Any] | None = None
+    why_it_matters_now: str | None = None
     evidence_fingerprint: str | None = None
 
     title: str
