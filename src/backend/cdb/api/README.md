@@ -1519,6 +1519,52 @@ Unlink a person from a detected signal.
 
 **Response 200:** Updated `DetectedSignalResponse` with the person removed from `connected_persons`.
 
+### `POST /signals/detected/{signal_instance_id}/feedback`
+
+Submit false-positive or data quality feedback on a detected signal with optional automated signal dismissal.
+
+**Request:**
+```json
+{
+  "is_false_positive": true,
+  "feedback_reason": "stale_outdated", // "incorrect_intent" | "stale_outdated" | "wrong_entity_attribution" | "unreliable_source" | "confidential_restricted" | "other"
+  "feedback_notes": "Account reached out via phone call last week",
+  "suggested_action": "extend_cadence_window",
+  "dismiss_signal": true
+}
+```
+
+**Response 201:** `SignalFeedbackResponse` with created feedback entry and investigation status.
+
+### `GET /signals/feedback`
+
+Retrieve paginated feedback and false positive reports for monitoring and detector rule adjustments.
+
+**Query Parameters:**
+```
+?status=pending          # "pending" | "investigated" | "resolved" | "rejected"
+?feedback_reason=stale_outdated
+?signal_id=<uuid>
+?page=1
+?page_size=50
+```
+
+**Response 200:** `PaginatedResponse[SignalFeedbackResponse]`
+
+### `PATCH /signals/feedback/{feedback_id}`
+
+Update investigation status and resolution notes for a signal feedback report.
+
+**Request:**
+```json
+{
+  "status": "investigated", // "pending" | "investigated" | "resolved" | "rejected"
+  "investigation_notes": "Adjusted dormant account detector window to account for multi-channel logging."
+}
+```
+
+**Response 200:** Updated `SignalFeedbackResponse`
+
 ---
 
 *See [Database Schema](src/backend/db/README.md) for field definitions and [Signal Catalog Specification](src/backend/cdb/services/signals/README.md) for business interpretation details.*

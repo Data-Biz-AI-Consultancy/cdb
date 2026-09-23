@@ -15,7 +15,7 @@ from cdb.models.opportunity_history import OpportunityAction, OpportunityHistory
 from cdb.models.person import Person
 from cdb.models.person_history import PersonAction, PersonHistory
 from cdb.models.relationship import PersonCompanyRelationship
-from cdb.models.signal import DetectedSignal, DetectedSignalPerson, Signal
+from cdb.models.signal import DetectedSignal, DetectedSignalPerson, Signal, SignalFeedback
 from cdb.models.user import User
 
 __all__ = [
@@ -29,6 +29,7 @@ __all__ = [
     "Signal",
     "DetectedSignal",
     "DetectedSignalPerson",
+    "SignalFeedback",
     "Activity",
     "Lead",
     "Opportunity",

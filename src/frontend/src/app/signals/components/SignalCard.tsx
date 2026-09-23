@@ -24,7 +24,7 @@ interface SignalCardProps {
   onAcknowledge: (id: string) => void;
   onOpenActionModal: (
     sig: DetectedSignal,
-    actionType: 'actioned' | 'dismissed' | 'snoozed' | 'resolved'
+    actionType: 'actioned' | 'dismissed' | 'snoozed' | 'resolved' | 'false_positive'
   ) => void;
   onLinkPerson: (signalId: string, personId: string, role: string) => void;
   onUnlinkPerson: (signalId: string, personId: string) => void;
@@ -89,6 +89,11 @@ export const SignalCard: React.FC<SignalCardProps> = ({
 
   const breakdown: PriorityBreakdown | Record<string, any> | undefined =
     sig.priority_breakdown || sig.metadata?.priority_breakdown;
+
+  const sourceReliability = sig.source_reliability || (evidence as any)?.source_reliability || 'high';
+  const hasQualityWarning = sig.has_data_quality_warning || (evidence as any)?.has_quality_warning || false;
+  const isRestricted = (evidence as any)?.is_restricted || sig.source_reliability === 'restricted' || false;
+  const qualityFlags: string[] = sig.data_quality_flags || (evidence as any)?.data_quality_flags || [];
 
   return (
     <div
@@ -156,6 +161,51 @@ export const SignalCard: React.FC<SignalCardProps> = ({
             <span>{healthBadge.icon}</span>
             <span>{healthBadge.label}</span>
           </span>
+
+          {/* Data Quality & Source Safeguard Badges */}
+          {hasQualityWarning && (
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-100 text-amber-900 border-amber-300 font-semibold flex items-center gap-1"
+              title={
+                qualityFlags.length > 0
+                  ? `Quality Flags: ${qualityFlags.join(', ')}`
+                  : 'Source data may be stale, incomplete, or lower reliability'
+              }
+            >
+              <span>⚠️</span>
+              <span>Quality Warning</span>
+            </span>
+          )}
+
+          {sourceReliability === 'unreliable' || sourceReliability === 'low' ? (
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full border bg-rose-50 text-rose-800 border-rose-300 font-semibold flex items-center gap-1"
+              title={`Source data classified with ${sourceReliability.toUpperCase()} reliability`}
+            >
+              <span>📉</span>
+              <span className="capitalize">{sourceReliability} Source</span>
+            </span>
+          ) : null}
+
+          {isRestricted && (
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-800 border-indigo-300 font-semibold flex items-center gap-1"
+              title="Contains confidential or restricted metadata with privacy disclosures"
+            >
+              <span>🔒</span>
+              <span>Restricted Source</span>
+            </span>
+          )}
+
+          {sig.false_positive_count !== undefined && sig.false_positive_count > 0 && (
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full border bg-rose-100 text-rose-900 border-rose-400 font-bold flex items-center gap-1"
+              title={`Reported as false positive ${sig.false_positive_count} time(s)`}
+            >
+              <span>🚩</span>
+              <span>FP ({sig.false_positive_count})</span>
+            </span>
+          )}
 
           {/* Reopened Alert Indicator */}
           {sig.reopen_count !== undefined && sig.reopen_count > 0 && (
@@ -519,6 +569,16 @@ export const SignalCard: React.FC<SignalCardProps> = ({
               Dismiss
             </button>
           )}
+
+          {/* Report False Positive */}
+          <button
+            onClick={() => onOpenActionModal(sig, 'false_positive')}
+            disabled={actionInProgress === sig.id}
+            className="px-1.5 py-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg text-xs transition cursor-pointer font-medium"
+            title="Report this signal as a False Positive or Unreliable Source"
+          >
+            🚩 Report FP
+          </button>
 
           {(sig.status === 'dismissed' || sig.status === 'resolved') && (
             <button

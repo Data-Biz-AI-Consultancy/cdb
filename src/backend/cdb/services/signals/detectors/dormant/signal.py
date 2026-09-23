@@ -12,10 +12,12 @@ from cdb.models.activity import Activity
 from cdb.models.company import Company
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.classification import (
+    SourceReliability,
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
     determine_evidence_status,
+    evaluate_source_data_quality,
 )
 from cdb.services.signals.utils import (
     _upsert_detected_signal,
@@ -33,7 +35,25 @@ async def create_dormant_signal(
     comp_name = get_company_display_name(comp)
     severity = "critical" if days_inactive >= 90 else "high"
     confidence_val = Decimal("0.90") if last_act else Decimal("0.70")
-    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(confidence_val)
+
+    quality_assessment = evaluate_source_data_quality(
+        signal_id="dormant_strategic_account",
+        days_elapsed=days_inactive,
+        max_fresh_days=90,
+        has_company=bool(comp.id),
+        has_contact_role=True,
+        confidence_score=confidence_val,
+        source_reliability=SourceReliability.HIGH if last_act else SourceReliability.MEDIUM,
+    )
+
+    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
+        confidence_val,
+        quality_flags=quality_assessment.data_quality_flags,
+        confidence_penalty=quality_assessment.confidence_penalty,
+    )
+    for note in quality_assessment.disclosure_notes:
+        if note not in uncert_reasons:
+            uncert_reasons.append(note)
 
     why_it_matters = (
         f"In consulting and advisory, repeat business and account expansion represent 60–80% of revenue. "
@@ -80,6 +100,10 @@ async def create_dormant_signal(
             "account_tier": commercial_ctx.get("tier"),
         },
         verification_status="verified" if last_act else "probable",
+        source_reliability=quality_assessment.source_reliability.value,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        disclosure_notes=quality_assessment.disclosure_notes,
+        has_quality_warning=quality_assessment.has_quality_warning,
     )
 
     title = f"Dormant Strategic Account: {comp_name} ({days_inactive}d inactive)"
@@ -97,6 +121,10 @@ async def create_dormant_signal(
         days_inactive=days_inactive,
         company_name=comp_name,
         why_it_matters_now=why_it_matters,
+        has_data_quality_warning=quality_assessment.has_quality_warning,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        source_reliability=quality_assessment.source_reliability.value,
+        is_suppressed=quality_assessment.is_suppressed,
     )
 
     return await _upsert_detected_signal(

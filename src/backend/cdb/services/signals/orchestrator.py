@@ -55,7 +55,9 @@ async def evaluate_all_signals(db: AsyncSession, lookback_days: int = 90) -> dic
     growth = await detect_hiring_funding_events(db, now, lookback_days=lookback_days)
     competitors = await detect_competitor_signals(db, now, lookback_days=lookback_days)
 
-    all_pairs = dormant + unanswered + contracts + leadership + growth + competitors
+    raw_pairs = dormant + unanswered + contracts + leadership + growth + competitors
+    all_pairs = [p for p in raw_pairs if p and p[0] is not None]
+    total_suppressed_low_quality = len([p for p in raw_pairs if not p or p[0] is None])
     await db.flush()
 
     # Automatically retire/dismiss active signals that were not detected in this run
@@ -72,6 +74,13 @@ async def evaluate_all_signals(db: AsyncSession, lookback_days: int = 90) -> dic
     # Detect and apply conflicts across Company, Opportunity, and Person scopes
     conflict_map = detect_signal_conflicts(active_signals)
     total_conflicting, total_uncertain = apply_conflict_metadata(active_signals, conflict_map)
+
+    # Count signals with quality warnings
+    total_quality_warnings = 0
+    for asig in active_signals:
+        meta = asig.metadata_payload or {}
+        if meta.get("has_data_quality_warning") or meta.get("data_quality_flags"):
+            total_quality_warnings += 1
 
     # Query snoozed and reopened counts
     snoozed_count_stmt = select(func.count()).select_from(
@@ -109,9 +118,11 @@ async def evaluate_all_signals(db: AsyncSession, lookback_days: int = 90) -> dic
         "total_active_signals": total_active,
         "total_snoozed_signals": total_snoozed,
         "total_suppressed_duplicates": suppressed_count,
+        "total_suppressed_low_quality": total_suppressed_low_quality,
         "total_reopened_signals": total_reopened,
         "total_conflicting": total_conflicting,
         "total_uncertain": total_uncertain,
+        "total_quality_warnings": total_quality_warnings,
         "new_signals_detected": new_count,
         "refreshed_signals": refreshed_count,
         "by_signal": by_signal,

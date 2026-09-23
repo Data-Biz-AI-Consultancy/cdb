@@ -13,10 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cdb.models.activity import Activity
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.classification import (
+    SourceReliability,
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
     determine_evidence_status,
+    evaluate_source_data_quality,
 )
 from cdb.services.signals.detectors.competitors.constants import NAMED_CONSULTANCIES
 from cdb.services.signals.utils import (
@@ -39,17 +41,27 @@ async def create_competitor_signal(
     is_named = any(name in matched_lower for name in NAMED_CONSULTANCIES)
 
     days_ago = days_between(act.occurred_at, now)
-    conf_val = Decimal("0.85") if is_named else Decimal("0.60")
-    flags: list[str] = []
-    if days_ago > 60:
-        conf_val -= Decimal("0.15")
-        flags.append(
-            f"Mention occurred {days_ago} days ago; competitor evaluation may have concluded"
-        )
+    raw_conf = Decimal("0.85") if is_named else Decimal("0.60")
+
+    quality_assessment = evaluate_source_data_quality(
+        signal_id="competitor_signal",
+        days_elapsed=days_ago,
+        max_fresh_days=60,
+        has_company=bool(resolved_comp_id),
+        has_contact_role=True,
+        raw_excerpt=f"Competitor phrase '{matched_phrase}' detected in interaction: {act.title or act.summary or ''}",
+        confidence_score=raw_conf,
+        source_reliability=SourceReliability.HIGH if is_named else SourceReliability.MEDIUM,
+    )
 
     conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
-        conf_val, ambiguity_flags=flags
+        raw_conf,
+        quality_flags=quality_assessment.data_quality_flags,
+        confidence_penalty=quality_assessment.confidence_penalty,
     )
+    for note in quality_assessment.disclosure_notes:
+        if note not in uncert_reasons:
+            uncert_reasons.append(note)
 
     why_it_matters = (
         f"Competitor or alternative solution evaluation ('{matched_phrase}') in an active deal creates "
@@ -80,12 +92,16 @@ async def create_competitor_signal(
         why_it_matters_now=why_it_matters,
         occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
         days_elapsed=days_ago,
-        excerpt=f"Competitor phrase '{matched_phrase}' detected in interaction: {act.title or act.summary or ''}",
+        excerpt=quality_assessment.processed_excerpt,
         evidence_status=evidence_status,
         evidence_notes=evidence_notes,
         commercial_context=commercial_ctx,
         key_metrics={"matched_phrase": matched_phrase, "is_named_competitor": is_named},
         verification_status="verified" if is_named else "probable",
+        source_reliability=quality_assessment.source_reliability.value,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        disclosure_notes=quality_assessment.disclosure_notes,
+        has_quality_warning=quality_assessment.has_quality_warning,
     )
 
     title = f"Competitor Threat: '{matched_phrase}' detected"
@@ -105,6 +121,10 @@ async def create_competitor_signal(
         matched_phrase=matched_phrase,
         activity_occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
         why_it_matters_now=why_it_matters,
+        has_data_quality_warning=quality_assessment.has_quality_warning,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        source_reliability=quality_assessment.source_reliability.value,
+        is_suppressed=quality_assessment.is_suppressed,
     )
     if suggested:
         meta["suggested_persons"] = suggested

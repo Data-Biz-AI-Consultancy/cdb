@@ -129,4 +129,50 @@ describe('SignalActionModal component', () => {
     fireEvent.change(select, { target: { value: 'False Positive' } });
     expect(setDismissalReason).toHaveBeenCalledWith('False Positive');
   });
+
+  it('renders false_positive modal with reason select, notes, and auto-dismiss toggle', () => {
+    const setFeedbackReason = vi.fn();
+    const setAlsoDismiss = vi.fn();
+    const setResolutionNotes = vi.fn();
+    const onSave = vi.fn();
+
+    render(
+      <SignalActionModal
+        modalSignal={mockSignal}
+        modalActionType="false_positive"
+        actionInProgress={null}
+        resolutionNotes=""
+        dismissalReason="Not Relevant"
+        feedbackReason="incorrect_intent"
+        setFeedbackReason={setFeedbackReason}
+        alsoDismiss={true}
+        setAlsoDismiss={setAlsoDismiss}
+        snoozeDays={14}
+        customSnoozeDate=""
+        onClose={vi.fn()}
+        onSave={onSave}
+        setResolutionNotes={setResolutionNotes}
+        setDismissalReason={vi.fn()}
+        setSnoozeDays={vi.fn()}
+        setCustomSnoozeDate={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Report False Positive Signal')).toBeInTheDocument();
+    expect(screen.getByText('False Positive Primary Reason')).toBeInTheDocument();
+    expect(screen.getByText('Submit False Positive')).toBeInTheDocument();
+
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'stale_outdated' } });
+    expect(setFeedbackReason).toHaveBeenCalledWith('stale_outdated');
+
+    const checkbox = screen.getByRole('checkbox');
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
+    expect(setAlsoDismiss).toHaveBeenCalledWith(false);
+
+    const submitBtn = screen.getByText('Submit False Positive');
+    fireEvent.click(submitBtn);
+    expect(onSave).toHaveBeenCalled();
+  });
 });

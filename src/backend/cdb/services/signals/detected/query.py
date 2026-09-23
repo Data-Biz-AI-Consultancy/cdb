@@ -36,6 +36,8 @@ async def list_detected_signals(
     opportunity_id: uuid.UUID | None = None,
     engagement_id: uuid.UUID | None = None,
     is_uncertain: bool | None = None,
+    has_quality_warning: bool | None = None,
+    source_reliability: str | None = None,
     has_conflict: bool | None = None,
     priority_tier: str | None = None,
     effective_polarity: str | None = None,
@@ -55,6 +57,7 @@ async def list_detected_signals(
         selectinload(DetectedSignal.engagement),
         selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
         selectinload(DetectedSignal.connected_persons),
+        selectinload(DetectedSignal.feedback_entries),
     )
 
     if signal_id:
@@ -91,6 +94,31 @@ async def list_detected_signals(
         else:
             stmt = stmt.where(
                 DetectedSignal.metadata_payload["is_uncertain"].as_boolean() == is_uncertain
+            )
+
+    if has_quality_warning is not None:
+        if is_sqlite:
+            target_val = 1 if has_quality_warning else 0
+            stmt = stmt.where(
+                func.json_extract(DetectedSignal.metadata_payload, "$.has_data_quality_warning")
+                == target_val
+            )
+        else:
+            stmt = stmt.where(
+                DetectedSignal.metadata_payload["has_data_quality_warning"].as_boolean()
+                == has_quality_warning
+            )
+
+    if source_reliability is not None:
+        if is_sqlite:
+            stmt = stmt.where(
+                func.json_extract(DetectedSignal.metadata_payload, "$.source_reliability")
+                == source_reliability
+            )
+        else:
+            stmt = stmt.where(
+                DetectedSignal.metadata_payload["source_reliability"].as_string()
+                == source_reliability
             )
 
     if has_conflict is not None:
@@ -252,7 +280,10 @@ async def get_detected_signal_stats(
     Computes summary breakdown metrics across all detected signals.
     Optionally constrained to a lookback window.
     """
-    stmt = select(DetectedSignal).options(selectinload(DetectedSignal.signal))
+    stmt = select(DetectedSignal).options(
+        selectinload(DetectedSignal.signal),
+        selectinload(DetectedSignal.feedback_entries),
+    )
     if lookback_days:
         cutoff = utc_now() - datetime.timedelta(days=lookback_days)
         stmt = stmt.where(DetectedSignal.detected_at >= cutoff)
@@ -264,16 +295,30 @@ async def get_detected_signal_stats(
     by_status: dict[str, int] = {}
     by_priority_tier: dict[str, int] = {}
     by_effective_polarity: dict[str, int] = {}
+    by_source_reliability: dict[str, int] = {}
     total_active = 0
     total_snoozed = 0
     total_conflicting = 0
     total_uncertain = 0
+    total_quality_warnings = 0
+    total_false_positives = 0
 
     for r in records:
         by_status[r.status] = by_status.get(r.status, 0) + 1
+        meta = r.metadata_payload or {}
+        if meta.get("has_data_quality_warning") or meta.get("data_quality_flags"):
+            total_quality_warnings += 1
+
+        rel = meta.get("source_reliability", "medium")
+        by_source_reliability[rel] = by_source_reliability.get(rel, 0) + 1
+
+        if getattr(r, "feedback_entries", None):
+            for fb in r.feedback_entries:
+                if fb.is_false_positive:
+                    total_false_positives += 1
+
         if r.status == "active":
             total_active += 1
-            meta = r.metadata_payload or {}
             if meta.get("has_conflict"):
                 total_conflicting += 1
             if meta.get("is_uncertain"):
@@ -311,12 +356,15 @@ async def get_detected_signal_stats(
         total_snoozed=total_snoozed,
         total_conflicting=total_conflicting,
         total_uncertain=total_uncertain,
+        total_quality_warnings=total_quality_warnings,
+        total_false_positives=total_false_positives,
         by_severity=by_severity,
         by_category=by_category,
         by_signal=by_signal,
         by_status=by_status,
         by_priority_tier=by_priority_tier,
         by_effective_polarity=by_effective_polarity,
+        by_source_reliability=by_source_reliability,
     )
 
 
@@ -338,6 +386,7 @@ async def get_detected_signal(
             selectinload(DetectedSignal.engagement),
             selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
             selectinload(DetectedSignal.connected_persons),
+            selectinload(DetectedSignal.feedback_entries),
         )
     )
     sig = (await db.execute(stmt)).scalar_one_or_none()

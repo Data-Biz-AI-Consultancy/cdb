@@ -761,6 +761,33 @@ CREATE INDEX idx_dsp_detected_signal_id ON detected_signal_persons (detected_sig
 CREATE INDEX idx_dsp_person_id          ON detected_signal_persons (person_id);
 ```
 
+### `signal_feedback`
+
+Stores user-reported false positive feedback and data quality investigation statuses for continuous detection quality tuning.
+
+```sql
+CREATE TABLE signal_feedback (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    detected_signal_id UUID NOT NULL REFERENCES detected_signals (id) ON DELETE CASCADE,
+    user_id            UUID REFERENCES users (id) ON DELETE SET NULL,
+    is_false_positive  BOOLEAN NOT NULL DEFAULT true,
+    feedback_reason    VARCHAR(64) NOT NULL, -- 'incorrect_intent', 'stale_outdated', 'wrong_entity_attribution', 'unreliable_source', 'confidential_restricted', 'other'
+    feedback_notes     TEXT,
+    suggested_action   VARCHAR(128),
+    status             VARCHAR(32) NOT NULL DEFAULT 'pending', -- 'pending', 'investigated', 'resolved', 'rejected'
+    investigated_by_id UUID REFERENCES users (id) ON DELETE SET NULL,
+    investigation_notes TEXT,
+    investigated_at    TIMESTAMPTZ,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_signal_feedback_signal_id ON signal_feedback (detected_signal_id);
+CREATE INDEX idx_signal_feedback_status    ON signal_feedback (status);
+CREATE INDEX idx_signal_feedback_reason    ON signal_feedback (feedback_reason);
+CREATE INDEX idx_signal_feedback_created   ON signal_feedback (created_at);
+```
+
 ---
 
 ## Intake Tables (Source Layer)

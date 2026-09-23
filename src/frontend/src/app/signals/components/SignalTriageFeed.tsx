@@ -30,6 +30,8 @@ interface SignalTriageFeedProps {
   setSignalTypeFilter: (val: string) => void;
   priorityFilter: string;
   setPriorityFilter: (val: string) => void;
+  qualityFilter?: string;
+  setQualityFilter?: (val: string) => void;
   sortBy: string;
   setSortBy: (val: string) => void;
   lookbackDays: number;
@@ -66,6 +68,8 @@ export const SignalTriageFeed: React.FC<SignalTriageFeedProps> = ({
   setSignalTypeFilter,
   priorityFilter,
   setPriorityFilter,
+  qualityFilter = 'all',
+  setQualityFilter,
   sortBy,
   setSortBy,
   lookbackDays,
@@ -269,6 +273,21 @@ export const SignalTriageFeed: React.FC<SignalTriageFeedProps> = ({
             <option value="P4">P4 • Low Impact</option>
           </select>
 
+          {setQualityFilter && (
+            <select
+              id="quality-filter"
+              aria-label="Filter by Data Quality"
+              value={qualityFilter}
+              onChange={(e) => setQualityFilter(e.target.value)}
+              className="px-3 py-2 text-xs font-semibold bg-rose-50/70 border border-rose-300 rounded-lg text-rose-950 focus:outline-none focus:ring-2 focus:ring-rose-500"
+            >
+              <option value="all">Quality: All Data Health</option>
+              <option value="warnings_only">⚠️ Quality Warnings Only</option>
+              <option value="reliable_only">✅ High Reliability Only</option>
+              <option value="restricted_only">🔒 Restricted Only</option>
+            </select>
+          )}
+
           <select
             id="sort-by-filter"
             aria-label="Sort Signals"
@@ -302,6 +321,7 @@ export const SignalTriageFeed: React.FC<SignalTriageFeedProps> = ({
             severityFilter !== 'all' ||
             signalTypeFilter !== 'all' ||
             priorityFilter !== 'all' ||
+            qualityFilter !== 'all' ||
             sortBy !== 'priority' ||
             lookbackDays !== 90 ||
             searchQuery.trim().length > 0) && (

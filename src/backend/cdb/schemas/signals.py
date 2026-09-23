@@ -133,6 +133,60 @@ class SignalPersonLinkRequest(BaseModel):
     role: str = "counterparty"
 
 
+class FeedbackReason(StrEnum):
+    INCORRECT_INTENT = "incorrect_intent"
+    STALE_OUTDATED = "stale_outdated"
+    WRONG_ENTITY_ATTRIBUTION = "wrong_entity_attribution"
+    UNRELIABLE_SOURCE = "unreliable_source"
+    CONFIDENTIAL_RESTRICTED = "confidential_restricted"
+    OTHER = "other"
+
+
+class FeedbackInvestigationStatus(StrEnum):
+    PENDING = "pending"
+    INVESTIGATED = "investigated"
+    RESOLVED = "resolved"
+    REJECTED = "rejected"
+
+
+class SignalFeedbackCreate(BaseModel):
+    is_false_positive: bool = True
+    feedback_reason: FeedbackReason = FeedbackReason.INCORRECT_INTENT
+    feedback_notes: str | None = None
+    suggested_action: str | None = None
+    dismiss_signal: bool = True
+
+
+class SignalFeedbackUpdate(BaseModel):
+    status: FeedbackInvestigationStatus
+    investigation_notes: str | None = None
+
+
+class SignalFeedbackResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    detected_signal_id: uuid.UUID
+    user_id: uuid.UUID | None = None
+    user_name: str | None = None
+    is_false_positive: bool = True
+    feedback_reason: str
+    feedback_notes: str | None = None
+    suggested_action: str | None = None
+    status: str
+    investigated_by_id: uuid.UUID | None = None
+    investigated_by_name: str | None = None
+    investigation_notes: str | None = None
+    investigated_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SignalFeedbackListResponse(BaseModel):
+    data: list[SignalFeedbackResponse]
+    total_count: int
+
+
 class SupportingEvidenceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -151,6 +205,11 @@ class SupportingEvidenceResponse(BaseModel):
     relationship_context: dict[str, Any] = Field(default_factory=dict)
     key_metrics: dict[str, Any] = Field(default_factory=dict)
     verification_status: str = "verified"
+    source_reliability: str = "medium"
+    data_quality_flags: list[str] = Field(default_factory=list)
+    is_restricted: bool = False
+    disclosure_notes: list[str] = Field(default_factory=list)
+    has_quality_warning: bool = False
 
 
 class DetectedSignalResponse(BaseModel):
@@ -183,6 +242,11 @@ class DetectedSignalResponse(BaseModel):
     confidence_tier: str | None = None
     is_uncertain: bool = False
     uncertainty_reasons: list[str] = Field(default_factory=list)
+    has_data_quality_warning: bool = False
+    data_quality_flags: list[str] = Field(default_factory=list)
+    source_reliability: str | None = "medium"
+    false_positive_count: int = 0
+    feedback_entries: list[SignalFeedbackResponse] = Field(default_factory=list)
     has_conflict: bool = False
     conflicting_signal_ids: list[str] = Field(default_factory=list)
     conflict_summary: str | None = None
@@ -263,12 +327,15 @@ class DetectedSignalStatsResponse(BaseModel):
     total_snoozed: int = 0
     total_conflicting: int = 0
     total_uncertain: int = 0
+    total_quality_warnings: int = 0
+    total_false_positives: int = 0
     by_severity: dict[str, int]
     by_category: dict[str, int]
     by_signal: dict[str, int]
     by_status: dict[str, int]
     by_priority_tier: dict[str, int] = Field(default_factory=dict)
     by_effective_polarity: dict[str, int] = Field(default_factory=dict)
+    by_source_reliability: dict[str, int] = Field(default_factory=dict)
 
 
 class SignalEvaluationResult(BaseModel):
@@ -278,9 +345,11 @@ class SignalEvaluationResult(BaseModel):
     total_active_signals: int
     total_snoozed_signals: int = 0
     total_suppressed_duplicates: int = 0
+    total_suppressed_low_quality: int = 0
     total_reopened_signals: int = 0
     total_conflicting: int = 0
     total_uncertain: int = 0
+    total_quality_warnings: int = 0
     new_signals_detected: int
     refreshed_signals: int
     by_signal: dict[str, int]
@@ -294,11 +363,16 @@ class SignalQualityMetrics(BaseModel):
     total_snoozed: int = 0
     total_active: int = 0
     total_reopened: int = 0
+    total_false_positives: int = 0
     action_rate: float = 0.0
     dismissal_rate: float = 0.0
+    false_positive_rate: float = 0.0
     precision_proxy: float = 0.0
     needs_verification_rate: float = 0.0
     conflict_rate: float = 0.0
+    quality_warning_rate: float = 0.0
+    feedback_reasons: dict[str, int] = Field(default_factory=dict)
+    source_reliability_breakdown: dict[str, int] = Field(default_factory=dict)
 
 
 class SignalLatencyMetrics(BaseModel):
@@ -336,6 +410,7 @@ class SignalMetricsBreakdownItem(BaseModel):
     actioned_count: int = 0
     dismissed_count: int = 0
     snoozed_count: int = 0
+    false_positive_count: int = 0
     action_rate: float = 0.0
     mean_time_to_action_hours: float | None = None
     opportunities_created_count: int = 0

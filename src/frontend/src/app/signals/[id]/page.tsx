@@ -35,10 +35,12 @@ export default function SignalDetailPage({
   // Triage Action Modal State
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [actionType, setActionType] = useState<
-    'actioned' | 'dismissed' | 'snoozed' | 'resolved' | null
+    'actioned' | 'dismissed' | 'snoozed' | 'resolved' | 'false_positive' | null
   >(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [dismissalReason, setDismissalReason] = useState('Not Relevant');
+  const [feedbackReason, setFeedbackReason] = useState('incorrect_intent');
+  const [alsoDismiss, setAlsoDismiss] = useState(true);
   const [snoozeDays, setSnoozeDays] = useState<number>(14);
   const [customSnoozeDate, setCustomSnoozeDate] = useState<string>('');
   const [submittingAction, setSubmittingAction] = useState(false);
@@ -87,11 +89,13 @@ export default function SignalDetailPage({
   };
 
   const handleOpenActionModal = (
-    type: 'actioned' | 'dismissed' | 'snoozed' | 'resolved'
+    type: 'actioned' | 'dismissed' | 'snoozed' | 'resolved' | 'false_positive'
   ) => {
     setActionType(type);
     setResolutionNotes(signal?.resolution_notes || '');
     setDismissalReason('Not Relevant');
+    setFeedbackReason('incorrect_intent');
+    setAlsoDismiss(true);
     setSnoozeDays(14);
     setCustomSnoozeDate('');
     setActionModalOpen(true);
@@ -102,37 +106,53 @@ export default function SignalDetailPage({
     if (!signal || !actionType) return;
     try {
       setSubmittingAction(true);
-      const payload: Record<string, any> = {
-        status: actionType,
-      };
 
-      if (actionType === 'dismissed') {
-        const fullNotes = resolutionNotes.trim()
-          ? `[${dismissalReason}] ${resolutionNotes.trim()}`
-          : `[${dismissalReason}] Dismissed by user`;
-        payload.resolution_notes = fullNotes;
-      } else if (actionType === 'snoozed') {
-        if (customSnoozeDate) {
-          payload.snooze_until = new Date(customSnoozeDate).toISOString();
-        } else {
-          payload.snooze_days = snoozeDays;
-        }
-        if (resolutionNotes.trim()) {
+      if (actionType === 'false_positive') {
+        await apiFetch(`/api/v1/signals/detected/${signal.id}/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason: feedbackReason,
+            feedback_notes: resolutionNotes.trim() || undefined,
+            is_false_positive: true,
+            also_dismiss: alsoDismiss,
+          }),
+        });
+        await fetchSignal();
+      } else {
+        const payload: Record<string, any> = {
+          status: actionType,
+        };
+
+        if (actionType === 'dismissed') {
+          const fullNotes = resolutionNotes.trim()
+            ? `[${dismissalReason}] ${resolutionNotes.trim()}`
+            : `[${dismissalReason}] Dismissed by user`;
+          payload.resolution_notes = fullNotes;
+        } else if (actionType === 'snoozed') {
+          if (customSnoozeDate) {
+            payload.snooze_until = new Date(customSnoozeDate).toISOString();
+          } else {
+            payload.snooze_days = snoozeDays;
+          }
+          if (resolutionNotes.trim()) {
+            payload.resolution_notes = resolutionNotes.trim();
+          }
+        } else if (resolutionNotes.trim()) {
           payload.resolution_notes = resolutionNotes.trim();
         }
-      } else if (resolutionNotes.trim()) {
-        payload.resolution_notes = resolutionNotes.trim();
+
+        const updated = await apiFetch<DetectedSignal>(`/api/v1/signals/detected/${signal.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (updated) {
+          setSignal(updated);
+        }
       }
 
-      const updated = await apiFetch<DetectedSignal>(`/api/v1/signals/detected/${signal.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (updated) {
-        setSignal(updated);
-      }
       setActionModalOpen(false);
       setActionType(null);
       setResolutionNotes('');
@@ -598,6 +618,15 @@ export default function SignalDetailPage({
                   Dismiss
                 </button>
               )}
+              <button
+                onClick={() => handleOpenActionModal('false_positive')}
+                disabled={submittingAction}
+                className="px-3.5 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+                title="Submit false-positive feedback for quality monitoring and investigation"
+              >
+                <span>🚩</span>
+                <span>Report False Positive</span>
+              </button>
               {(signal.status === 'dismissed' || signal.status === 'resolved') && (
                 <button
                   onClick={() => handleOpenActionModal('actioned')}
@@ -1023,6 +1052,186 @@ export default function SignalDetailPage({
           </div>
         )}
 
+        {/* Data Quality & Safeguards Dossier Card */}
+        {(() => {
+          const sourceReliability = signal.source_reliability || (evidence as any)?.source_reliability || 'high';
+          const hasQualityWarning = signal.has_data_quality_warning || (evidence as any)?.has_quality_warning || false;
+          const isRestricted = (evidence as any)?.is_restricted || signal.source_reliability === 'restricted' || false;
+          const qualityFlags: string[] = signal.data_quality_flags || (evidence as any)?.data_quality_flags || [];
+
+          return (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🛡️</span>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">
+                      Data Quality & Source Safeguards Dossier
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Evaluates source availability, recency, reliability, and data privacy access rules.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs px-2.5 py-1 rounded-full border font-bold capitalize flex items-center gap-1 ${
+                      sourceReliability === 'high'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : sourceReliability === 'medium'
+                        ? 'bg-blue-50 text-blue-800 border-blue-300'
+                        : sourceReliability === 'low'
+                        ? 'bg-amber-50 text-amber-800 border-amber-300'
+                        : 'bg-rose-50 text-rose-800 border-rose-300'
+                    }`}
+                  >
+                    <span>Reliability:</span>
+                    <span>{sourceReliability}</span>
+                  </span>
+
+                  <span
+                    className={`text-xs px-2.5 py-1 rounded-full border font-bold ${
+                      hasQualityWarning
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {hasQualityWarning ? '⚠️ Warning Flagged' : '✅ High Integrity'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quality Flags Display */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Quality Assessment Flags
+                </span>
+                {qualityFlags.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {qualityFlags.map((flag, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-900 border border-amber-200"
+                      >
+                        <span>⚠️</span>
+                        <span>{flag.replace(/_/g, ' ')}</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic">
+                    No active data quality warnings. All supporting data entities are verified and recent.
+                  </p>
+                )}
+              </div>
+
+              {/* Confidential / Restricted Access Notice */}
+              {isRestricted && (
+                <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 text-xs text-indigo-950 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-indigo-900">
+                    <span>🔒</span>
+                    <span>Restricted Data Safeguard Notice</span>
+                  </div>
+                  <p className="leading-relaxed text-indigo-900">
+                    This signal references restricted, confidential, or permissioned source records. Sensitive raw excerpts have been redacted or generalized in accordance with information governance and data privacy controls.
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* False-Positive Feedback History & Monitoring Card */}
+        {(() => {
+          const feedbackEntries = signal.feedback_entries || [];
+
+          return (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🚩</span>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">
+                      False-Positive Feedback & Investigation History
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Continuous quality feedback loop monitored for detector tuning and false positive reduction.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleOpenActionModal('false_positive')}
+                  disabled={submittingAction}
+                  className="px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>+</span>
+                  <span>Report False Positive</span>
+                </button>
+              </div>
+
+              {feedbackEntries.length > 0 ? (
+                <div className="space-y-3">
+                  {feedbackEntries.map((fb) => (
+                    <div
+                      key={fb.id}
+                      className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full border bg-rose-100 text-rose-800 border-rose-200 font-semibold text-[11px] capitalize">
+                            {fb.feedback_reason.replace(/_/g, ' ')}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full border font-bold text-[10px] uppercase ${
+                              fb.status === 'investigated' || fb.status === 'resolved'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : fb.status === 'pending'
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : 'bg-slate-200 text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            Status: {fb.status}
+                          </span>
+                        </div>
+                        <span className="text-slate-400 font-mono text-[11px]">
+                          {new Date(fb.created_at).toLocaleString()}
+                        </span>
+                      </div>
+
+                      {fb.feedback_notes && (
+                        <p className="text-slate-700 bg-white p-2.5 rounded-lg border border-slate-200 italic">
+                          💬 &ldquo;{fb.feedback_notes}&rdquo;
+                        </p>
+                      )}
+
+                      {fb.investigation_notes && (
+                        <div className="pt-1 text-[11px] text-slate-600">
+                          <span className="font-bold text-slate-800">Investigation Note: </span>
+                          <span>{fb.investigation_notes}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-500 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <span>
+                    No false-positive feedback recorded for this signal alert. If this detection is inaccurate or based on stale source data, submit a report to alert the data team.
+                  </span>
+                  <button
+                    onClick={() => handleOpenActionModal('false_positive')}
+                    className="text-rose-600 hover:text-rose-800 font-bold hover:underline shrink-0"
+                  >
+                    Report feedback →
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Lifecycle & Deduplication Audit Card */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
           <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -1058,19 +1267,38 @@ export default function SignalDetailPage({
         </div>
       </div>
 
-      {/* Action / Dismiss / Snooze / Resolve Modal */}
+      {/* Action / Dismiss / Snooze / Resolve / False Positive Modal */}
       {actionModalOpen && actionType && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-900">
-                {actionType === 'actioned'
-                  ? 'Record Taken Action'
-                  : actionType === 'snoozed'
-                  ? '💤 Snooze Signal Alert'
-                  : actionType === 'resolved'
-                  ? '✅ Resolve Signal'
-                  : 'Dismiss Signal Alert'}
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                {actionType === 'actioned' ? (
+                  <>
+                    <span>⚡</span>
+                    <span>Record Taken Action</span>
+                  </>
+                ) : actionType === 'snoozed' ? (
+                  <>
+                    <span>💤</span>
+                    <span>Snooze Signal Alert</span>
+                  </>
+                ) : actionType === 'resolved' ? (
+                  <>
+                    <span>✅</span>
+                    <span>Resolve Signal</span>
+                  </>
+                ) : actionType === 'false_positive' ? (
+                  <>
+                    <span>🚩</span>
+                    <span>Report False Positive Signal</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✕</span>
+                    <span>Dismiss Signal Alert</span>
+                  </>
+                )}
               </h3>
               <button
                 onClick={() => setActionModalOpen(false)}
@@ -1084,6 +1312,39 @@ export default function SignalDetailPage({
               <p className="text-xs text-slate-500">
                 Signal: <strong className="text-slate-800 font-semibold">{signal.title}</strong>
               </p>
+
+              {/* False Positive Reason Selection */}
+              {actionType === 'false_positive' && (
+                <div className="space-y-3 bg-rose-50/60 p-3.5 rounded-xl border border-rose-200/80">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold text-rose-900">
+                      False Positive Primary Reason
+                    </label>
+                    <select
+                      value={feedbackReason}
+                      onChange={(e) => setFeedbackReason(e.target.value)}
+                      className="w-full text-xs p-2.5 bg-white border border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-900"
+                    >
+                      <option value="incorrect_intent">Incorrect Intent / Commercial Misinterpretation</option>
+                      <option value="stale_outdated">Stale or Outdated Source Data</option>
+                      <option value="wrong_entity_attribution">Wrong Company or Person Attribution</option>
+                      <option value="unreliable_source">Unreliable or Missing Corroborating Source Data</option>
+                      <option value="confidential_restricted">Restricted / Confidential Access Discrepancy</option>
+                      <option value="other">Other Detection Anomaly</option>
+                    </select>
+                  </div>
+
+                  <label className="flex items-center gap-2 text-xs text-rose-950 font-medium cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={alsoDismiss}
+                      onChange={(e) => setAlsoDismiss(e.target.checked)}
+                      className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-rose-300"
+                    />
+                    <span>Automatically dismiss this signal upon submission</span>
+                  </label>
+                </div>
+              )}
 
               {/* Snooze duration buttons */}
               {actionType === 'snoozed' && (
@@ -1156,6 +1417,8 @@ export default function SignalDetailPage({
                     ? 'Resolution Notes'
                     : actionType === 'snoozed'
                     ? 'Optional Snooze Reason'
+                    : actionType === 'false_positive'
+                    ? 'Feedback Details & Investigation Context'
                     : 'Additional Context / Notes'}
                 </label>
                 <textarea
@@ -1169,6 +1432,8 @@ export default function SignalDetailPage({
                       ? 'e.g., Re-engagement call completed.'
                       : actionType === 'snoozed'
                       ? 'e.g., Lead requested contact next month.'
+                      : actionType === 'false_positive'
+                      ? 'e.g., This email was sent to an external vendor rather than the prospective buyer; please suppress.'
                       : 'e.g., Contact already communicated via WhatsApp.'
                   }
                   className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-slate-900"
@@ -1193,6 +1458,8 @@ export default function SignalDetailPage({
                       ? 'bg-purple-600 hover:bg-purple-700'
                       : actionType === 'resolved'
                       ? 'bg-teal-600 hover:bg-teal-700'
+                      : actionType === 'false_positive'
+                      ? 'bg-rose-600 hover:bg-rose-700'
                       : 'bg-slate-800 hover:bg-slate-900'
                   }`}
                 >
@@ -1202,6 +1469,8 @@ export default function SignalDetailPage({
                     ? 'Confirm Snooze'
                     : actionType === 'resolved'
                     ? 'Confirm Resolution'
+                    : actionType === 'false_positive'
+                    ? 'Submit False Positive'
                     : 'Dismiss Signal'}
                 </button>
               </div>

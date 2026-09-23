@@ -56,6 +56,7 @@ async def compute_signal_success_metrics(
             selectinload(DetectedSignal.company),
             selectinload(DetectedSignal.opportunity),
             selectinload(DetectedSignal.engagement),
+            selectinload(DetectedSignal.feedback_entries),
         )
         .where(DetectedSignal.detected_at >= cutoff)
     )
@@ -80,10 +81,35 @@ async def compute_signal_success_metrics(
     total_active = sum(1 for r in records if r.status == "active")
     total_reopened = sum(1 for r in records if (r.reopen_count or 0) > 0)
 
+    # False-positive and quality tracking
+    total_false_positives = 0
+    feedback_reasons: dict[str, int] = {}
+    source_reliability_breakdown: dict[str, int] = {}
+    total_quality_warnings = 0
+
+    for r in records:
+        meta = r.metadata_payload or {}
+        if meta.get("has_data_quality_warning") or meta.get("data_quality_flags"):
+            total_quality_warnings += 1
+
+        rel = meta.get("source_reliability", "medium")
+        source_reliability_breakdown[rel] = source_reliability_breakdown.get(rel, 0) + 1
+
+        if getattr(r, "feedback_entries", None):
+            for fb in r.feedback_entries:
+                if fb.is_false_positive:
+                    total_false_positives += 1
+                    feedback_reasons[fb.feedback_reason] = (
+                        feedback_reasons.get(fb.feedback_reason, 0) + 1
+                    )
+
     action_rate = (
         round((total_actioned + total_resolved) / total_detected, 4) if total_detected > 0 else 0.0
     )
     dismissal_rate = round(total_dismissed / total_detected, 4) if total_detected > 0 else 0.0
+    false_positive_rate = (
+        round(total_false_positives / total_detected, 4) if total_detected > 0 else 0.0
+    )
     precision_proxy = round(max(0.0, 1.0 - dismissal_rate), 4)
 
     total_uncertain = sum(1 for r in records if (r.metadata_payload or {}).get("is_uncertain"))
@@ -93,6 +119,9 @@ async def compute_signal_success_metrics(
         round(total_uncertain / total_detected, 4) if total_detected > 0 else 0.0
     )
     conflict_rate = round(total_conflict / total_detected, 4) if total_detected > 0 else 0.0
+    quality_warning_rate = (
+        round(total_quality_warnings / total_detected, 4) if total_detected > 0 else 0.0
+    )
 
     quality = SignalQualityMetrics(
         total_detected=total_detected,
@@ -102,11 +131,16 @@ async def compute_signal_success_metrics(
         total_snoozed=total_snoozed,
         total_active=total_active,
         total_reopened=total_reopened,
+        total_false_positives=total_false_positives,
         action_rate=action_rate,
         dismissal_rate=dismissal_rate,
+        false_positive_rate=false_positive_rate,
         precision_proxy=precision_proxy,
         needs_verification_rate=needs_verification_rate,
         conflict_rate=conflict_rate,
+        quality_warning_rate=quality_warning_rate,
+        feedback_reasons=feedback_reasons,
+        source_reliability_breakdown=source_reliability_breakdown,
     )
 
     # 2. Operational Latency (Time-to-Action)
@@ -203,6 +237,8 @@ async def compute_signal_success_metrics(
             "total_detected": 0,
             "actioned_count": 0,
             "dismissed_count": 0,
+            "snoozed_count": 0,
+            "false_positive_count": 0,
             "durations": [],
             "opp_count": 0,
             "pipeline": Decimal("0.00"),
@@ -217,6 +253,8 @@ async def compute_signal_success_metrics(
             "total_detected": 0,
             "actioned_count": 0,
             "dismissed_count": 0,
+            "snoozed_count": 0,
+            "false_positive_count": 0,
             "durations": [],
             "opp_count": 0,
             "pipeline": Decimal("0.00"),
@@ -231,6 +269,8 @@ async def compute_signal_success_metrics(
             "total_detected": 0,
             "actioned_count": 0,
             "dismissed_count": 0,
+            "snoozed_count": 0,
+            "false_positive_count": 0,
             "durations": [],
             "opp_count": 0,
             "pipeline": Decimal("0.00"),
@@ -252,6 +292,7 @@ async def compute_signal_success_metrics(
                 "actioned_count": 0,
                 "dismissed_count": 0,
                 "snoozed_count": 0,
+                "false_positive_count": 0,
                 "durations": [],
                 "opp_count": 0,
                 "pipeline": Decimal("0.00"),
@@ -262,6 +303,15 @@ async def compute_signal_success_metrics(
             breakdown_by_category_map[scat]["total_detected"] += 1
         if ssev in breakdown_by_severity_map:
             breakdown_by_severity_map[ssev]["total_detected"] += 1
+
+        if getattr(sig, "feedback_entries", None):
+            for fb in sig.feedback_entries:
+                if fb.is_false_positive:
+                    breakdown_by_signal_map[sid]["false_positive_count"] += 1
+                    if scat in breakdown_by_category_map:
+                        breakdown_by_category_map[scat]["false_positive_count"] += 1
+                    if ssev in breakdown_by_severity_map:
+                        breakdown_by_severity_map[ssev]["false_positive_count"] += 1
 
         if sig.status in ("actioned", "resolved"):
             breakdown_by_signal_map[sid]["actioned_count"] += 1
@@ -423,6 +473,7 @@ async def compute_signal_success_metrics(
             actioned_count=act,
             dismissed_count=data.get("dismissed_count", 0),
             snoozed_count=data.get("snoozed_count", 0),
+            false_positive_count=data.get("false_positive_count", 0),
             action_rate=round(act / tot, 4) if tot > 0 else 0.0,
             mean_time_to_action_hours=round(statistics.mean(durs), 2) if durs else None,
             opportunities_created_count=data["opp_count"],

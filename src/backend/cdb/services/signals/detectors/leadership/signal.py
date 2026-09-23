@@ -15,10 +15,12 @@ from cdb.models.person import Person
 from cdb.models.relationship import PersonCompanyRelationship
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.classification import (
+    SourceReliability,
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
     determine_evidence_status,
+    evaluate_source_data_quality,
 )
 from cdb.services.signals.utils import (
     _upsert_detected_signal,
@@ -43,9 +45,27 @@ async def create_leadership_signal(
         company, default="Company" if event_type == "departure" else "Target Company"
     )
 
-    conf_val = Decimal("0.85") if transition_date else Decimal("0.65")
-    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(conf_val)
     days_elapsed = (now.date() - transition_date).days if transition_date else None
+    conf_val = Decimal("0.85") if transition_date else Decimal("0.65")
+
+    quality_assessment = evaluate_source_data_quality(
+        signal_id="leadership_change",
+        days_elapsed=days_elapsed,
+        max_fresh_days=60,
+        has_company=bool(rel.company_id),
+        has_contact_role=bool(rel.title),
+        confidence_score=conf_val,
+        source_reliability=SourceReliability.MEDIUM,
+    )
+
+    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
+        conf_val,
+        quality_flags=quality_assessment.data_quality_flags,
+        confidence_penalty=quality_assessment.confidence_penalty,
+    )
+    for note in quality_assessment.disclosure_notes:
+        if note not in uncert_reasons:
+            uncert_reasons.append(note)
 
     if event_type == "departure":
         excerpt = (
@@ -112,6 +132,10 @@ async def create_leadership_signal(
         relationship_context=relationship_ctx,
         key_metrics={"event_type": event_type, "role": rel.title},
         verification_status="verified" if transition_date else "probable",
+        source_reliability=quality_assessment.source_reliability.value,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        disclosure_notes=quality_assessment.disclosure_notes,
+        has_quality_warning=quality_assessment.has_quality_warning,
     )
 
     date_key = "ended_at" if event_type == "departure" else "started_at"
@@ -122,6 +146,10 @@ async def create_leadership_signal(
         "company_name": comp_name,
         "person_name": person_name,
         "why_it_matters_now": why_it_matters,
+        "has_data_quality_warning": quality_assessment.has_quality_warning,
+        "data_quality_flags": quality_assessment.data_quality_flags,
+        "source_reliability": quality_assessment.source_reliability.value,
+        "is_suppressed": quality_assessment.is_suppressed,
     }
 
     meta = build_signal_meta(

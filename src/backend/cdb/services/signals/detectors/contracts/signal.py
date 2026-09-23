@@ -12,10 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cdb.models.engagement import Engagement
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.classification import (
+    SourceReliability,
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
     determine_evidence_status,
+    evaluate_source_data_quality,
 )
 from cdb.services.signals.utils import (
     _upsert_detected_signal,
@@ -38,7 +40,26 @@ async def create_contract_signal(
     else:
         severity = "medium"
 
-    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(Decimal("0.95"))
+    raw_conf = Decimal("0.95")
+    quality_assessment = evaluate_source_data_quality(
+        signal_id="expiring_contract",
+        days_elapsed=0 if days_left >= 0 else abs(days_left),
+        max_fresh_days=60,
+        has_company=bool(eng.company_id),
+        has_contact_role=True,
+        confidence_score=raw_conf,
+        source_reliability=SourceReliability.HIGH,
+    )
+
+    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
+        raw_conf,
+        quality_flags=quality_assessment.data_quality_flags,
+        confidence_penalty=quality_assessment.confidence_penalty,
+    )
+    for note in quality_assessment.disclosure_notes:
+        if note not in uncert_reasons:
+            uncert_reasons.append(note)
+
     status_label = format_days_remaining_label(days_left)
 
     why_it_matters = (
@@ -88,6 +109,10 @@ async def create_contract_signal(
             "rate_value": float(eng.rate_value) if eng.rate_value else None,
         },
         verification_status="verified",
+        source_reliability=quality_assessment.source_reliability.value,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        disclosure_notes=quality_assessment.disclosure_notes,
+        has_quality_warning=quality_assessment.has_quality_warning,
     )
 
     title = f"Expiring Contract: {eng.title} ({status_label})"
@@ -108,6 +133,10 @@ async def create_contract_signal(
         currency=eng.currency,
         rate_value=float(eng.rate_value) if eng.rate_value else None,
         why_it_matters_now=why_it_matters,
+        has_data_quality_warning=quality_assessment.has_quality_warning,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        source_reliability=quality_assessment.source_reliability.value,
+        is_suppressed=quality_assessment.is_suppressed,
     )
 
     return await _upsert_detected_signal(

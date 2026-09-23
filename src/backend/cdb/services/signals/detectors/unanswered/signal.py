@@ -12,10 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cdb.models.activity import Activity
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.classification import (
+    SourceReliability,
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
     determine_evidence_status,
+    evaluate_source_data_quality,
 )
 from cdb.services.signals.utils import _upsert_detected_signal
 
@@ -64,7 +66,25 @@ async def create_unanswered_signal(
         context_type = "commercial_opportunity"
         excerpt = f"Opportunity context '{matched_term}' in conversation with {person_name}"
 
-    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(Decimal("0.90"))
+    raw_conf = Decimal("0.90")
+    quality_assessment = evaluate_source_data_quality(
+        signal_id="unanswered_conversation",
+        days_elapsed=days_unanswered,
+        max_fresh_days=30,
+        has_company=bool(comp_id),
+        has_contact_role=True,
+        confidence_score=raw_conf,
+        source_reliability=SourceReliability.MEDIUM,
+    )
+
+    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
+        raw_conf,
+        quality_flags=quality_assessment.data_quality_flags,
+        confidence_penalty=quality_assessment.confidence_penalty,
+    )
+    for note in quality_assessment.disclosure_notes:
+        if note not in uncert_reasons:
+            uncert_reasons.append(note)
 
     trigger_title = (
         f"Inbound {channel_display} message from {person_name} unreplied for {days_unanswered} days"
@@ -113,6 +133,10 @@ async def create_unanswered_signal(
             "context_type": context_type,
         },
         verification_status="verified",
+        source_reliability=quality_assessment.source_reliability.value,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        disclosure_notes=quality_assessment.disclosure_notes,
+        has_quality_warning=quality_assessment.has_quality_warning,
     )
     meta = build_signal_meta(
         conf_score,
@@ -128,6 +152,10 @@ async def create_unanswered_signal(
         matched_phrase=matched_term,
         context_type=context_type,
         why_it_matters_now=why_it_matters,
+        has_data_quality_warning=quality_assessment.has_quality_warning,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        source_reliability=quality_assessment.source_reliability.value,
+        is_suppressed=quality_assessment.is_suppressed,
     )
     return await _upsert_detected_signal(
         db,
