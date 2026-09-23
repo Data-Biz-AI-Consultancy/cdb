@@ -1,6 +1,6 @@
-"""0011_add_signal_data_quality_and_feedback
+"""0011_signal_quality_feedback
 
-Revision ID: 0011_add_signal_data_quality_and_feedback
+Revision ID: 0011_signal_quality_feedback
 Revises: 0010_add_signal_dedup_and_snooze
 Create Date: 2026-09-23 18:00:00.000000
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "0011_add_signal_data_quality_and_feedback"
+revision: str = "0011_signal_quality_feedback"
 down_revision: Union[str, None] = "0010_add_signal_dedup_and_snooze"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
