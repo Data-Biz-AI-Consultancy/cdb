@@ -15,6 +15,8 @@ class EvidenceStatus(StrEnum):
     INCOMPLETE = "incomplete"
     CONFLICTING = "conflicting"
     UNVERIFIED = "unverified"
+    UNAVAILABLE = "unavailable"
+    RESTRICTED = "restricted"
 
 
 def determine_evidence_status(
@@ -24,12 +26,20 @@ def determine_evidence_status(
     has_conflict: bool = False,
     missing_required: bool = False,
     verification_status: str = "verified",
+    is_unavailable: bool = False,
+    is_restricted: bool = False,
 ) -> tuple[str, list[str]]:
     """
-    Evaluates evidence freshness, completeness, and validity based on temporal thresholds
-    and corroboration quality.
+    Evaluates evidence freshness, completeness, and validity based on temporal thresholds,
+    availability, and corroboration quality.
     """
     notes: list[str] = []
+    if is_restricted:
+        notes.append("Evidence is subject to confidential/restricted access boundaries")
+        return EvidenceStatus.RESTRICTED.value, notes
+    if is_unavailable:
+        notes.append("Upstream data source connector is unavailable or disconnected")
+        return EvidenceStatus.UNAVAILABLE.value, notes
     if has_conflict:
         notes.append("Opposing commercial polarity signals detected on this entity")
         return EvidenceStatus.CONFLICTING.value, notes
@@ -67,6 +77,11 @@ def build_evidence_payload(
     commercial_context: dict[str, Any] | None = None,
     relationship_context: dict[str, Any] | None = None,
     source_display: str | None = None,
+    source_reliability: str = "medium",
+    data_quality_flags: list[str] | None = None,
+    is_restricted: bool = False,
+    disclosure_notes: list[str] | None = None,
+    has_quality_warning: bool = False,
 ) -> dict[str, Any]:
     """
     Standardized contract for supporting evidence attached to a detected signal.
@@ -77,11 +92,17 @@ def build_evidence_payload(
         calculated_status, calc_notes = determine_evidence_status(
             days_elapsed=days_elapsed,
             verification_status=verification_status,
+            is_restricted=is_restricted,
         )
         evidence_status = calculated_status
         for note in calc_notes:
             if note not in notes:
                 notes.append(note)
+
+    all_disclosure_notes = list(disclosure_notes or [])
+    for n in notes:
+        if n not in all_disclosure_notes:
+            all_disclosure_notes.append(n)
 
     return {
         "evidence_type": evidence_type,
@@ -99,6 +120,11 @@ def build_evidence_payload(
         "relationship_context": relationship_context or {},
         "key_metrics": key_metrics or {},
         "verification_status": verification_status,
+        "source_reliability": source_reliability,
+        "data_quality_flags": list(data_quality_flags or []),
+        "is_restricted": is_restricted,
+        "disclosure_notes": all_disclosure_notes,
+        "has_quality_warning": has_quality_warning or len(data_quality_flags or []) > 0,
     }
 
 
@@ -108,17 +134,31 @@ def build_signal_meta(
     is_uncertain: bool,
     uncert_reasons: list[str],
     evidence: dict[str, Any],
+    has_data_quality_warning: bool = False,
+    data_quality_flags: list[str] | None = None,
+    source_reliability: str = "medium",
     **extra: Any,
 ) -> dict[str, Any]:
     """
-    Builds the standard signal metadata payload merging the fixed confidence fields,
-    the evidence payload, and any domain-specific extra keys provided by the caller.
+    Builds the standard signal metadata payload merging confidence fields,
+    evidence payload, data quality flags, and any domain-specific extra keys.
     """
+    quality_flags = list(data_quality_flags or [])
+    if isinstance(evidence, dict) and "data_quality_flags" in evidence:
+        for f in evidence.get("data_quality_flags", []):
+            if f not in quality_flags:
+                quality_flags.append(f)
+
+    warning = has_data_quality_warning or len(quality_flags) > 0
+
     return {
         "confidence_score": float(conf_score),
         "confidence_tier": conf_tier.value if hasattr(conf_tier, "value") else str(conf_tier),
         "is_uncertain": is_uncertain,
         "uncertainty_reasons": uncert_reasons,
+        "has_data_quality_warning": warning,
+        "data_quality_flags": quality_flags,
+        "source_reliability": source_reliability,
         "evidence": evidence,
         **extra,
     }

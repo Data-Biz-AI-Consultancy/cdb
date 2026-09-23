@@ -465,13 +465,29 @@ When detected:
 
 ---
 
-### Detection & Triage Endpoints
-* `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities, detects conflicts, suppresses duplicate evidence, and returns execution statistics.
-* `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`, `is_uncertain`, `has_conflict`).
+### 7. Data Quality Safeguards & Feedback Subsystem
+
+Signals must protect users from taking commercial action on stale, unreliable, restricted, or incomplete data.
+
+#### Safeguards Matrix:
+1. **Stale Source Data**: Flagged with `stale_source_data` when source events exceed maximum age limits (> 180 days). Reduces confidence and scores.
+2. **Missing Context**: Flagged with `missing_context` or `missing_essential_fields` when key relationship metadata is missing. Suppressed if confidence < 0.25.
+3. **Unreliable / Mock Sources**: Flagged with `unreliable_source` and downgraded to `low` or `unreliable` source reliability rating.
+4. **Restricted / Confidential Data**: Sensitive excerpts are automatically sanitized or disclosed with `is_restricted = True` and redacted summaries to adhere to privacy governance.
+5. **False-Positive Feedback Loop**: Users can submit granular false-positive reports (`incorrect_intent`, `stale_outdated`, `wrong_entity_attribution`, `unreliable_source`, `confidential_restricted`, `other`) with automatic signal dismissal and full audit history.
+
+---
+
+### Detection, Triage & Feedback Endpoints
+* `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities, evaluates data quality safeguards, detects conflicts, suppresses duplicate/low-quality evidence, and returns execution statistics.
+* `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`, `is_uncertain`, `has_conflict`, `has_data_quality_warning`, `source_reliability`).
 * `GET /api/v1/signals/detected/grouped`: Account/Organization-clustered detected signals grouped by client company.
 * `POST /api/v1/signals/detected/bulk-status`: Batch updates status (`snoozed`, `resolved`, `dismissed`, `actioned`, `acknowledged`) for an array of signal IDs in a single atomic transaction.
-* `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, signal type, plus `total_snoozed`, `total_conflicting`, and `total_uncertain`.
-* `GET /api/v1/signals/metrics`: Comprehensive success, quality, operational latency (MTTA), downstream outcomes, and revenue attribution metrics across a configurable lookback window (`lookback_days`, default: 90).
+* `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, signal type, plus `total_snoozed`, `total_conflicting`, `total_uncertain`, `total_quality_warnings`, and `total_false_positives`.
+* `POST /api/v1/signals/detected/{id}/feedback`: Submits false-positive or data quality feedback on a signal, with optional atomic signal dismissal.
+* `GET /api/v1/signals/feedback`: Paginated feedback monitoring list filterable by status (`pending`, `investigated`, `resolved`, `rejected`), feedback reason, or signal instance ID.
+* `PATCH /api/v1/signals/feedback/{id}`: Updates investigation notes and resolution status for false-positive reports.
+* `GET /api/v1/signals/metrics`: Comprehensive success, quality, false positive rate (FPR), quality warning rate, operational latency (MTTA), downstream outcomes, and revenue attribution metrics across a configurable lookback window (`lookback_days`, default: 90).
 * `PATCH /api/v1/signals/detected/{id}`: Update signal state (`acknowledged`, `actioned`, `snoozed`, `resolved`, `dismissed`) with resolution notes and snooze duration.
 
 ---
@@ -480,12 +496,15 @@ When detected:
 
 CDB defines a multi-dimensional measurement framework to quantify detection accuracy, team responsiveness, downstream deal creation, and revenue impact across a **90-day correlation window**:
 
-### 1. Quality & Precision Metrics
+### 1. Quality, Precision & Safeguard Metrics
 - **Action / Acceptance Rate**: $\frac{\text{Total Actioned} + \text{Total Resolved}}{\text{Total Detected}}$ — measures commercial relevance and team adoption.
 - **Dismissal Rate**: $\frac{\text{Total Dismissed}}{\text{Total Detected}}$ — percentage of signals closed without action.
+- **False Positive Rate (FPR)**: $\frac{\text{Total False Positives}}{\text{Total Detected}}$ — direct user-reported inaccuracy rate.
 - **Precision Proxy**: $1 - \text{Dismissal Rate}$ — pragmatic indicator of detection rule accuracy and noise suppression.
 - **Needs-Verification Rate**: $\frac{\text{Uncertain Signals}}{\text{Total Detected}}$ — tracks classifier ambiguity and data completeness.
+- **Quality Warning Rate**: $\frac{\text{Signals with Quality Warnings}}{\text{Total Detected}}$ — tracks prevalence of stale, uncorroborated, or missing source data.
 - **Conflict Rate**: $\frac{\text{Conflicting Signals}}{\text{Total Detected}}$ — tracks multi-entity opposing commercial signals.
+- **Source Reliability Breakdown**: Proportions of signals derived from high, medium, low, and restricted data sources.
 
 ### 2. Operational Latency (Time-to-Action)
 - **Mean Time-to-Action (MTTA)**: $\text{AVG}(\text{actioned\_at} - \text{detected\_at})$ in hours/days.

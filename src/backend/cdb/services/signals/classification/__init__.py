@@ -35,6 +35,12 @@ from cdb.services.signals.classification.prioritization import (
     SignalPriorityTier,
     calculate_signal_priority,
 )
+from cdb.services.signals.classification.quality import (
+    DataQualityAssessment,
+    DataQualityFlag,
+    SourceReliability,
+    evaluate_source_data_quality,
+)
 from cdb.services.signals.classification.rules import (
     SIGNAL_CLASSIFICATION_RULES,
     ClassificationRule,
@@ -51,6 +57,10 @@ __all__ = [
     "CONFIDENCE_MEDIUM_THRESHOLD",
     "ClassificationRule",
     "SIGNAL_CLASSIFICATION_RULES",
+    "SourceReliability",
+    "DataQualityFlag",
+    "DataQualityAssessment",
+    "evaluate_source_data_quality",
     "build_evidence_payload",
     "build_signal_meta",
     "determine_evidence_status",

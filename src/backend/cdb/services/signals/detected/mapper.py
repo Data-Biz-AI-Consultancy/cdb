@@ -169,6 +169,61 @@ def to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         else:
             priority_tier = "P4"
 
+    # Extract quality fields
+    data_quality_flags = list(meta.get("data_quality_flags") or [])
+    if isinstance(raw_evidence, dict) and "data_quality_flags" in raw_evidence:
+        for f in raw_evidence["data_quality_flags"]:
+            if f not in data_quality_flags:
+                data_quality_flags.append(f)
+
+    has_data_quality_warning = bool(
+        meta.get("has_data_quality_warning", False) or len(data_quality_flags) > 0
+    )
+    source_reliability = meta.get("source_reliability")
+    if not source_reliability and isinstance(raw_evidence, dict):
+        source_reliability = raw_evidence.get("source_reliability", "medium")
+    if not source_reliability:
+        source_reliability = "medium"
+
+    # Map feedback entries if present
+    feedback_entries_list = []
+    if getattr(sig, "feedback_entries", None):
+        for fb in sig.feedback_entries:
+            fb_user_name = None
+            if fb.user:
+                fb_user_name = (
+                    f"{fb.user.first_name or ''} {fb.user.last_name or ''}".strip() or fb.user.email
+                )
+            fb_inv_name = None
+            if fb.investigated_by:
+                fb_inv_name = (
+                    f"{fb.investigated_by.first_name or ''} {fb.investigated_by.last_name or ''}".strip()
+                    or fb.investigated_by.email
+                )
+            feedback_entries_list.append(
+                {
+                    "id": fb.id,
+                    "detected_signal_id": fb.detected_signal_id,
+                    "user_id": fb.user_id,
+                    "user_name": fb_user_name,
+                    "is_false_positive": fb.is_false_positive,
+                    "feedback_reason": fb.feedback_reason,
+                    "feedback_notes": fb.feedback_notes,
+                    "suggested_action": fb.suggested_action,
+                    "status": fb.status,
+                    "investigated_by_id": fb.investigated_by_id,
+                    "investigated_by_name": fb_inv_name,
+                    "investigation_notes": fb.investigation_notes,
+                    "investigated_at": fb.investigated_at,
+                    "created_at": fb.created_at,
+                    "updated_at": fb.updated_at,
+                }
+            )
+
+    false_positive_count = sum(
+        1 for fb in feedback_entries_list if fb.get("is_false_positive", True)
+    )
+
     return DetectedSignalResponse(
         id=sig.id,
         signal_id=sig.signal_id,
@@ -195,6 +250,11 @@ def to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         confidence_tier=meta.get("confidence_tier"),
         is_uncertain=meta.get("is_uncertain", False),
         uncertainty_reasons=meta.get("uncertainty_reasons", []),
+        has_data_quality_warning=has_data_quality_warning,
+        data_quality_flags=data_quality_flags,
+        source_reliability=source_reliability,
+        false_positive_count=false_positive_count,
+        feedback_entries=feedback_entries_list,
         has_conflict=meta.get("has_conflict", False),
         conflicting_signal_ids=meta.get("conflicting_signal_ids", []),
         conflict_summary=meta.get("conflict_summary"),

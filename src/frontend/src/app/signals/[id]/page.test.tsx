@@ -69,7 +69,7 @@ const mockSignalDetail = {
 
 describe('SignalDetailPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   it('renders signal details, confidence meter, conflict alert, audit card, and entities', async () => {
@@ -247,7 +247,7 @@ describe('SignalDetailPage', () => {
 
     fireEvent.click(screen.getByText('💤 Snooze'));
 
-    expect(screen.getByText('💤 Snooze Signal Alert')).toBeInTheDocument();
+    expect(screen.getByText(/Snooze Signal Alert/)).toBeInTheDocument();
     // Select 7 Days duration
     fireEvent.click(screen.getByText('7 Days'));
 
@@ -287,7 +287,7 @@ describe('SignalDetailPage', () => {
 
     fireEvent.click(screen.getByText('Resolve'));
 
-    expect(screen.getByText('✅ Resolve Signal')).toBeInTheDocument();
+    expect(screen.getByText(/Resolve Signal/)).toBeInTheDocument();
     const textarea = screen.getByPlaceholderText(/e.g., Re-engagement call completed/);
     fireEvent.change(textarea, { target: { value: 'Account relationship reactivated' } });
 

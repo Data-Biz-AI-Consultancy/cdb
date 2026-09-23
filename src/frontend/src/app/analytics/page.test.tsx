@@ -138,8 +138,8 @@ describe('AnalyticsPage Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Detection Precision Proxy')).toBeInTheDocument();
-      expect(screen.getByText('Needs Verification Rate')).toBeInTheDocument();
-      expect(screen.getByText('Opposing Conflict Rate')).toBeInTheDocument();
+      expect(screen.getByText('False Positive Rate (FPR)')).toBeInTheDocument();
+      expect(screen.getByText('Quality Warnings Rate')).toBeInTheDocument();
       expect(screen.getByText('Deal Value Coverage')).toBeInTheDocument();
     });
   });

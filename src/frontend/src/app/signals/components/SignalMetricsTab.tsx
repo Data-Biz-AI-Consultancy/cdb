@@ -185,6 +185,66 @@ export const SignalMetricsTab: React.FC<SignalMetricsTabProps> = ({
             </div>
           </div>
 
+          {/* Safeguards & Data Quality Health Indicators Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 text-xs flex items-center justify-between shadow-xs">
+              <div>
+                <p className="text-slate-500 font-medium">False Positive Rate (FPR)</p>
+                <p className="text-xl font-bold text-slate-900 mt-0.5">
+                  {metrics.quality.false_positive_rate !== undefined
+                    ? `${(metrics.quality.false_positive_rate * 100).toFixed(1)}%`
+                    : '0.0%'}
+                </p>
+              </div>
+              <span className="text-rose-600 font-mono font-semibold">
+                {metrics.quality.total_false_positives || 0} reported
+              </span>
+            </div>
+
+            <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 text-xs flex items-center justify-between shadow-xs">
+              <div>
+                <p className="text-amber-800 font-medium">Quality Warnings Rate</p>
+                <p className="text-xl font-bold text-amber-950 mt-0.5">
+                  {metrics.quality.quality_warning_rate !== undefined
+                    ? `${(metrics.quality.quality_warning_rate * 100).toFixed(1)}%`
+                    : '0.0%'}
+                </p>
+              </div>
+              <span className="text-amber-700 font-medium">
+                {Math.round((metrics.quality.quality_warning_rate || 0) * (metrics.quality.total_detected || 0))} signals
+              </span>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 text-xs flex items-center justify-between shadow-xs">
+              <div>
+                <p className="text-slate-500 font-medium">Source Reliability</p>
+                <p className="text-sm font-bold text-slate-900 mt-0.5">
+                  {metrics.quality.source_reliability_breakdown ? (
+                    <span>
+                      <span className="text-emerald-700">{metrics.quality.source_reliability_breakdown.high || 0}H</span> ·{' '}
+                      <span className="text-blue-700">{metrics.quality.source_reliability_breakdown.medium || 0}M</span> ·{' '}
+                      <span className="text-amber-700">{metrics.quality.source_reliability_breakdown.low || 0}L</span> ·{' '}
+                      <span className="text-rose-700">{metrics.quality.source_reliability_breakdown.unreliable || 0}U</span>
+                    </span>
+                  ) : (
+                    '100% High'
+                  )}
+                </p>
+              </div>
+              <span className="text-slate-400 font-mono">H / M / L / U</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 text-xs flex items-center justify-between shadow-xs">
+              <div>
+                <p className="text-slate-500 font-medium">Verification Needed</p>
+                <p className="text-xl font-bold text-slate-900 mt-0.5">
+                  {(metrics.quality.needs_verification_rate * 100).toFixed(1)}%
+                </p>
+              </div>
+              <span className="text-amber-600 font-mono">Uncertainty</span>
+            </div>
+          </div>
+
           {/* Detailed Breakdown by Signal Type Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">

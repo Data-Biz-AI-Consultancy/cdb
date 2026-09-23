@@ -15,6 +15,17 @@ export interface SignalQualityMetrics {
   precision_proxy: number;
   needs_verification_rate: number;
   conflict_rate: number;
+  total_false_positives?: number;
+  false_positive_rate?: number;
+  quality_warning_rate?: number;
+  quality_warnings_count?: number;
+  source_reliability_breakdown?: {
+    high: number;
+    medium: number;
+    low: number;
+    unreliable: number;
+  };
+  feedback_reasons?: Record<string, number>;
 }
 
 export interface SignalLatencyMetrics {
@@ -362,24 +373,32 @@ export default function AnalyticsPage() {
               <span className="text-slate-400 font-mono">1 - Dismiss %</span>
             </div>
 
-            <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 text-xs flex items-center justify-between shadow-xs">
+            <div className="bg-rose-50/70 p-4 rounded-xl border border-rose-200 text-xs flex items-center justify-between shadow-xs">
               <div>
-                <p className="text-amber-700 font-medium">Needs Verification Rate</p>
-                <p className="text-xl font-bold text-amber-900 mt-0.5">
-                  {(metrics.quality.needs_verification_rate * 100).toFixed(1)}%
+                <p className="text-rose-800 font-medium">False Positive Rate (FPR)</p>
+                <p className="text-xl font-bold text-rose-950 mt-0.5">
+                  {metrics.quality.false_positive_rate !== undefined
+                    ? `${(metrics.quality.false_positive_rate * 100).toFixed(1)}%`
+                    : '0.0%'}
                 </p>
               </div>
-              <span className="text-amber-600">Ambiguity</span>
+              <span className="text-rose-700 font-medium">
+                {metrics.quality.total_false_positives || 0} flagged
+              </span>
             </div>
 
-            <div className="bg-rose-50/60 p-4 rounded-xl border border-rose-200 text-xs flex items-center justify-between shadow-xs">
+            <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 text-xs flex items-center justify-between shadow-xs">
               <div>
-                <p className="text-rose-700 font-medium">Opposing Conflict Rate</p>
-                <p className="text-xl font-bold text-rose-900 mt-0.5">
-                  {(metrics.quality.conflict_rate * 100).toFixed(1)}%
+                <p className="text-amber-800 font-medium">Quality Warnings Rate</p>
+                <p className="text-xl font-bold text-amber-950 mt-0.5">
+                  {metrics.quality.quality_warning_rate !== undefined
+                    ? `${(metrics.quality.quality_warning_rate * 100).toFixed(1)}%`
+                    : '0.0%'}
                 </p>
               </div>
-              <span className="text-rose-600">Multi-Entity</span>
+              <span className="text-amber-700 font-medium">
+                {Math.round((metrics.quality.quality_warning_rate || 0) * (metrics.quality.total_detected || 0))} signals
+              </span>
             </div>
 
             <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 text-xs flex items-center justify-between shadow-xs">

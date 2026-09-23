@@ -1,3 +1,6 @@
+from cdb.services.signals import (
+    feedback,
+)
 from cdb.services.signals.catalog import (
     INITIAL_SIGNAL_CATALOG,
     ensure_signals_dimension,
@@ -34,6 +37,7 @@ __all__ = [
     "get_detected_signal_stats",
     "update_detected_signal",
     "compute_signal_success_metrics",
+    "feedback",
     "SIGNAL_CLASSIFICATION_RULES",
     "ConflictScope",
     "SignalConfidenceTier",

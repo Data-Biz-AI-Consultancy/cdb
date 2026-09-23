@@ -5,12 +5,16 @@ import { DetectedSignal } from '../types';
 
 interface SignalActionModalProps {
   modalSignal: DetectedSignal | null;
-  modalActionType: 'actioned' | 'dismissed' | 'snoozed' | 'resolved' | null;
+  modalActionType: 'actioned' | 'dismissed' | 'snoozed' | 'resolved' | 'false_positive' | null;
   actionInProgress: string | null;
   resolutionNotes: string;
   dismissalReason: string;
   snoozeDays: number;
   customSnoozeDate: string;
+  feedbackReason?: string;
+  setFeedbackReason?: (val: string) => void;
+  alsoDismiss?: boolean;
+  setAlsoDismiss?: (val: boolean) => void;
   onClose: () => void;
   onSave: () => void;
   setResolutionNotes: (val: string) => void;
@@ -27,6 +31,10 @@ export const SignalActionModal: React.FC<SignalActionModalProps> = ({
   dismissalReason,
   snoozeDays,
   customSnoozeDate,
+  feedbackReason = 'incorrect_intent',
+  setFeedbackReason,
+  alsoDismiss = true,
+  setAlsoDismiss,
   onClose,
   onSave,
   setResolutionNotes,
@@ -40,14 +48,33 @@ export const SignalActionModal: React.FC<SignalActionModalProps> = ({
     <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
       <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 className="text-lg font-bold text-slate-900">
-            {modalActionType === 'actioned'
-              ? 'Record Taken Action'
-              : modalActionType === 'snoozed'
-              ? '💤 Snooze Signal Alert'
-              : modalActionType === 'resolved'
-              ? '✅ Resolve Signal'
-              : 'Dismiss Signal Alert'}
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            {modalActionType === 'actioned' ? (
+              <>
+                <span>⚡</span>
+                <span>Record Taken Action</span>
+              </>
+            ) : modalActionType === 'snoozed' ? (
+              <>
+                <span>💤</span>
+                <span>Snooze Signal Alert</span>
+              </>
+            ) : modalActionType === 'resolved' ? (
+              <>
+                <span>✅</span>
+                <span>Resolve Signal</span>
+              </>
+            ) : modalActionType === 'false_positive' ? (
+              <>
+                <span>🚩</span>
+                <span>Report False Positive Signal</span>
+              </>
+            ) : (
+              <>
+                <span>✕</span>
+                <span>Dismiss Signal Alert</span>
+              </>
+            )}
           </h3>
           <button
             onClick={onClose}
@@ -62,6 +89,41 @@ export const SignalActionModal: React.FC<SignalActionModalProps> = ({
             Signal:{' '}
             <strong className="text-slate-800 font-semibold">{modalSignal.title}</strong>
           </p>
+
+          {/* False Positive Feedback Reason */}
+          {modalActionType === 'false_positive' && (
+            <div className="space-y-3 bg-rose-50/60 p-3.5 rounded-xl border border-rose-200/80">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-rose-900">
+                  False Positive Primary Reason
+                </label>
+                <select
+                  value={feedbackReason}
+                  onChange={(e) => setFeedbackReason && setFeedbackReason(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white border border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-900"
+                >
+                  <option value="incorrect_intent">Incorrect Intent / Commercial Misinterpretation</option>
+                  <option value="stale_outdated">Stale or Outdated Source Data</option>
+                  <option value="wrong_entity_attribution">Wrong Company or Person Attribution</option>
+                  <option value="unreliable_source">Unreliable or Missing Corroborating Source Data</option>
+                  <option value="confidential_restricted">Restricted / Confidential Access Discrepancy</option>
+                  <option value="other">Other Detection Anomaly</option>
+                </select>
+              </div>
+
+              {setAlsoDismiss && (
+                <label className="flex items-center gap-2 text-xs text-rose-950 font-medium cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={alsoDismiss}
+                    onChange={(e) => setAlsoDismiss(e.target.checked)}
+                    className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-rose-300"
+                  />
+                  <span>Automatically dismiss this signal upon submission</span>
+                </label>
+              )}
+            </div>
+          )}
 
           {/* Snooze Options */}
           {modalActionType === 'snoozed' && (
@@ -134,6 +196,8 @@ export const SignalActionModal: React.FC<SignalActionModalProps> = ({
                 ? 'Resolution Notes'
                 : modalActionType === 'snoozed'
                 ? 'Optional Snooze Reason'
+                : modalActionType === 'false_positive'
+                ? 'Feedback Details & Investigation Context'
                 : 'Additional Context / Notes'}
             </label>
             <textarea
@@ -147,6 +211,8 @@ export const SignalActionModal: React.FC<SignalActionModalProps> = ({
                   ? 'e.g., Re-engagement call completed and QBR scheduled.'
                   : modalActionType === 'snoozed'
                   ? 'e.g., Lead asked to reconnect after holiday period.'
+                  : modalActionType === 'false_positive'
+                  ? 'e.g., This email was sent to an external vendor rather than the prospective buyer; please suppress.'
                   : 'e.g., Contact already communicated via WhatsApp.'
               }
               className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-slate-900"
@@ -171,6 +237,8 @@ export const SignalActionModal: React.FC<SignalActionModalProps> = ({
                 ? 'bg-purple-600 hover:bg-purple-700'
                 : modalActionType === 'resolved'
                 ? 'bg-teal-600 hover:bg-teal-700'
+                : modalActionType === 'false_positive'
+                ? 'bg-rose-600 hover:bg-rose-700'
                 : 'bg-slate-800 hover:bg-slate-900'
             }`}
           >
@@ -180,6 +248,8 @@ export const SignalActionModal: React.FC<SignalActionModalProps> = ({
               ? 'Confirm Snooze'
               : modalActionType === 'resolved'
               ? 'Confirm Resolution'
+              : modalActionType === 'false_positive'
+              ? 'Submit False Positive'
               : 'Dismiss Signal'}
           </button>
         </div>

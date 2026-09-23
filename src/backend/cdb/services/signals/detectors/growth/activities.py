@@ -13,10 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cdb.models.company import Company
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.classification import (
+    SourceReliability,
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
     determine_evidence_status,
+    evaluate_source_data_quality,
 )
 from cdb.services.signals.patterns import FUNDING_REGEX, HIRING_REGEX
 from cdb.services.signals.utils import (
@@ -57,15 +59,27 @@ async def detect_growth_from_activities(
         matched_phrase = (funding_match or hiring_match).group(0)
 
         days_ago = days_between(act.occurred_at, now)
-        conf_val = Decimal("0.80") if funding_match else Decimal("0.65")
-        flags: list[str] = []
-        if days_ago > 60:
-            conf_val -= Decimal("0.20")
-            flags.append(f"Event occurred {days_ago} days ago; growth context may have evolved")
+        raw_conf = Decimal("0.80") if funding_match else Decimal("0.65")
+
+        quality_assessment = evaluate_source_data_quality(
+            signal_id="hiring_funding_event",
+            days_elapsed=days_ago,
+            max_fresh_days=60,
+            has_company=bool(act.company_id),
+            has_contact_role=True,
+            raw_excerpt=f"Matched '{matched_phrase}' in activity: {act.title or act.summary or ''}",
+            confidence_score=raw_conf,
+            source_reliability=SourceReliability.MEDIUM,
+        )
 
         conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
-            conf_val, ambiguity_flags=flags
+            raw_conf,
+            quality_flags=quality_assessment.data_quality_flags,
+            confidence_penalty=quality_assessment.confidence_penalty,
         )
+        for note in quality_assessment.disclosure_notes:
+            if note not in uncert_reasons:
+                uncert_reasons.append(note)
 
         why_it_matters = (
             f"Fresh capital investment or rapid hiring expansion ('{matched_phrase}') at {comp_name} "
@@ -100,7 +114,7 @@ async def detect_growth_from_activities(
             why_it_matters_now=why_it_matters,
             occurred_at=act.occurred_at.isoformat() if act.occurred_at else None,
             days_elapsed=days_ago,
-            excerpt=f"Matched '{matched_phrase}' in activity: {act.title or act.summary or ''}",
+            excerpt=quality_assessment.processed_excerpt,
             evidence_status=evidence_status,
             evidence_notes=evidence_notes,
             commercial_context=commercial_ctx,
@@ -110,6 +124,10 @@ async def detect_growth_from_activities(
                 "account_name": comp_name,
             },
             verification_status="verified" if not is_uncertain else "probable",
+            source_reliability=quality_assessment.source_reliability.value,
+            data_quality_flags=quality_assessment.data_quality_flags,
+            disclosure_notes=quality_assessment.disclosure_notes,
+            has_quality_warning=quality_assessment.has_quality_warning,
         )
 
         title = f"{event_type} Signal: {comp_name} ('{matched_phrase}')"
@@ -132,6 +150,10 @@ async def detect_growth_from_activities(
             person_roles=person_roles,
             suggested_persons=suggested,
             why_it_matters_now=why_it_matters,
+            has_data_quality_warning=quality_assessment.has_quality_warning,
+            data_quality_flags=quality_assessment.data_quality_flags,
+            source_reliability=quality_assessment.source_reliability.value,
+            is_suppressed=quality_assessment.is_suppressed,
         )
 
         res = await _upsert_detected_signal(
@@ -147,6 +169,7 @@ async def detect_growth_from_activities(
             score=conf_score,
             metadata_payload=meta,
         )
-        results.append(res)
+        if res and res[0] is not None:
+            results.append(res)
 
     return results

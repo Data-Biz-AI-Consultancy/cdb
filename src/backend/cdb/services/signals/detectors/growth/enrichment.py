@@ -13,10 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cdb.models.company import Company
 from cdb.models.signal import DetectedSignal
 from cdb.services.signals.classification import (
+    SourceReliability,
     assess_confidence,
     build_evidence_payload,
     build_signal_meta,
     determine_evidence_status,
+    evaluate_source_data_quality,
 )
 from cdb.services.signals.utils import (
     _upsert_detected_signal,
@@ -38,9 +40,27 @@ async def _create_enrichment_signal(
     occurred_at: str | None = None,
     **extra_meta: Any,
 ) -> tuple[DetectedSignal, bool]:
-    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
-        Decimal("0.90") if event_type == "funding" else Decimal("0.85")
+    raw_conf = Decimal("0.90") if event_type == "funding" else Decimal("0.85")
+
+    quality_assessment = evaluate_source_data_quality(
+        signal_id="hiring_funding_event",
+        days_elapsed=0,
+        max_fresh_days=90,
+        has_company=bool(comp.id),
+        has_contact_role=True,
+        raw_excerpt=evidence_excerpt,
+        confidence_score=raw_conf,
+        source_reliability=SourceReliability.MEDIUM,
     )
+
+    conf_score, conf_tier, is_uncertain, uncert_reasons = assess_confidence(
+        raw_conf,
+        quality_flags=quality_assessment.data_quality_flags,
+        confidence_penalty=quality_assessment.confidence_penalty,
+    )
+    for note in quality_assessment.disclosure_notes:
+        if note not in uncert_reasons:
+            uncert_reasons.append(note)
 
     if event_type == "funding":
         why_it_matters = (
@@ -79,12 +99,16 @@ async def _create_enrichment_signal(
         why_it_matters_now=why_it_matters,
         occurred_at=occurred_at,
         days_elapsed=0,
-        excerpt=evidence_excerpt,
+        excerpt=quality_assessment.processed_excerpt,
         evidence_status=evidence_status,
         evidence_notes=evidence_notes,
         commercial_context=commercial_ctx,
         key_metrics=key_metrics,
         verification_status="verified",
+        source_reliability=quality_assessment.source_reliability.value,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        disclosure_notes=quality_assessment.disclosure_notes,
+        has_quality_warning=quality_assessment.has_quality_warning,
     )
     meta = build_signal_meta(
         conf_score,
@@ -96,6 +120,10 @@ async def _create_enrichment_signal(
         enrichment_source="company_attributes",
         company_name=comp.name,
         why_it_matters_now=why_it_matters,
+        has_data_quality_warning=quality_assessment.has_quality_warning,
+        data_quality_flags=quality_assessment.data_quality_flags,
+        source_reliability=quality_assessment.source_reliability.value,
+        is_suppressed=quality_assessment.is_suppressed,
         **extra_meta,
     )
     return await _upsert_detected_signal(
@@ -151,7 +179,8 @@ async def detect_growth_from_enrichment(
                 round=round_label,
                 amount=amount,
             )
-            results.append(res)
+            if res and res[0] is not None:
+                results.append(res)
             continue
 
         # B. Headcount expansion
@@ -177,6 +206,7 @@ async def detect_growth_from_enrichment(
                 occurred_at=now.isoformat(),
                 growth_description=growth_desc,
             )
-            results.append(res)
+            if res and res[0] is not None:
+                results.append(res)
 
     return results

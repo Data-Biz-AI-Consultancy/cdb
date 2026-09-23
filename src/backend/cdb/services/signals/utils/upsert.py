@@ -50,7 +50,12 @@ async def upsert_detected_signal(
     """
     metadata_payload = metadata_payload or {}
 
+    # 0. Check for suppression from data quality safeguards
+    if metadata_payload.get("is_suppressed"):
+        return None, False  # type: ignore[return-value]
+
     # 1. Guarantee affected account attribution
+
     if not company_id:
         company_id = await resolve_account_for_signal(
             db,

@@ -169,6 +169,12 @@ class DetectedSignal(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         lazy="selectin",
         viewonly=True,
     )
+    feedback_entries: Mapped[list["SignalFeedback"]] = relationship(
+        "SignalFeedback",
+        back_populates="detected_signal",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
 
 class DetectedSignalPerson(Base):
@@ -197,3 +203,47 @@ class DetectedSignalPerson(Base):
         "DetectedSignal", back_populates="signal_persons"
     )
     person: Mapped["Person"] = relationship("Person", lazy="selectin")
+
+
+class SignalFeedback(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "signal_feedback"
+
+    detected_signal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("detected_signals.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    is_false_positive: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    feedback_reason: Mapped[str] = mapped_column(
+        String(64), nullable=False, index=True
+    )  # 'incorrect_intent' | 'stale_outdated' | 'wrong_entity_attribution' | 'unreliable_source' | 'confidential_restricted' | 'other'
+    feedback_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggested_action: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending", index=True
+    )  # 'pending' | 'investigated' | 'resolved' | 'rejected'
+
+    investigated_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    investigation_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    investigated_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Relationships
+    detected_signal: Mapped[DetectedSignal] = relationship(
+        "DetectedSignal", back_populates="feedback_entries"
+    )
+    user: Mapped["User | None"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
+    investigated_by: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[investigated_by_id], lazy="selectin"
+    )

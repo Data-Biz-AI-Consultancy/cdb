@@ -52,6 +52,42 @@ export interface SuggestedPerson {
   confidence?: number | null;
 }
 
+export type FeedbackReason =
+  | 'incorrect_intent'
+  | 'stale_outdated'
+  | 'wrong_entity_attribution'
+  | 'unreliable_source'
+  | 'confidential_restricted'
+  | 'other';
+
+export type FeedbackStatus = 'pending' | 'investigated' | 'resolved' | 'rejected';
+
+export interface SignalFeedback {
+  id: string;
+  detected_signal_id: string;
+  user_id?: string | null;
+  user_name?: string | null;
+  is_false_positive: boolean;
+  feedback_reason: FeedbackReason | string;
+  feedback_notes?: string | null;
+  suggested_action?: string | null;
+  status: FeedbackStatus | string;
+  investigated_by_id?: string | null;
+  investigated_by_name?: string | null;
+  investigation_notes?: string | null;
+  investigated_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SignalFeedbackCreatePayload {
+  is_false_positive: boolean;
+  feedback_reason: FeedbackReason | string;
+  feedback_notes?: string;
+  suggested_action?: string;
+  dismiss_signal?: boolean;
+}
+
 export interface SupportingEvidence {
   evidence_type?: string;
   source_entity_type?: string;
@@ -62,12 +98,25 @@ export interface SupportingEvidence {
   occurred_at?: string | null;
   days_elapsed?: number | null;
   excerpt?: string | null;
-  evidence_status?: 'fresh' | 'stale' | 'incomplete' | 'conflicting' | 'unverified' | string;
+  evidence_status?:
+    | 'fresh'
+    | 'stale'
+    | 'incomplete'
+    | 'conflicting'
+    | 'unverified'
+    | 'unavailable'
+    | 'restricted'
+    | string;
   evidence_notes?: string[];
   commercial_context?: Record<string, any>;
   relationship_context?: Record<string, any>;
   key_metrics?: Record<string, any>;
   verification_status?: string;
+  source_reliability?: 'high' | 'medium' | 'low' | 'restricted' | string;
+  data_quality_flags?: string[];
+  is_restricted?: boolean;
+  disclosure_notes?: string[];
+  has_quality_warning?: boolean;
 }
 
 export type PriorityTier = 'P0' | 'P1' | 'P2' | 'P3' | 'P4';
@@ -109,6 +158,11 @@ export interface DetectedSignal {
   confidence_tier?: 'high' | 'medium' | 'low' | string | null;
   is_uncertain?: boolean;
   uncertainty_reasons?: string[];
+  has_data_quality_warning?: boolean;
+  data_quality_flags?: string[];
+  source_reliability?: 'high' | 'medium' | 'low' | 'restricted' | string | null;
+  false_positive_count?: number;
+  feedback_entries?: SignalFeedback[];
   has_conflict?: boolean;
   conflicting_signal_ids?: string[];
   conflict_summary?: string | null;
@@ -149,11 +203,16 @@ export interface SignalQualityMetrics {
   total_snoozed: number;
   total_active: number;
   total_reopened: number;
+  total_false_positives?: number;
   action_rate: number;
   dismissal_rate: number;
+  false_positive_rate?: number;
   precision_proxy: number;
   needs_verification_rate: number;
   conflict_rate: number;
+  quality_warning_rate?: number;
+  feedback_reasons?: Record<string, number>;
+  source_reliability_breakdown?: Record<string, number>;
 }
 
 export interface SignalLatencyMetrics {
@@ -191,6 +250,7 @@ export interface SignalMetricsBreakdownItem {
   actioned_count: number;
   dismissed_count: number;
   snoozed_count?: number;
+  false_positive_count?: number;
   action_rate: number;
   mean_time_to_action_hours?: number | null;
   opportunities_created_count: number;
@@ -214,10 +274,13 @@ export interface DetectedSignalStatsResponse {
   total_snoozed?: number;
   total_conflicting?: number;
   total_uncertain?: number;
+  total_quality_warnings?: number;
+  total_false_positives?: number;
   by_severity: Record<string, number>;
   by_category: Record<string, number>;
   by_signal: Record<string, number>;
   by_status: Record<string, number>;
+  by_source_reliability?: Record<string, number>;
 }
 
 export interface SignalEvaluationResult {
@@ -227,9 +290,11 @@ export interface SignalEvaluationResult {
   total_active_signals: number;
   total_snoozed_signals?: number;
   total_suppressed_duplicates?: number;
+  total_suppressed_low_quality?: number;
   total_reopened_signals?: number;
   total_conflicting?: number;
   total_uncertain?: number;
+  total_quality_warnings?: number;
   new_signals_detected: number;
   refreshed_signals: number;
   by_signal: Record<string, number>;
@@ -240,3 +305,4 @@ export interface AccountGroupedSignals {
   company_name: string;
   signals: DetectedSignal[];
 }
+

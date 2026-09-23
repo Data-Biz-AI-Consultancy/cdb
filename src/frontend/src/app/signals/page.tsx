@@ -48,16 +48,19 @@ function SignalsPageContent() {
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [signalTypeFilter, setSignalTypeFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [qualityFilter, setQualityFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('priority');
   const [lookbackDays, setLookbackDays] = useState<number>(90);
 
-  // Modal state for Action / Dismiss / Snooze / Resolve
+  // Modal state for Action / Dismiss / Snooze / Resolve / False Positive
   const [modalSignal, setModalSignal] = useState<DetectedSignal | null>(null);
   const [modalActionType, setModalActionType] = useState<
-    'actioned' | 'dismissed' | 'snoozed' | 'resolved' | null
+    'actioned' | 'dismissed' | 'snoozed' | 'resolved' | 'false_positive' | null
   >(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [dismissalReason, setDismissalReason] = useState('Not Relevant');
+  const [feedbackReason, setFeedbackReason] = useState('incorrect_intent');
+  const [alsoDismiss, setAlsoDismiss] = useState(true);
   const [snoozeDays, setSnoozeDays] = useState<number>(14);
   const [customSnoozeDate, setCustomSnoozeDate] = useState<string>('');
 
@@ -79,6 +82,10 @@ function SignalsPageContent() {
     const priorityParam = searchParams.get('priority') || searchParams.get('priority_tier');
     if (priorityParam && ['P0', 'P1', 'P2', 'P3', 'P4', 'ALL'].includes(priorityParam.toUpperCase())) {
       setPriorityFilter(priorityParam.toUpperCase());
+    }
+    const qualParam = searchParams.get('quality');
+    if (qualParam && ['all', 'warnings_only', 'reliable_only', 'restricted_only'].includes(qualParam.toLowerCase())) {
+      setQualityFilter(qualParam.toLowerCase());
     }
     const statusParam = searchParams.get('status');
     if (statusParam) {
@@ -208,12 +215,14 @@ function SignalsPageContent() {
 
   const handleOpenActionModal = (
     signal: DetectedSignal,
-    action: 'actioned' | 'dismissed' | 'snoozed' | 'resolved'
+    action: 'actioned' | 'dismissed' | 'snoozed' | 'resolved' | 'false_positive'
   ) => {
     setModalSignal(signal);
     setModalActionType(action);
     setResolutionNotes(signal.resolution_notes || '');
     setDismissalReason('Not Relevant');
+    setFeedbackReason('incorrect_intent');
+    setAlsoDismiss(true);
     setSnoozeDays(14);
     setCustomSnoozeDate('');
   };
@@ -222,33 +231,48 @@ function SignalsPageContent() {
     if (!modalSignal || !modalActionType) return;
     try {
       setActionInProgress(modalSignal.id);
-      const payload: Record<string, any> = {
-        status: modalActionType,
-      };
 
-      if (modalActionType === 'dismissed') {
-        const fullNotes = resolutionNotes.trim()
-          ? `[${dismissalReason}] ${resolutionNotes.trim()}`
-          : `[${dismissalReason}] Dismissed by user`;
-        payload.resolution_notes = fullNotes;
-      } else if (modalActionType === 'snoozed') {
-        if (customSnoozeDate) {
-          payload.snooze_until = new Date(customSnoozeDate).toISOString();
-        } else {
-          payload.snooze_days = snoozeDays;
-        }
-        if (resolutionNotes.trim()) {
+      if (modalActionType === 'false_positive') {
+        // Submit feedback record to dedicated endpoint
+        await apiFetch(`/api/v1/signals/detected/${modalSignal.id}/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason: feedbackReason,
+            feedback_notes: resolutionNotes.trim() || undefined,
+            is_false_positive: true,
+            also_dismiss: alsoDismiss,
+          }),
+        });
+      } else {
+        const payload: Record<string, any> = {
+          status: modalActionType,
+        };
+
+        if (modalActionType === 'dismissed') {
+          const fullNotes = resolutionNotes.trim()
+            ? `[${dismissalReason}] ${resolutionNotes.trim()}`
+            : `[${dismissalReason}] Dismissed by user`;
+          payload.resolution_notes = fullNotes;
+        } else if (modalActionType === 'snoozed') {
+          if (customSnoozeDate) {
+            payload.snooze_until = new Date(customSnoozeDate).toISOString();
+          } else {
+            payload.snooze_days = snoozeDays;
+          }
+          if (resolutionNotes.trim()) {
+            payload.resolution_notes = resolutionNotes.trim();
+          }
+        } else if (resolutionNotes.trim()) {
           payload.resolution_notes = resolutionNotes.trim();
         }
-      } else if (resolutionNotes.trim()) {
-        payload.resolution_notes = resolutionNotes.trim();
-      }
 
-      await apiFetch(`/api/v1/signals/detected/${modalSignal.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+        await apiFetch(`/api/v1/signals/detected/${modalSignal.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
 
       setModalSignal(null);
       setModalActionType(null);
@@ -349,6 +373,18 @@ function SignalsPageContent() {
         }
       }
 
+      // Quality Filter
+      if (qualityFilter === 'warnings_only') {
+        const hasWarning = s.has_data_quality_warning || (s.evidence as any)?.has_quality_warning;
+        if (!hasWarning) return false;
+      } else if (qualityFilter === 'reliable_only') {
+        const rel = s.source_reliability || (s.evidence as any)?.source_reliability || 'high';
+        if (rel !== 'high') return false;
+      } else if (qualityFilter === 'restricted_only') {
+        const restricted = (s.evidence as any)?.is_restricted || s.source_reliability === 'restricted';
+        if (!restricted) return false;
+      }
+
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -425,6 +461,7 @@ function SignalsPageContent() {
     severityFilter,
     signalTypeFilter,
     priorityFilter,
+    qualityFilter,
     searchQuery,
     sortBy,
   ]);
@@ -532,6 +569,7 @@ function SignalsPageContent() {
     setSeverityFilter('all');
     setSignalTypeFilter('all');
     setPriorityFilter('all');
+    setQualityFilter('all');
     setSortBy('priority');
   };
 
@@ -599,6 +637,8 @@ function SignalsPageContent() {
           setSignalTypeFilter={setSignalTypeFilter}
           priorityFilter={priorityFilter}
           setPriorityFilter={setPriorityFilter}
+          qualityFilter={qualityFilter}
+          setQualityFilter={setQualityFilter}
           sortBy={sortBy}
           setSortBy={setSortBy}
           lookbackDays={lookbackDays}
@@ -617,13 +657,17 @@ function SignalsPageContent() {
         />
       )}
 
-      {/* Action / Resolve / Snooze / Dismiss Modal */}
+      {/* Action / Resolve / Snooze / Dismiss / False Positive Modal */}
       <SignalActionModal
         modalSignal={modalSignal}
         modalActionType={modalActionType}
         actionInProgress={actionInProgress}
         resolutionNotes={resolutionNotes}
         dismissalReason={dismissalReason}
+        feedbackReason={feedbackReason}
+        setFeedbackReason={setFeedbackReason}
+        alsoDismiss={alsoDismiss}
+        setAlsoDismiss={setAlsoDismiss}
         snoozeDays={snoozeDays}
         customSnoozeDate={customSnoozeDate}
         onClose={() => {
