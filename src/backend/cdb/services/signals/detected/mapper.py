@@ -191,15 +191,10 @@ def to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         for fb in sig.feedback_entries:
             fb_user_name = None
             if fb.user:
-                fb_user_name = (
-                    f"{fb.user.first_name or ''} {fb.user.last_name or ''}".strip() or fb.user.email
-                )
+                fb_user_name = fb.user.full_name or fb.user.email
             fb_inv_name = None
             if fb.investigated_by:
-                fb_inv_name = (
-                    f"{fb.investigated_by.first_name or ''} {fb.investigated_by.last_name or ''}".strip()
-                    or fb.investigated_by.email
-                )
+                fb_inv_name = fb.investigated_by.full_name or fb.investigated_by.email
             feedback_entries_list.append(
                 {
                     "id": fb.id,

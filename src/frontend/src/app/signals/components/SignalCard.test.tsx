@@ -159,4 +159,60 @@ describe('SignalCard component', () => {
     fireEvent.click(addBtn);
     expect(onLinkPerson).toHaveBeenCalledWith('sig-test-1', 'person-2', 'Director of Procurement');
   });
+
+  it('renders data quality warning badge, low source reliability, and triggers false positive report', () => {
+    const onOpenActionModal = vi.fn();
+    const qualityWarningSignal: DetectedSignal = {
+      ...mockSignal,
+      has_data_quality_warning: true,
+      data_quality_flags: ['stale_source_data', 'missing_context'],
+      source_reliability: 'low',
+      false_positive_count: 2,
+    };
+
+    render(
+      <SignalCard
+        sig={qualityWarningSignal}
+        columnVariant="risk"
+        isSelected={false}
+        actionInProgress={null}
+        onToggleSelect={vi.fn()}
+        onAcknowledge={vi.fn()}
+        onOpenActionModal={onOpenActionModal}
+        onLinkPerson={vi.fn()}
+        onUnlinkPerson={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Quality Warning')).toBeInTheDocument();
+    expect(screen.getByText(/low Source/i)).toBeInTheDocument();
+    expect(screen.getByText(/FP \(2\)/)).toBeInTheDocument();
+
+    const fpBtn = screen.getByRole('button', { name: /Report FP/i });
+    fireEvent.click(fpBtn);
+    expect(onOpenActionModal).toHaveBeenCalledWith(qualityWarningSignal, 'false_positive');
+  });
+
+  it('renders restricted source badge when source data is restricted', () => {
+    const restrictedSignal: DetectedSignal = {
+      ...mockSignal,
+      source_reliability: 'restricted',
+    };
+
+    render(
+      <SignalCard
+        sig={restrictedSignal}
+        columnVariant="risk"
+        isSelected={false}
+        actionInProgress={null}
+        onToggleSelect={vi.fn()}
+        onAcknowledge={vi.fn()}
+        onOpenActionModal={vi.fn()}
+        onLinkPerson={vi.fn()}
+        onUnlinkPerson={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Restricted Source')).toBeInTheDocument();
+  });
 });
