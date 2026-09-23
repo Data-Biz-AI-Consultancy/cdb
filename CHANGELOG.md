@@ -1,3 +1,13 @@
+# [1.35.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.34.0...v1.35.0) (2026-09-23)
+
+
+### Features
+
+* add 4-dimensional signal prioritization engine with scoring logic, backend integration, and tests ([c323c25](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/c323c25c902b2d86f6b1ba4cdb8ad83a58a09bc4))
+* add URL search param initialization and quick severity filters to signals page ([105a64f](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/105a64f9fd9fb6ffdbabe2957983c5bf14e61189))
+* add visual progress bars and update layout for business impact breakdown meter ([be6cb5d](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/be6cb5db6917ec98e91bfd52b0983ee39430e6b8))
+* implement signals radar frontend components, types, and utilities ([44c69fc](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/44c69fc1640d9ea805bbf866418691db645204b8))
+
 # [1.34.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.33.0...v1.34.0) (2026-09-18)
 
 
