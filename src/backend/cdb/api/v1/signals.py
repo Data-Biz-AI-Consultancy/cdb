@@ -210,6 +210,13 @@ async def get_grouped_detected_signals(
     ),
     severity: SignalSeverity | None = Query(None, description="Filter by severity level"),
     company_id: uuid.UUID | None = Query(None, description="Filter by company ID"),
+    priority_tier: str | None = Query(
+        None, description="Filter by priority tier (P0, P1, P2, P3, P4)"
+    ),
+    sort_by: str = Query(
+        "priority",
+        description="Sort by ordering (priority, newest, oldest, severity, confidence_desc, confidence_asc)",
+    ),
     lookback_days: int | None = Query(
         None,
         ge=1,
@@ -230,6 +237,8 @@ async def get_grouped_detected_signals(
         status=status_filter,
         severity=severity,
         company_id=company_id,
+        priority_tier=priority_tier,
+        sort_by=sort_by,
         lookback_days=lookback_days,
         limit=limit,
     )
@@ -275,6 +284,16 @@ async def list_detected_signals(
         None, description="Filter by uncertain / needs verification status"
     ),
     has_conflict: bool | None = Query(None, description="Filter by multi-signal conflict status"),
+    priority_tier: str | None = Query(
+        None, description="Filter by priority tier (P0, P1, P2, P3, P4)"
+    ),
+    effective_polarity: str | None = Query(
+        None, description="Filter by effective polarity (opportunity, risk)"
+    ),
+    sort_by: str = Query(
+        "priority",
+        description="Sort ordering (priority, newest, oldest, severity, confidence_desc, confidence_asc)",
+    ),
     lookback_days: int | None = Query(
         None,
         ge=1,
@@ -287,7 +306,7 @@ async def list_detected_signals(
     auth_user: User | None = Depends(get_current_user_or_api_key),
 ) -> PaginatedResponse[DetectedSignalResponse]:
     """
-    Lists detected signals with multi-dimensional filtering and pagination.
+    Lists detected signals with multi-dimensional filtering, priority sorting, and pagination.
     """
     offset = (page - 1) * page_size
     items, total = await detected_signal_service.list_detected_signals(
@@ -302,6 +321,9 @@ async def list_detected_signals(
         engagement_id=engagement_id,
         is_uncertain=is_uncertain,
         has_conflict=has_conflict,
+        priority_tier=priority_tier,
+        effective_polarity=effective_polarity,
+        sort_by=sort_by,
         lookback_days=lookback_days,
         limit=page_size,
         offset=offset,

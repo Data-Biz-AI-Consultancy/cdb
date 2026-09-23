@@ -175,6 +175,10 @@ class DetectedSignalResponse(BaseModel):
     status: DetectedSignalStatus
     severity: SignalSeverity
     score: Decimal | None = None
+    priority_score: Decimal | None = None
+    priority_tier: str | None = None
+    effective_polarity: str | None = None
+    priority_breakdown: dict[str, Any] | None = None
     confidence_score: Decimal | None = None
     confidence_tier: str | None = None
     is_uncertain: bool = False
@@ -263,6 +267,8 @@ class DetectedSignalStatsResponse(BaseModel):
     by_category: dict[str, int]
     by_signal: dict[str, int]
     by_status: dict[str, int]
+    by_priority_tier: dict[str, int] = Field(default_factory=dict)
+    by_effective_polarity: dict[str, int] = Field(default_factory=dict)
 
 
 class SignalEvaluationResult(BaseModel):

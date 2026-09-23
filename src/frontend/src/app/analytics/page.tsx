@@ -426,32 +426,49 @@ export default function AnalyticsPage() {
                   {filteredSignalBreakdown.map((row) => (
                     <tr key={row.key} className="hover:bg-slate-50/80 transition">
                       <td className="py-3.5 px-4 font-semibold text-slate-900">
-                        {row.label}
+                        <Link
+                          href={`/signals?signal_type=${encodeURIComponent(row.key)}`}
+                          className="hover:text-emerald-600 transition flex items-center gap-1.5 group"
+                          title={`View all ${row.total_detected} ${row.label} signals in Signals Radar`}
+                        >
+                          <span className="group-hover:underline">{row.label}</span>
+                          <span className="text-slate-400 group-hover:text-emerald-600 text-[10px]">↗</span>
+                        </Link>
                       </td>
                       <td className="py-3.5 px-4">
                         {row.category && (
-                          <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getCategoryBadge(
+                          <Link
+                            href={`/signals?category=${encodeURIComponent(row.category.toLowerCase())}`}
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border hover:opacity-80 transition inline-block ${getCategoryBadge(
                               row.category
                             )}`}
+                            title={`Filter by ${row.category} category`}
                           >
                             {row.category}
-                          </span>
+                          </Link>
                         )}
                       </td>
                       <td className="py-3.5 px-4">
                         {row.severity && (
-                          <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getSeverityBadge(
+                          <Link
+                            href={`/signals?severity=${encodeURIComponent(row.severity.toLowerCase())}`}
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border hover:opacity-80 transition inline-block ${getSeverityBadge(
                               row.severity
                             )}`}
+                            title={`Filter by ${row.severity} severity`}
                           >
                             {row.severity}
-                          </span>
+                          </Link>
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-right font-medium text-slate-700">
-                        {row.total_detected}
+                        <Link
+                          href={`/signals?signal_type=${encodeURIComponent(row.key)}`}
+                          className="hover:text-emerald-600 font-bold hover:underline"
+                          title={`View ${row.total_detected} detected signals`}
+                        >
+                          {row.total_detected}
+                        </Link>
                       </td>
                       <td className="py-3.5 px-4 text-right font-medium text-slate-700">
                         {row.actioned_count}
@@ -481,14 +498,19 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* By Category */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Breakdown by Category
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Breakdown by Category
+                </h4>
+                <span className="text-[11px] text-slate-400">Click to filter Radar</span>
+              </div>
               <div className="space-y-3">
                 {metrics.by_category.map((cat) => (
-                  <div
+                  <Link
                     key={cat.key}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs"
+                    href={`/signals?category=${encodeURIComponent(cat.key.toLowerCase())}`}
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 hover:border-slate-300 transition border border-slate-100 text-xs cursor-pointer group"
+                    title={`View all ${cat.total_detected} ${cat.label} signals in Signals Radar`}
                   >
                     <div className="flex items-center gap-2">
                       <span
@@ -498,7 +520,9 @@ export default function AnalyticsPage() {
                       >
                         {cat.label}
                       </span>
-                      <span className="text-slate-500">({cat.total_detected} detected)</span>
+                      <span className="text-slate-500 group-hover:text-slate-800 font-medium">
+                        ({cat.total_detected} detected)
+                      </span>
                     </div>
                     <div className="flex items-center gap-4 text-right">
                       <span className="font-semibold text-emerald-700">
@@ -507,22 +531,30 @@ export default function AnalyticsPage() {
                       <span className="font-bold text-slate-900">
                         ${Number(cat.influenced_pipeline).toLocaleString()}
                       </span>
+                      <span className="text-slate-400 group-hover:text-emerald-600 font-bold ml-1 text-sm">
+                        →
+                      </span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
 
             {/* By Severity */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Breakdown by Severity Level
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Breakdown by Severity Level
+                </h4>
+                <span className="text-[11px] text-slate-400">Click to filter Radar</span>
+              </div>
               <div className="space-y-3">
                 {metrics.by_severity.map((sev) => (
-                  <div
+                  <Link
                     key={sev.key}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs"
+                    href={`/signals?severity=${encodeURIComponent(sev.key.toLowerCase())}`}
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 hover:border-slate-300 transition border border-slate-100 text-xs cursor-pointer group"
+                    title={`View all ${sev.total_detected} ${sev.label} severity signals in Signals Radar`}
                   >
                     <div className="flex items-center gap-2">
                       <span
@@ -532,7 +564,9 @@ export default function AnalyticsPage() {
                       >
                         {sev.label}
                       </span>
-                      <span className="text-slate-500">({sev.total_detected} detected)</span>
+                      <span className="text-slate-500 group-hover:text-slate-800 font-medium">
+                        ({sev.total_detected} detected)
+                      </span>
                     </div>
                     <div className="flex items-center gap-4 text-right">
                       <span className="font-semibold text-emerald-700">
@@ -541,8 +575,11 @@ export default function AnalyticsPage() {
                       <span className="font-bold text-slate-900">
                         ${Number(sev.influenced_pipeline).toLocaleString()}
                       </span>
+                      <span className="text-slate-400 group-hover:text-emerald-600 font-bold ml-1 text-sm">
+                        →
+                      </span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>

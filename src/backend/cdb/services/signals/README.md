@@ -371,8 +371,6 @@ Severity is derived from business urgency and SLA risk:
 - **`critical`**: Imminent deal loss or severe SLA breach (e.g. unanswered message $> 7$ days, dormant strategic account $> 90$ days).
 - **`high`**: Significant commercial impact requiring prompt intervention (contract expiring $\le 30$ days, competitor in deal, champion departure, dormant account $> 60$ days).
 - **`medium`**: Standard commercial opportunity or advisory window (funding/hiring event, contract renewal window $31-60$ days, new executive joining).
-- **`low`**: Informational or weak signal.
-
 ### 3. Confidence Thresholding & Uncertainty
 
 Every detected signal receives a deterministic confidence score ($0.00$ to $1.00$) based on data freshness, evidence completeness, and entity resolution quality:
@@ -380,7 +378,34 @@ Every detected signal receives a deterministic confidence score ($0.00$ to $1.00
 - **Medium Confidence ($0.50 - 0.79$)**: Actionable signal with moderate corroboration (e.g. older activity, indirect affiliation).
 - **Low Confidence / Uncertain ($< 0.50$)**: Signals lacking direct contact attribution, fuzzy text matches, or stale evidence. Flagged with `is_uncertain = True` and surfaced in the **Needs Verification** triage tab with explicit `uncertainty_reasons`.
 
-### 4. Supporting Evidence & Explanation Contract
+### 4. Business Impact Prioritization Engine (4-Dimensional Ranking)
+
+To ensure advisory teams focus immediately on the most consequential opportunities and imminent risks, CDB implements an automated **Business Impact Prioritization Engine** (`calculate_signal_priority`).
+
+Every detected signal receives a composite priority score (**0 to 100**) calculated across four distinct 25-point dimensions, mapping to standard operational priority tiers (**P0 to P4**).
+
+#### Scoring Dimensions (25 Points Each)
+
+| Dimension | Max Pts | Evaluation Criteria |
+| :--- | :--- | :--- |
+| **1. Account Importance** | 25 | Strategic tier classification (`tier_1` = 25, `tier_2` = 18, `tier_3` = 10, default = 5), signed engagement presence, and historical contract/pipeline value. |
+| **2. Relationship Context** | 25 | Seniority of involved contacts (C-suite/VP/Director = 25, Manager/Lead = 18, individual contributor = 10), active champion status, and communication history. |
+| **3. Urgency & Timing** | 25 | SLA breach imminence (e.g. unanswered message $>7\text{d}$ = 25, expiring contract $\le 30\text{d}$ = 25, dormant account $>90\text{d}$ = 25; decaying smoothly for earlier warning thresholds). |
+| **4. Likely Business Impact** | 25 | **Distinguishes Opportunities from Risks**:<br>• **Opportunities**: Evaluates commercial expansion potential, team augmentation scope, funding capital injection, and upsell runway.<br>• **Risks**: Evaluates revenue cliff exposure, competitor displacement vulnerability, and relationship atrophy. |
+
+#### Priority Tiers & Emergency Overrides
+
+- **`P0` (Critical / Imminent, Score $\ge 90$)**: Severe SLA breach on a Tier 1 / Strategic account, urgent competitor threat on high-value opportunity, or immediate contract cliff. Surfaced with top priority alerts.
+- **`P1` (High Priority, Score $75 - 89$)**: Strategic account churn risk or high-probability expansion opportunity with executive decision-makers.
+- **`P2` (Medium Priority, Score $50 - 74$)**: Standard commercial opportunity or mid-level contract renewal window.
+- **`P3` (Low Priority, Score $25 - 49$)**: Informational change or early-stage lead signal.
+- **`P4` (Minimal Priority, Score $< 25$)**: Background noise or low-impact contact transition.
+
+#### Ranking & Ordering Guarantees
+- The API and UI triage feeds default to **`sort_by=priority`**, ordering signals by `score DESC` (highest business impact first) while breaking ties by `detected_at DESC`.
+- The ranking clearly separates and tags **Opportunity upside** (emerald/teal indicators) from **Risk downside** (rose/amber indicators).
+
+### 5. Supporting Evidence & Explanation Contract
 
 All signals store a standardized, rich supporting evidence payload in `metadata["evidence"]` ensuring complete commercial context, clear timestamps, and traceability:
 ```json
@@ -423,7 +448,7 @@ All signals store a standardized, rich supporting evidence payload in `metadata[
 - **`conflicting` (🔴)**: Opposing commercial polarity detected on the same entity scope.
 - **`unverified` (🔍)**: Fuzzy pattern match or confidence score below verification threshold ($< 0.50$).
 
-### 5. Multi-Entity Conflict Detection
+### 6. Multi-Entity Conflict Detection
 
 When contradictory signals co-occur, presenting either in isolation leads to incorrect advisory outreach (e.g. reaching out to salvage a "dormant" account that just announced a new funding round).
 
