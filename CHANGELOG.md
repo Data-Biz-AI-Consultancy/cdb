@@ -1,3 +1,10 @@
+# [1.36.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.35.0...v1.36.0) (2026-09-23)
+
+
+### Features
+
+* add signal data quality safeguards and user feedback subsystem for detection tuning ([779df07](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/779df0754d80120450738380c319d621e5894866))
+
 # [1.35.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.34.0...v1.35.0) (2026-09-23)
 
 
