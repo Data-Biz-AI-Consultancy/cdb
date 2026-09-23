@@ -930,7 +930,7 @@ function SignalsPageContent() {
         key={sig.id}
         className={`bg-white rounded-xl border ${
           isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200'
-        } shadow-sm hover:shadow-md transition p-4 flex flex-col justify-between gap-3 ${borderAccent}`}
+        } shadow-sm hover:shadow-md transition p-4 flex flex-col justify-between gap-3 overflow-hidden min-w-0 ${borderAccent}`}
       >
         <div className="space-y-2 min-w-0">
           {/* Top Status & Indicator Badges */}
@@ -1039,29 +1039,50 @@ function SignalsPageContent() {
           {/* Business Impact 4-Dimension Mini Breakdown Meter */}
           {breakdown && (
             <div
-              className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-lg text-[10px] text-slate-600"
+              className="p-2 bg-slate-50 border border-slate-200/80 rounded-lg text-[10px] text-slate-600 space-y-1.5"
               title={breakdown.impact_rationale || 'Business Impact Breakdown'}
             >
-              <span className="font-semibold text-slate-700">Impact Drivers:</span>
-              <span className="flex items-center gap-0.5">
-                <span className="text-slate-400">Account:</span>
-                <span className="font-bold text-slate-800">{breakdown.account_importance_score ?? 0}/25</span>
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-0.5">
-                <span className="text-slate-400">Relationship:</span>
-                <span className="font-bold text-slate-800">{breakdown.relationship_context_score ?? 0}/25</span>
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-0.5">
-                <span className="text-slate-400">Urgency:</span>
-                <span className="font-bold text-slate-800">{breakdown.urgency_score ?? 0}/25</span>
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-0.5">
-                <span className="text-slate-400">Impact:</span>
-                <span className="font-bold text-slate-800">{breakdown.business_impact_score ?? 0}/25</span>
-              </span>
+              <div className="flex items-center justify-between font-semibold text-slate-700">
+                <span className="flex items-center gap-1">
+                  <span>⚡</span>
+                  <span>Impact Drivers</span>
+                </span>
+                {priorityScore !== null && (
+                  <span className="text-slate-500 font-medium">
+                    Score: <strong className="text-slate-800">{priorityScore}</strong>/100
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                <div className="bg-white px-2 py-1 rounded border border-slate-200/70 flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Account</span>
+                  <span className="font-bold text-slate-800 font-mono">
+                    {breakdown.account_importance_score ?? 0}
+                    <span className="text-slate-400 font-normal text-[9px]">/25</span>
+                  </span>
+                </div>
+                <div className="bg-white px-2 py-1 rounded border border-slate-200/70 flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Relation</span>
+                  <span className="font-bold text-slate-800 font-mono">
+                    {breakdown.relationship_context_score ?? 0}
+                    <span className="text-slate-400 font-normal text-[9px]">/25</span>
+                  </span>
+                </div>
+                <div className="bg-white px-2 py-1 rounded border border-slate-200/70 flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Urgency</span>
+                  <span className="font-bold text-slate-800 font-mono">
+                    {breakdown.urgency_score ?? 0}
+                    <span className="text-slate-400 font-normal text-[9px]">/25</span>
+                  </span>
+                </div>
+                <div className="bg-white px-2 py-1 rounded border border-slate-200/70 flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Impact</span>
+                  <span className="font-bold text-slate-800 font-mono">
+                    {breakdown.business_impact_score ?? 0}
+                    <span className="text-slate-400 font-normal text-[9px]">/25</span>
+                  </span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1219,7 +1240,7 @@ function SignalsPageContent() {
             <span>→</span>
           </Link>
 
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
             {sig.status === 'active' && (
               <button
                 onClick={() => handleAcknowledge(sig.id)}
