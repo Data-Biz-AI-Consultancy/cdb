@@ -1039,48 +1039,85 @@ function SignalsPageContent() {
           {/* Business Impact 4-Dimension Mini Breakdown Meter */}
           {breakdown && (
             <div
-              className="p-2 bg-slate-50 border border-slate-200/80 rounded-lg text-[10px] text-slate-600 space-y-1.5"
+              className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs space-y-2"
               title={breakdown.impact_rationale || 'Business Impact Breakdown'}
             >
-              <div className="flex items-center justify-between font-semibold text-slate-700">
-                <span className="flex items-center gap-1">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold text-slate-700 text-[11px]">
                   <span>⚡</span>
                   <span>Impact Drivers</span>
                 </span>
                 {priorityScore !== null && (
-                  <span className="text-slate-500 font-medium">
-                    Score: <strong className="text-slate-800">{priorityScore}</strong>/100
+                  <span className="text-[11px] text-slate-500">
+                    Composite: <strong className="font-extrabold text-slate-900">{priorityScore}</strong>
+                    <span className="text-slate-400 font-normal">/100</span>
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                <div className="bg-white px-2 py-1 rounded border border-slate-200/70 flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Account</span>
-                  <span className="font-bold text-slate-800 font-mono">
-                    {breakdown.account_importance_score ?? 0}
-                    <span className="text-slate-400 font-normal text-[9px]">/25</span>
+
+              <div className="grid grid-cols-4 gap-2">
+                <div className="bg-white p-1.5 rounded-lg border border-slate-200/70 shadow-2xs flex flex-col items-center text-center">
+                  <span className="text-[10px] font-semibold text-slate-500 truncate w-full">
+                    Account
                   </span>
+                  <div className="mt-0.5 flex items-baseline gap-0.5 font-bold text-slate-900 text-xs">
+                    <span>{breakdown.account_importance_score ?? 0}</span>
+                    <span className="text-[9px] font-normal text-slate-400">/25</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1 mt-1 overflow-hidden">
+                    <div
+                      className="bg-blue-500 h-1 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, Math.max(0, ((breakdown.account_importance_score ?? 0) / 25) * 100))}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="bg-white px-2 py-1 rounded border border-slate-200/70 flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Relation</span>
-                  <span className="font-bold text-slate-800 font-mono">
-                    {breakdown.relationship_context_score ?? 0}
-                    <span className="text-slate-400 font-normal text-[9px]">/25</span>
+
+                <div className="bg-white p-1.5 rounded-lg border border-slate-200/70 shadow-2xs flex flex-col items-center text-center">
+                  <span className="text-[10px] font-semibold text-slate-500 truncate w-full">
+                    Relation
                   </span>
+                  <div className="mt-0.5 flex items-baseline gap-0.5 font-bold text-slate-900 text-xs">
+                    <span>{breakdown.relationship_context_score ?? 0}</span>
+                    <span className="text-[9px] font-normal text-slate-400">/25</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1 mt-1 overflow-hidden">
+                    <div
+                      className="bg-indigo-500 h-1 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, Math.max(0, ((breakdown.relationship_context_score ?? 0) / 25) * 100))}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="bg-white px-2 py-1 rounded border border-slate-200/70 flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Urgency</span>
-                  <span className="font-bold text-slate-800 font-mono">
-                    {breakdown.urgency_score ?? 0}
-                    <span className="text-slate-400 font-normal text-[9px]">/25</span>
+
+                <div className="bg-white p-1.5 rounded-lg border border-slate-200/70 shadow-2xs flex flex-col items-center text-center">
+                  <span className="text-[10px] font-semibold text-slate-500 truncate w-full">
+                    Urgency
                   </span>
+                  <div className="mt-0.5 flex items-baseline gap-0.5 font-bold text-slate-900 text-xs">
+                    <span>{breakdown.urgency_score ?? 0}</span>
+                    <span className="text-[9px] font-normal text-slate-400">/25</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1 mt-1 overflow-hidden">
+                    <div
+                      className="bg-amber-500 h-1 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, Math.max(0, ((breakdown.urgency_score ?? 0) / 25) * 100))}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="bg-white px-2 py-1 rounded border border-slate-200/70 flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Impact</span>
-                  <span className="font-bold text-slate-800 font-mono">
-                    {breakdown.business_impact_score ?? 0}
-                    <span className="text-slate-400 font-normal text-[9px]">/25</span>
+
+                <div className="bg-white p-1.5 rounded-lg border border-slate-200/70 shadow-2xs flex flex-col items-center text-center">
+                  <span className="text-[10px] font-semibold text-slate-500 truncate w-full">
+                    Impact
                   </span>
+                  <div className="mt-0.5 flex items-baseline gap-0.5 font-bold text-slate-900 text-xs">
+                    <span>{breakdown.business_impact_score ?? 0}</span>
+                    <span className="text-[9px] font-normal text-slate-400">/25</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1 mt-1 overflow-hidden">
+                    <div
+                      className="bg-emerald-500 h-1 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, Math.max(0, ((breakdown.business_impact_score ?? 0) / 25) * 100))}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
