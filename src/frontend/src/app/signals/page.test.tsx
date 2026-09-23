@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SignalsPage from './page';
 
+// Mock next/navigation
+let mockSearchParams = new URLSearchParams();
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => mockSearchParams,
+}));
+
 // Mock apiFetch
 vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
@@ -636,4 +642,79 @@ describe('SignalsPage Component', () => {
       expect(screen.getAllByText(/Account Clustered Signals/i).length).toBeGreaterThan(0);
     });
   });
+
+  it('filters signals when clicking the quick severity filter pills', async () => {
+    mockSearchParams = new URLSearchParams();
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+    });
+
+    // Click 'High' quick severity pill
+    const highPill = screen.getByRole('button', { name: /High \(1\)/i });
+    fireEvent.click(highPill);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.queryByText('Hiring Expansion: Beta Inc')).not.toBeInTheDocument();
+    });
+
+    // Click 'Medium' quick severity pill
+    const mediumPill = screen.getByRole('button', { name: /Medium \(1\)/i });
+    fireEvent.click(mediumPill);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Dormant Account Alert: Acme Corp')).not.toBeInTheDocument();
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+    });
+
+    // Click 'All' quick severity pill
+    const allPill = screen.getByRole('button', { name: /All \(2\)/i });
+    fireEvent.click(allPill);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.getByText('Hiring Expansion: Beta Inc')).toBeInTheDocument();
+    });
+  });
+
+  it('drills down from Metrics tab signal breakdown row to triage tab with filters applied', async () => {
+    mockSearchParams = new URLSearchParams();
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('📊 Success & Quality Metrics')).toBeInTheDocument();
+    });
+
+    // Go to metrics tab
+    fireEvent.click(screen.getByText('📊 Success & Quality Metrics'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Performance Breakdown by Signal Type')).toBeInTheDocument();
+    });
+
+    // Click the Dormant Strategic Account row
+    const row = screen.getByText('Dormant Strategic Account');
+    fireEvent.click(row);
+
+    // Should switch back to triage tab and filter to dormant strategic accounts
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.queryByText('Hiring Expansion: Beta Inc')).not.toBeInTheDocument();
+    });
+  });
+
+  it('initializes severity filter from URL search parameters', async () => {
+    mockSearchParams = new URLSearchParams('severity=high');
+    render(<SignalsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dormant Account Alert: Acme Corp')).toBeInTheDocument();
+      expect(screen.queryByText('Hiring Expansion: Beta Inc')).not.toBeInTheDocument();
+    });
+    mockSearchParams = new URLSearchParams();
+  });
 });
+

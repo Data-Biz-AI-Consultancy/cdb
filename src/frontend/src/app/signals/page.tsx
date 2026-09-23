@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { apiFetch, ApiResponse } from '@/lib/api';
 
 export type SignalCategory = 'opportunity' | 'risk' | 'hybrid';
@@ -255,7 +256,8 @@ const normalizeSlug = (slug?: string | null): string => {
     .replace(/_or_funding_/, '_funding_');
 };
 
-export default function SignalsPage() {
+function SignalsPageContent() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<
     'triage' | 'conflicts' | 'uncertain' | 'metrics' | 'catalog'
   >('triage');
@@ -281,6 +283,39 @@ export default function SignalsPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('priority');
   const [lookbackDays, setLookbackDays] = useState<number>(90);
+
+  // Read URL search params on mount or param changes
+  useEffect(() => {
+    if (!searchParams) return;
+    const sevParam = searchParams.get('severity');
+    if (sevParam && ['critical', 'high', 'medium', 'low', 'all'].includes(sevParam.toLowerCase())) {
+      setSeverityFilter(sevParam.toLowerCase());
+    }
+    const catParam = searchParams.get('category');
+    if (catParam && ['opportunity', 'risk', 'hybrid', 'all'].includes(catParam.toLowerCase())) {
+      setCategoryFilter(catParam.toLowerCase());
+    }
+    const sigTypeParam = searchParams.get('signal_type') || searchParams.get('signal_id');
+    if (sigTypeParam) {
+      setSignalTypeFilter(sigTypeParam);
+    }
+    const priorityParam = searchParams.get('priority') || searchParams.get('priority_tier');
+    if (priorityParam && ['P0', 'P1', 'P2', 'P3', 'P4', 'ALL'].includes(priorityParam.toUpperCase())) {
+      setPriorityFilter(priorityParam.toUpperCase());
+    }
+    const statusParam = searchParams.get('status');
+    if (statusParam) {
+      setStatusFilter(statusParam.toLowerCase());
+    }
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['triage', 'conflicts', 'uncertain', 'metrics', 'catalog'].includes(tabParam.toLowerCase())) {
+      setActiveTab(tabParam.toLowerCase() as any);
+    }
+    const qParam = searchParams.get('q') || searchParams.get('search');
+    if (qParam) {
+      setSearchQuery(qParam);
+    }
+  }, [searchParams]);
 
   // Dynamic catalog options based on active category filter
   const availableCatalog = useMemo(() => {
@@ -1450,6 +1485,87 @@ export default function SignalsPage() {
         </div>
       </div>
 
+      {/* Quick Severity Filter Pill Bar */}
+      <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">
+          Quick Severity Filter:
+        </span>
+        <button
+          id="quick-sev-all"
+          onClick={() => {
+            setSeverityFilter('all');
+            if (activeTab === 'metrics' || activeTab === 'catalog') setActiveTab('triage');
+          }}
+          className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
+            severityFilter === 'all'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          All ({signals.length})
+        </button>
+        <button
+          id="quick-sev-critical"
+          onClick={() => {
+            setSeverityFilter('critical');
+            if (activeTab === 'metrics' || activeTab === 'catalog') setActiveTab('triage');
+          }}
+          className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+            severityFilter === 'critical'
+              ? 'bg-rose-600 text-white shadow-xs'
+              : 'bg-white text-rose-700 hover:bg-rose-50 border border-rose-200'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+          Critical ({stats?.by_severity?.critical ?? signals.filter((s) => s.severity === 'critical').length})
+        </button>
+        <button
+          id="quick-sev-high"
+          onClick={() => {
+            setSeverityFilter('high');
+            if (activeTab === 'metrics' || activeTab === 'catalog') setActiveTab('triage');
+          }}
+          className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+            severityFilter === 'high'
+              ? 'bg-orange-600 text-white shadow-xs'
+              : 'bg-white text-orange-700 hover:bg-orange-50 border border-orange-200'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+          High ({stats?.by_severity?.high ?? signals.filter((s) => s.severity === 'high').length})
+        </button>
+        <button
+          id="quick-sev-medium"
+          onClick={() => {
+            setSeverityFilter('medium');
+            if (activeTab === 'metrics' || activeTab === 'catalog') setActiveTab('triage');
+          }}
+          className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+            severityFilter === 'medium'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'bg-white text-amber-700 hover:bg-amber-50 border border-amber-200'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+          Medium ({stats?.by_severity?.medium ?? signals.filter((s) => s.severity === 'medium').length})
+        </button>
+        <button
+          id="quick-sev-low"
+          onClick={() => {
+            setSeverityFilter('low');
+            if (activeTab === 'metrics' || activeTab === 'catalog') setActiveTab('triage');
+          }}
+          className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+            severityFilter === 'low'
+              ? 'bg-slate-700 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-slate-400 inline-block" />
+          Low ({stats?.by_severity?.low ?? signals.filter((s) => s.severity === 'low').length})
+        </button>
+      </div>
+
       {/* Tabs Navigation */}
       <div className="border-b border-slate-200">
         <nav className="flex flex-wrap gap-4 sm:gap-8" aria-label="Tabs">
@@ -2174,9 +2290,22 @@ export default function SignalsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {metrics.by_signal.map((row) => (
-                        <tr key={row.key} className="hover:bg-slate-50/80 transition">
-                          <td className="py-3.5 px-4 font-semibold text-slate-900 flex items-center gap-2">
+                        <tr
+                          key={row.key}
+                          onClick={() => {
+                            setSignalTypeFilter(row.key);
+                            if (row.category) setCategoryFilter(row.category);
+                            if (row.severity) setSeverityFilter(row.severity);
+                            setActiveTab('triage');
+                          }}
+                          className="hover:bg-purple-50/60 cursor-pointer transition group"
+                          title={`Click to view and triage all ${row.label} signals`}
+                        >
+                          <td className="py-3.5 px-4 font-semibold text-slate-900 flex items-center gap-2 group-hover:text-purple-700">
                             <span>{row.label}</span>
+                            <span className="text-[10px] text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity font-normal">
+                              → View Signals
+                            </span>
                           </td>
                           <td className="py-3.5 px-4">
                             {row.category && (
@@ -2227,6 +2356,46 @@ export default function SignalsPage() {
                   </table>
                 </div>
               </div>
+
+              {/* By Severity Breakdown Grid */}
+              {metrics.by_severity && metrics.by_severity.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Filter by Severity Volume & Action Rate
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {metrics.by_severity.map((sev) => (
+                      <button
+                        key={sev.key}
+                        onClick={() => {
+                          setSeverityFilter(sev.key.toLowerCase());
+                          setActiveTab('triage');
+                        }}
+                        className="p-3.5 rounded-xl border border-slate-200 hover:border-purple-400 hover:bg-purple-50/40 text-left transition flex flex-col justify-between cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase border ${getSeverityBadge(
+                              sev.key
+                            )}`}
+                          >
+                            {sev.key}
+                          </span>
+                          <span className="text-xs text-purple-600 font-semibold">Triage →</span>
+                        </div>
+                        <div className="mt-2">
+                          <div className="text-xl font-bold text-slate-900">
+                            {sev.total_detected} Detected
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            Action Rate: {(sev.action_rate * 100).toFixed(1)}% · ${Number(sev.influenced_pipeline).toLocaleString()}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2442,3 +2611,24 @@ export default function SignalsPage() {
     </div>
   );
 }
+
+export default function SignalsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 max-w-7xl mx-auto space-y-4 animate-pulse">
+          <div className="h-8 bg-slate-200 rounded w-64" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-24 bg-slate-200 rounded-xl" />
+            ))}
+          </div>
+          <div className="h-96 bg-slate-200 rounded-xl" />
+        </div>
+      }
+    >
+      <SignalsPageContent />
+    </Suspense>
+  );
+}
+
