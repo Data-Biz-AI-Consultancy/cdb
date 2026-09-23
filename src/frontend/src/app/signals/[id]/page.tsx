@@ -8,7 +8,8 @@ import {
   DetectedSignalStatus,
   SignalSeverity,
   SupportingEvidence,
-} from '../page';
+  ConnectedPerson,
+} from '../types';
 
 export default function SignalDetailPage({
   params,
