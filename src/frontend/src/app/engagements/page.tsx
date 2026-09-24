@@ -1,8 +1,6 @@
 'use client';
 
-import React from 'react';
 import { useEngagements } from './hooks/useEngagements';
-export * from './types';
 import {
   EngagementKpis,
   EngagementFilterBar,
