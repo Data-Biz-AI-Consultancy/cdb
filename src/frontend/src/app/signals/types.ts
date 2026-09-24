@@ -168,10 +168,14 @@ export interface DetectedSignal {
   conflict_summary?: string | null;
   conflict_scope?: string | null;
   evidence?: SupportingEvidence | Record<string, any> | null;
+  evidence_payload?: any;
   why_it_matters_now?: string | null;
   evidence_fingerprint?: string | null;
   title: string;
   summary?: string | null;
+  category?: SignalCategory;
+  signal_type?: string;
+  dismissal_reason?: string | null;
   metadata?: Record<string, any>;
   owner_id?: string | null;
   owner_name?: string | null;
@@ -315,6 +319,9 @@ export interface SignalEvaluationResult {
   total_quality_warnings?: number;
   new_signals_detected: number;
   refreshed_signals: number;
+  signals_created?: number;
+  signals_updated?: number;
+  total_evaluated?: number;
   by_signal: Record<string, number>;
 }
 
