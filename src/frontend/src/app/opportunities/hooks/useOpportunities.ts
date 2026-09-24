@@ -24,7 +24,7 @@ export function useOpportunities() {
   const [draggedOppId, setDraggedOppId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
-  // Signal summary indexed by company_id and opp_id
+  // Signal summary indexed by company_id, opp_id, and person_id
   const [signalSummaryMap, setSignalSummaryMap] = useState<Record<string, CompanySignalSummary>>({});
 
   const loadOpps = useCallback(async () => {
@@ -37,13 +37,16 @@ export function useOpportunities() {
 
       // Fetch active signals in batch to decorate cards
       try {
-        const sigRes = await apiFetch<ApiResponse<OpportunityDetectedSignal[]>>('/api/v1/signals/detected?status=active&page_size=200&sort_by=priority');
+        const sigRes = await apiFetch<ApiResponse<OpportunityDetectedSignal[]>>(
+          '/api/v1/signals/detected?status=active&page_size=200&sort_by=priority'
+        );
         const activeSignals = sigRes.data || [];
         const summary: Record<string, CompanySignalSummary> = {};
 
         for (const sig of activeSignals) {
-          const keys = [];
+          const keys: string[] = [];
           if (sig.company_id) keys.push(`company:${sig.company_id}`);
+          if (sig.person_id) keys.push(`person:${sig.person_id}`);
           if (sig.opportunity_id) keys.push(`opp:${sig.opportunity_id}`);
           if (sig.routed_opportunity_id) keys.push(`opp:${sig.routed_opportunity_id}`);
 
@@ -71,7 +74,11 @@ export function useOpportunities() {
               summary[key].oppsCount += 1;
             }
 
-            if (!summary[key].highestPriorityTier || sig.priority_tier === 'P0' || (sig.priority_tier === 'P1' && summary[key].highestPriorityTier !== 'P0')) {
+            if (
+              !summary[key].highestPriorityTier ||
+              sig.priority_tier === 'P0' ||
+              (sig.priority_tier === 'P1' && summary[key].highestPriorityTier !== 'P0')
+            ) {
               summary[key].highestPriorityTier = sig.priority_tier || 'P2';
             }
           }
@@ -93,18 +100,65 @@ export function useOpportunities() {
 
   const getOppSignalSummary = useCallback(
     (opp: Opportunity): CompanySignalSummary | undefined => {
-      // Check opp-specific key first
-      if (signalSummaryMap[`opp:${opp.id}`]) {
-        return signalSummaryMap[`opp:${opp.id}`];
-      }
-      // Check company-specific key
-      if (opp.companies && opp.companies.length > 0) {
-        const compId = opp.companies[0].company_id;
-        if (signalSummaryMap[`company:${compId}`]) {
-          return signalSummaryMap[`company:${compId}`];
+      const allSignalsMap: Record<string, OpportunityDetectedSignal> = {};
+      const keys = [`opp:${opp.id}`];
+      if (opp.companies) {
+        for (const c of opp.companies) {
+          if (c.company_id) keys.push(`company:${c.company_id}`);
         }
       }
-      return undefined;
+      if (opp.persons) {
+        for (const p of opp.persons) {
+          if (p.person_id) keys.push(`person:${p.person_id}`);
+        }
+      }
+
+      for (const key of keys) {
+        const item = signalSummaryMap[key];
+        if (item && item.signals) {
+          for (const s of item.signals) {
+            allSignalsMap[s.id] = s;
+          }
+        }
+      }
+
+      const mergedSignals = Object.values(allSignalsMap);
+      if (mergedSignals.length === 0) return undefined;
+
+      let risksCount = 0;
+      let oppsCount = 0;
+      let highestPriorityTier = 'P4';
+      const tierOrder: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3, P4: 4 };
+
+      for (const sig of mergedSignals) {
+        const isRisk =
+          sig.effective_polarity === 'risk' ||
+          sig.signal?.category === 'risk' ||
+          sig.signal_id?.includes('dormant') ||
+          sig.signal_id?.includes('unanswered') ||
+          sig.signal_id?.includes('competitor');
+        if (isRisk) {
+          risksCount += 1;
+        } else {
+          oppsCount += 1;
+        }
+
+        const currentTier = sig.priority_tier || 'P2';
+        if (
+          tierOrder[currentTier] !== undefined &&
+          tierOrder[currentTier] < (tierOrder[highestPriorityTier] ?? 99)
+        ) {
+          highestPriorityTier = currentTier;
+        }
+      }
+
+      return {
+        totalActive: mergedSignals.length,
+        risksCount,
+        oppsCount,
+        highestPriorityTier,
+        signals: mergedSignals,
+      };
     },
     [signalSummaryMap]
   );
@@ -136,7 +190,9 @@ export function useOpportunities() {
       const matchTitle = opp.title.toLowerCase().includes(q);
       const matchDesc = opp.description?.toLowerCase().includes(q);
       const matchCompany = opp.companies?.some((c) => c.company_name?.toLowerCase().includes(q));
-      const matchPerson = opp.persons?.some((p) => p.person_name?.toLowerCase().includes(q) || p.person_email?.toLowerCase().includes(q));
+      const matchPerson = opp.persons?.some(
+        (p) => p.person_name?.toLowerCase().includes(q) || p.person_email?.toLowerCase().includes(q)
+      );
       return matchTitle || matchDesc || matchCompany || matchPerson;
     });
   }, [opps, stageFilter, signalFilter, searchQuery, getOppSignalSummary]);

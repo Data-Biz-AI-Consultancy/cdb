@@ -15,31 +15,50 @@ export function useOpportunitySignals(activeOpportunity: Opportunity | null) {
     setLoading(true);
     setError(null);
     try {
-      // 1. Collect query params: check for opportunity_id and attached company_ids
-      const params = new URLSearchParams({
-        page_size: '100',
-        sort_by: 'priority',
-      });
+      const companyIds = (opp.companies || []).map((c) => c.company_id).filter(Boolean);
+      const personIds = (opp.persons || []).map((p) => p.person_id).filter(Boolean);
 
-      const companyId = opp.companies && opp.companies.length > 0 ? opp.companies[0].company_id : null;
+      const fetchPromises: Promise<ApiResponse<OpportunityDetectedSignal[]>>[] = [];
+
+      // 1. Fetch by opportunity_id
       if (opp.id) {
-        params.append('opportunity_id', opp.id);
-      }
-      if (companyId) {
-        params.append('company_id', companyId);
-      }
-
-      const res = await apiFetch<ApiResponse<OpportunityDetectedSignal[]>>(`/api/v1/signals/detected?${params.toString()}`);
-      
-      let fetchedSignals = res.data || [];
-
-      // If no signals returned specifically by opportunity_id & company_id combined or if company has signals not explicitly tagged with opp_id
-      if (companyId && fetchedSignals.length === 0) {
-        const compRes = await apiFetch<ApiResponse<OpportunityDetectedSignal[]>>(`/api/v1/signals/detected?company_id=${companyId}&page_size=50&sort_by=priority`);
-        fetchedSignals = compRes.data || [];
+        fetchPromises.push(
+          apiFetch<ApiResponse<OpportunityDetectedSignal[]>>(
+            `/api/v1/signals/detected?opportunity_id=${opp.id}&page_size=100&sort_by=priority`
+          )
+        );
       }
 
-      setSignals(fetchedSignals);
+      // 2. Fetch by all attached companies
+      for (const cId of companyIds) {
+        fetchPromises.push(
+          apiFetch<ApiResponse<OpportunityDetectedSignal[]>>(
+            `/api/v1/signals/detected?company_id=${cId}&page_size=100&sort_by=priority`
+          )
+        );
+      }
+
+      // 3. Fetch by all attached persons
+      for (const pId of personIds) {
+        fetchPromises.push(
+          apiFetch<ApiResponse<OpportunityDetectedSignal[]>>(
+            `/api/v1/signals/detected?person_id=${pId}&page_size=100&sort_by=priority`
+          )
+        );
+      }
+
+      const results = await Promise.allSettled(fetchPromises);
+      const signalsMap: Record<string, OpportunityDetectedSignal> = {};
+
+      for (const res of results) {
+        if (res.status === 'fulfilled' && res.value?.data) {
+          for (const sig of res.value.data) {
+            signalsMap[sig.id] = sig;
+          }
+        }
+      }
+
+      setSignals(Object.values(signalsMap));
     } catch (err: any) {
       setError(err.message || 'Failed to load signals for this opportunity');
       setSignals([]);
