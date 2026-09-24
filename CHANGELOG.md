@@ -1,3 +1,12 @@
+# [1.39.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.38.0...v1.39.0) (2026-09-24)
+
+
+### Features
+
+* add database seeding script for opportunity signals ([5602571](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/56025710542c61b87203b349b5848a40dcf1181d))
+* aggregate signals across multiple companies, persons, and opportunities in hooks ([1f07951](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/1f0795191d58dc6a58e274d4175f80d85d6883ad))
+* **DAT-113:** implement enhanced opportunity workflow with Kanban board, detail drawers, and signal tracking ([fba60a4](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/fba60a4bdf3801b0f5e6f1bcb56c376a3829ae58))
+
 # [1.38.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.37.0...v1.38.0) (2026-09-24)
 
 
