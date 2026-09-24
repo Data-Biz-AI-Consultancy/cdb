@@ -96,7 +96,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
   const [regeneratingBrief, setRegeneratingBrief] = useState(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'brief' | 'employees' | 'timeline' | 'notes' | 'opportunities' | 'leads' | 'engagements' | 'signals' | 'profile'>('employees');
+  const [activeTab, setActiveTab] = useState<'brief' | 'employees' | 'timeline' | 'notes' | 'opportunities' | 'leads' | 'engagements' | 'signals' | 'profile'>('brief');
 
   // Employee Tab Controls: Subfilter & Sorting
   const [employeeSubFilter, setEmployeeSubFilter] = useState<'all' | 'current' | 'alumni'>('all');

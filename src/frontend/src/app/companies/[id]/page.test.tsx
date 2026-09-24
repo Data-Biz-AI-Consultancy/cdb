@@ -362,10 +362,15 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     render(<CompanyDetailPage params={Promise.resolve({ id: 'comp-1111-2222-3333' })} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.getByText('Alex Smith')).toBeInTheDocument();
+      expect(screen.getByText('Acme AI Systems')).toBeInTheDocument();
     });
+
+    // Switch to Employees & Contacts tab
+    fireEvent.click(screen.getByRole('button', { name: /Employees & Contacts/i }));
+
+    expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('Alex Smith')).toBeInTheDocument();
 
     // Check titles & warmth badges
     expect(screen.getByText('VP of Data Engineering')).toBeInTheDocument();
@@ -392,8 +397,13 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     render(<CompanyDetailPage params={Promise.resolve({ id: 'comp-1111-2222-3333' })} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
+      expect(screen.getByText('Acme AI Systems')).toBeInTheDocument();
     });
+
+    // Switch to Employees & Contacts tab
+    fireEvent.click(screen.getByRole('button', { name: /Employees & Contacts/i }));
+
+    expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
 
     const sortSelect = screen.getByRole('combobox');
     expect(sortSelect).toBeInTheDocument();
