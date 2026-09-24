@@ -4,6 +4,7 @@
 ### Features
 
 * implement AI Account Briefs and Next Best Actions (NBA) features with backend services and frontend types ([75ceadf](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/75ceadf066acc43e22788a008a068d1888ffef77))
+* surface prioritized opportunity and risk signals in opportunity workflows with Kanban badges, pipeline filters, supporting context, affected accounts, and dedicated detail drawer tab
 
 # [1.37.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.36.0...v1.37.0) (2026-09-24)
 
