@@ -8,6 +8,7 @@ from cdb.core.database import get_db
 from cdb.core.errors import NotFoundError
 from cdb.models.user import User
 from cdb.schemas.common import PaginatedResponse, PaginationMetadata
+from cdb.schemas.nba import NextBestActionListResponse
 from cdb.schemas.signals import (
     BulkSignalStatusUpdateRequest,
     BulkSignalStatusUpdateResponse,
@@ -22,8 +23,26 @@ from cdb.schemas.signals import (
 from cdb.services.signals import (
     detected as detected_signal_service,
 )
+from cdb.services.signals import nba as nba_service
 
 router = APIRouter()
+
+
+@router.get(
+    "/nba/feed",
+    response_model=NextBestActionListResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_nba_feed(
+    limit: int = Query(50, ge=1, le=200, description="Max action items to return"),
+    owner_id: uuid.UUID | None = Query(None, description="Filter actions by assigned owner ID"),
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> NextBestActionListResponse:
+    """
+    Returns global ranked, deduplicated, and conflict-reconciled Next Best Actions feed across all accounts.
+    """
+    return await nba_service.get_global_next_best_actions(db, limit=limit, owner_id=owner_id)
 
 
 @router.get(

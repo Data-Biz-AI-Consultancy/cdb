@@ -23,7 +23,8 @@ src/cdb/
 │   ├── entity_resolution/ # Normalization, rule-based matching, and merge engine
 │   ├── ingestion/         # Ingestion processors (LinkedIn, Notion, CSV/XLSX)
 │   ├── segmentation/      # Dynamic person segmentation & engagement temperature
-│   ├── signals/           # Opportunity & Risk Signals Catalog, detection, deterministic ownership, escalation, and workflow routing
+│   ├── account_briefs.py  # AI Account Intelligence Briefing synthesis & health scoring
+│   ├── signals/           # Opportunity & Risk Signals Catalog, detection, NBA ranking, deterministic ownership, escalation, and workflow routing
 │
 ├── models/       # 4. Database Persistence Layer (SQLAlchemy 2.x)
 │   ├── base.py   # Declarative Base, UUID primary keys, and timestamp mixins

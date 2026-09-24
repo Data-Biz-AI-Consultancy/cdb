@@ -371,3 +371,101 @@ export interface SignalWorkflowRouteResponse {
   message: string;
 }
 
+export interface NextBestActionItem {
+  id: string;
+  action_type: string;
+  title: string;
+  description: string;
+  rationale: string;
+  priority_score: number;
+  priority_tier: 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | string;
+  urgency: 'immediate' | 'high' | 'medium' | 'routine' | string;
+  category: 'opportunity' | 'risk' | 'reconciled' | 'operational' | string;
+  suggested_owner_id?: string | null;
+  suggested_owner_name?: string | null;
+  target_company_id?: string | null;
+  target_company_name?: string | null;
+  target_person_id?: string | null;
+  target_person_name?: string | null;
+  target_opportunity_id?: string | null;
+  target_opportunity_title?: string | null;
+  target_engagement_id?: string | null;
+  target_engagement_title?: string | null;
+  originating_signal_ids: string[];
+  originating_signals_summary: string[];
+  playbook_key?: string | null;
+  is_reconciled_conflict: boolean;
+  conflict_resolution_notes?: string | null;
+  freshness_status: string;
+  action_steps: string[];
+  metadata: Record<string, any>;
+}
+
+export interface NextBestActionListResponse {
+  data: NextBestActionItem[];
+  total_count: number;
+  high_urgency_count: number;
+  reconciled_count: number;
+  generated_at: string;
+}
+
+export interface AccountBriefSignalItem {
+  signal_id: string;
+  detected_signal_id: string;
+  title: string;
+  category: string;
+  effective_polarity: 'OPPORTUNITY' | 'RISK' | string;
+  severity: string;
+  priority_score: number;
+  priority_tier: string;
+  confidence_score: number;
+  why_it_matters: string;
+  evidence_excerpt?: string | null;
+  evidence_status: string;
+  occurred_at?: string | null;
+  days_elapsed?: number | null;
+  recommended_action: Record<string, any>;
+  has_conflict: boolean;
+  conflict_summary?: string | null;
+  target_person_id?: string | null;
+  target_person_name?: string | null;
+}
+
+export interface AccountBriefEngagementItem {
+  id: string;
+  title: string;
+  status: string;
+  contract_status: string;
+  expected_end_date?: string | null;
+  total_value?: number | null;
+  currency: string;
+}
+
+export interface AccountBriefOpportunityItem {
+  id: string;
+  title: string;
+  stage: string;
+  value?: number | null;
+  currency: string;
+}
+
+export interface AccountAIBriefResponse {
+  company_id: string;
+  company_name: string;
+  domain?: string | null;
+  industry?: string | null;
+  commercial_posture: 'growing' | 'stable' | 'at_risk' | 'dormant' | string;
+  relationship_health_score: number;
+  relationship_health_rationale: string;
+  executive_summary: string;
+  key_highlights: string[];
+  key_risks: AccountBriefSignalItem[];
+  key_opportunities: AccountBriefSignalItem[];
+  active_engagements: AccountBriefEngagementItem[];
+  open_pipeline_deals: AccountBriefOpportunityItem[];
+  recommended_next_actions: NextBestActionItem[];
+  generated_at: string;
+  cached?: boolean;
+}
+
+
