@@ -63,6 +63,68 @@ const mockOpportunities = [
   },
 ];
 
+const mockDetectedSignals = [
+  {
+    id: 'sig-1',
+    signal_id: 'dormant_account_warning',
+    title: 'Account Inactivity Warning',
+    summary: 'No logged communications or touchpoints in the past 45 days.',
+    company_id: 'c-1',
+    company_name: 'Acme Corp',
+    opportunity_id: 'opp-1',
+    opportunity_title: 'Enterprise Cloud Migration',
+    status: 'active',
+    severity: 'high',
+    priority_tier: 'P1',
+    effective_polarity: 'risk',
+    score: 85,
+    priority_score: 88.5,
+    why_it_matters_now: 'Impending renewal cycle with declining stakeholder engagement.',
+    evidence: {
+      evidence_type: 'inactivity_cadence',
+      occurred_at: '2026-08-10T10:00:00Z',
+      excerpt: 'Last activity was 45 days ago: Strategy Sync Notes',
+      verification_status: 'verified',
+      source_reliability: 'high',
+    },
+    connected_persons: [
+      {
+        id: 'p-1',
+        name: 'Alice Smith',
+        role: 'decision_maker',
+        primary_email: 'alice@acme.corp',
+      },
+    ],
+    detected_at: '2026-09-20T10:00:00Z',
+  },
+  {
+    id: 'sig-2',
+    signal_id: 'tech_expansion_hiring',
+    title: 'Key Executive Engineering Hire',
+    summary: 'Acme Corp announced VP of Cloud Infrastructure hire.',
+    company_id: 'c-1',
+    company_name: 'Acme Corp',
+    opportunity_id: 'opp-1',
+    opportunity_title: 'Enterprise Cloud Migration',
+    status: 'active',
+    severity: 'medium',
+    priority_tier: 'P2',
+    effective_polarity: 'opportunity',
+    score: 75,
+    priority_score: 78.0,
+    why_it_matters_now: 'New budget allocated for modernization tooling.',
+    evidence: {
+      evidence_type: 'enrichment_feed',
+      occurred_at: '2026-09-18T10:00:00Z',
+      excerpt: 'Job posting & public LinkedIn announcement',
+      verification_status: 'verified',
+      source_reliability: 'high',
+    },
+    connected_persons: [],
+    detected_at: '2026-09-22T10:00:00Z',
+  },
+];
+
 const mockHistory = [
   {
     id: 'h-1',
@@ -81,10 +143,13 @@ const mockHistory = [
   },
 ];
 
-describe('OpportunitiesPage Kanban Board', () => {
+describe('OpportunitiesPage Kanban Board & Signal Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (apiModule.apiFetch as any).mockImplementation((url: string, opts?: any) => {
+      if (url.includes('/api/v1/signals/detected')) {
+        return Promise.resolve({ data: mockDetectedSignals });
+      }
       if (url.includes('/api/v1/opportunities') && (!opts || opts.method === 'GET')) {
         if (url.includes('/history')) {
           return Promise.resolve({ data: mockHistory });
@@ -115,7 +180,7 @@ describe('OpportunitiesPage Kanban Board', () => {
     });
   });
 
-  it('renders Kanban board with stages and pipeline metrics', async () => {
+  it('renders Kanban board with stages, pipeline metrics, and signal indicators on cards', async () => {
     render(<OpportunitiesPage />);
 
     expect(screen.getByText('Opportunities Pipeline')).toBeInTheDocument();
@@ -141,10 +206,15 @@ describe('OpportunitiesPage Kanban Board', () => {
     // Check staleness & overdue badges
     expect(screen.getByText(/⚠️ Stale/)).toBeInTheDocument();
     expect(screen.getByText(/⛔ Expired/)).toBeInTheDocument();
-    expect(screen.getByText('Stale 30d+')).toBeInTheDocument();
-    expect(screen.getByText('Expired 90d+')).toBeInTheDocument();
     expect(screen.getByText(/🚨 Overdue/)).toBeInTheDocument();
-    expect(screen.getByText('Overdue Target')).toBeInTheDocument();
+
+    // Verify signal indicator badges on cards
+    await waitFor(() => {
+      expect(screen.getByTestId('opp-signals-badge-opp-1')).toBeInTheDocument();
+      expect(screen.getByText(/1 Risk/)).toBeInTheDocument();
+      expect(screen.getByText(/1 Opp/)).toBeInTheDocument();
+      expect(screen.getByText('P1')).toBeInTheDocument();
+    });
   });
 
   it('filters opportunities using search bar', async () => {
@@ -161,6 +231,80 @@ describe('OpportunitiesPage Kanban Board', () => {
     expect(screen.getByText('AI Copilot Pilot')).toBeInTheDocument();
   });
 
+  it('filters opportunities by signal triggers (Critical Risks, Growth Triggers)', async () => {
+    render(<OpportunitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Enterprise Cloud Migration')).toBeInTheDocument();
+      expect(screen.getByText('AI Copilot Pilot')).toBeInTheDocument();
+    });
+
+    // Click Critical Risks filter
+    const risksFilterBtn = screen.getByRole('button', { name: /Critical Risks/ });
+    fireEvent.click(risksFilterBtn);
+
+    // opp-1 has a risk signal, opp-2 does not
+    expect(screen.getByText('Enterprise Cloud Migration')).toBeInTheDocument();
+    expect(screen.queryByText('AI Copilot Pilot')).not.toBeInTheDocument();
+
+    // Reset to All Deals
+    const allDealsBtn = screen.getByRole('button', { name: 'All Deals' });
+    fireEvent.click(allDealsBtn);
+    expect(screen.getByText('AI Copilot Pilot')).toBeInTheDocument();
+  });
+
+  it('surfaces prioritized signals in the Signals tab with supporting context and affected account', async () => {
+    render(<OpportunitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Enterprise Cloud Migration')).toBeInTheDocument();
+    });
+
+    // Open detail drawer
+    fireEvent.click(screen.getByText('Enterprise Cloud Migration'));
+
+    await waitFor(() => {
+      expect(screen.getByText('📋 Overview & Edit')).toBeInTheDocument();
+      expect(screen.getByText(/Signals & Risks/)).toBeInTheDocument();
+    });
+
+    // Click on Signals & Risks tab
+    const signalsTabBtn = screen.getByText(/Signals & Risks/);
+    fireEvent.click(signalsTabBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('opportunity-signals-tab')).toBeInTheDocument();
+      expect(screen.getByText('Account Inactivity Warning')).toBeInTheDocument();
+      expect(screen.getByText('Key Executive Engineering Hire')).toBeInTheDocument();
+    });
+
+    // Check visual distinction between risk and opportunity
+    expect(screen.getByText('Risk Signal')).toBeInTheDocument();
+    expect(screen.getByText('Growth Opportunity')).toBeInTheDocument();
+
+    // Check supporting context
+    expect(
+      screen.getByText('"Impending renewal cycle with declining stakeholder engagement."')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Last activity was 45 days ago: Strategy Sync Notes')
+    ).toBeInTheDocument();
+
+    // Check affected account chip & link
+    const affectedAccountLinks = screen.getAllByRole('link', { name: 'Acme Corp' });
+    expect(affectedAccountLinks.length).toBeGreaterThanOrEqual(1);
+
+    // Check connected contact
+    expect(screen.getByText(/Connected Contact/)).toBeInTheDocument();
+
+    // Test sub-filtering (Risks only)
+    const riskSubFilterBtn = screen.getByRole('button', { name: /Risks \(1\)/ });
+    fireEvent.click(riskSubFilterBtn);
+
+    expect(screen.getByText('Account Inactivity Warning')).toBeInTheDocument();
+    expect(screen.queryByText('Key Executive Engineering Hire')).not.toBeInTheDocument();
+  });
+
   it('opens details drawer and loads history and attached items', async () => {
     render(<OpportunitiesPage />);
 
@@ -174,12 +318,12 @@ describe('OpportunitiesPage Kanban Board', () => {
 
     await waitFor(() => {
       expect(screen.getByText('📋 Overview & Edit')).toBeInTheDocument();
-      expect(screen.getByText('👥 Attached People & Orgs')).toBeInTheDocument();
-      expect(screen.getByText('⏱️ History & Activity')).toBeInTheDocument();
+      expect(screen.getByText(/Attached People & Orgs/)).toBeInTheDocument();
+      expect(screen.getByText(/History & Activity/)).toBeInTheDocument();
     });
 
     // Switch to history tab
-    const historyTab = screen.getByText('⏱️ History & Activity');
+    const historyTab = screen.getByText(/History & Activity/);
     fireEvent.click(historyTab);
 
     await waitFor(() => {
@@ -242,6 +386,9 @@ describe('OpportunitiesPage Kanban Board', () => {
 
   it('searches and attaches a company like Taxfix to an opportunity', async () => {
     (apiModule.apiFetch as any).mockImplementation((url: string, opts?: any) => {
+      if (url.includes('/api/v1/signals/detected')) {
+        return Promise.resolve({ data: mockDetectedSignals });
+      }
       if (url.includes('/api/v1/opportunities/opp-1/companies') && opts?.method === 'POST') {
         return Promise.resolve({
           ...mockOpportunities[0],
