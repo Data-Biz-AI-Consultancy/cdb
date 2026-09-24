@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
@@ -258,6 +258,28 @@ class DetectedSignalResponse(BaseModel):
     summary: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict, validation_alias="metadata_payload")
 
+    # Ownership & Assignment
+    owner_id: uuid.UUID | None = None
+    owner_name: str | None = None
+    owner_email: str | None = None
+    assigned_at: datetime | None = None
+    assigned_by_id: uuid.UUID | None = None
+    assigned_by_name: str | None = None
+
+    # Escalation
+    is_escalated: bool = False
+    escalation_level: str = "none"
+    escalated_to_id: uuid.UUID | None = None
+    escalated_to_name: str | None = None
+    escalated_at: datetime | None = None
+    escalation_reason: str | None = None
+
+    # Workflow Routing
+    routed_opportunity_id: uuid.UUID | None = None
+    routed_opportunity_title: str | None = None
+    routed_workflow_type: str | None = None
+    routed_at: datetime | None = None
+
     actioned_at: datetime | None = None
     actioned_by_id: uuid.UUID | None = None
     resolution_notes: str | None = None
@@ -329,6 +351,8 @@ class DetectedSignalStatsResponse(BaseModel):
     total_uncertain: int = 0
     total_quality_warnings: int = 0
     total_false_positives: int = 0
+    total_escalated: int = 0
+    total_unassigned: int = 0
     by_severity: dict[str, int]
     by_category: dict[str, int]
     by_signal: dict[str, int]
@@ -427,3 +451,65 @@ class SignalMetricsResponse(BaseModel):
     by_signal: list[SignalMetricsBreakdownItem] = Field(default_factory=list)
     by_category: list[SignalMetricsBreakdownItem] = Field(default_factory=list)
     by_severity: list[SignalMetricsBreakdownItem] = Field(default_factory=list)
+
+
+class SignalAssignRequest(BaseModel):
+    owner_id: uuid.UUID | None = Field(
+        None, description="Target user ID to assign the signal to, or null to unassign"
+    )
+
+
+class SignalEscalateRequest(BaseModel):
+    escalated_to_id: uuid.UUID | None = Field(
+        None, description="Optional target user ID (lead/admin) to escalate to"
+    )
+    escalation_level: str = Field(
+        default="escalated",
+        description="Escalation severity level: 'warning', 'escalated', 'critical'",
+    )
+    escalation_reason: str = Field(
+        ..., min_length=3, description="Detailed justification or commercial risk rationale"
+    )
+
+
+class SignalDeescalateRequest(BaseModel):
+    resolution_notes: str | None = Field(
+        None, description="Optional explanation or resolution notes for de-escalating"
+    )
+
+
+class SignalCreateOpportunityRequest(BaseModel):
+    title: str | None = Field(
+        None, description="Opportunity title (defaults to generated signal opportunity title)"
+    )
+    value: Decimal | None = Field(None, description="Estimated deal value")
+    currency: str = Field(default="EUR", max_length=3, description="Currency ISO code")
+    stage: str = Field(default="prospect", description="Initial opportunity stage")
+    expected_close_date: date | None = Field(None, description="Expected target close date")
+    probability: int | None = Field(None, ge=0, le=100, description="Estimated win probability")
+    notes: str | None = Field(None, description="Additional opportunity notes")
+    owner_id: uuid.UUID | None = Field(
+        None, description="Opportunity owner ID (defaults to current user or signal owner)"
+    )
+
+
+class SignalWorkflowRouteRequest(BaseModel):
+    workflow_type: str = Field(
+        ...,
+        description="Target workflow type: 'opportunity', 'engagement_renewal', 'executive_touchpoint'",
+    )
+    opportunity_payload: SignalCreateOpportunityRequest | None = Field(
+        None, description="Optional payload if creating an opportunity"
+    )
+    notes: str | None = Field(
+        None, description="Optional notes or action context for the workflow routing"
+    )
+
+
+class SignalWorkflowRouteResponse(BaseModel):
+    success: bool = True
+    workflow_type: str
+    routed_entity_id: uuid.UUID | None = None
+    routed_entity_type: str | None = None
+    signal: DetectedSignalResponse
+    message: str

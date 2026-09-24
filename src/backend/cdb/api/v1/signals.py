@@ -17,9 +17,13 @@ from cdb.schemas.signals import (
     DetectedSignalStatus,
     DetectedSignalUpdate,
     GroupedDetectedSignalsResponse,
+    SignalAssignRequest,
     SignalCatalogResponse,
     SignalCategory,
+    SignalCreateOpportunityRequest,
+    SignalDeescalateRequest,
     SignalDefinition,
+    SignalEscalateRequest,
     SignalEvaluationResult,
     SignalFeedbackCreate,
     SignalFeedbackResponse,
@@ -28,6 +32,8 @@ from cdb.schemas.signals import (
     SignalPersonLinkRequest,
     SignalSeverity,
     SignalTargetEntity,
+    SignalWorkflowRouteRequest,
+    SignalWorkflowRouteResponse,
 )
 from cdb.services.signals import (
     catalog as signal_catalog_service,
@@ -43,6 +49,9 @@ from cdb.services.signals import (
 )
 from cdb.services.signals import (
     feedback as signal_feedback_service,
+)
+from cdb.services.signals import (
+    routing as signal_routing_service,
 )
 
 router = APIRouter(prefix="/signals", tags=["Signals"])
@@ -286,6 +295,9 @@ async def list_detected_signals(
     person_id: uuid.UUID | None = Query(None, description="Filter by person ID"),
     opportunity_id: uuid.UUID | None = Query(None, description="Filter by opportunity ID"),
     engagement_id: uuid.UUID | None = Query(None, description="Filter by engagement ID"),
+    owner_id: uuid.UUID | None = Query(None, description="Filter by assigned owner user ID"),
+    unassigned: bool | None = Query(None, description="Filter to unassigned signals only"),
+    is_escalated: bool | None = Query(None, description="Filter by escalation status"),
     is_uncertain: bool | None = Query(
         None, description="Filter by uncertain / needs verification status"
     ),
@@ -331,6 +343,9 @@ async def list_detected_signals(
         person_id=person_id,
         opportunity_id=opportunity_id,
         engagement_id=engagement_id,
+        owner_id=owner_id,
+        unassigned=unassigned,
+        is_escalated=is_escalated,
         is_uncertain=is_uncertain,
         has_quality_warning=has_quality_warning,
         source_reliability=source_reliability,
@@ -551,3 +566,105 @@ async def unlink_person_from_signal(
             details={"signal_id": str(signal_instance_id), "person_id": str(person_id)},
         )
     return updated
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Signal Ownership, Escalation & Workflow Routing Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/detected/{signal_instance_id}/assign",
+    response_model=DetectedSignalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def assign_detected_signal_owner(
+    signal_instance_id: uuid.UUID,
+    payload: SignalAssignRequest,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> DetectedSignalResponse:
+    """
+    Assigns or re-assigns the owner of a detected signal.
+    """
+    return await signal_routing_service.assign_signal_owner(
+        db, signal_instance_id, payload.owner_id, user=auth_user
+    )
+
+
+@router.post(
+    "/detected/{signal_instance_id}/escalate",
+    response_model=DetectedSignalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def escalate_detected_signal(
+    signal_instance_id: uuid.UUID,
+    payload: SignalEscalateRequest,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> DetectedSignalResponse:
+    """
+    Escalates a detected signal with justification reason and target recipient.
+    """
+    return await signal_routing_service.escalate_signal(
+        db, signal_instance_id, payload, user=auth_user
+    )
+
+
+@router.post(
+    "/detected/{signal_instance_id}/de-escalate",
+    response_model=DetectedSignalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def deescalate_detected_signal(
+    signal_instance_id: uuid.UUID,
+    payload: SignalDeescalateRequest,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> DetectedSignalResponse:
+    """
+    De-escalates a signal and clears its escalation status.
+    """
+    return await signal_routing_service.deescalate_signal(
+        db, signal_instance_id, payload, user=auth_user
+    )
+
+
+@router.post(
+    "/detected/{signal_instance_id}/create-opportunity",
+    response_model=SignalWorkflowRouteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_opportunity_from_signal(
+    signal_instance_id: uuid.UUID,
+    payload: SignalCreateOpportunityRequest,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> SignalWorkflowRouteResponse:
+    """
+    Converts a detected signal directly into a commercial Opportunity while strictly
+    preserving source signal context, affected account, contacts, and evidence.
+    """
+    return await signal_routing_service.route_signal_to_opportunity(
+        db, signal_instance_id, payload=payload, user=auth_user
+    )
+
+
+@router.post(
+    "/detected/{signal_instance_id}/route-workflow",
+    response_model=SignalWorkflowRouteResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def route_signal_to_crm_workflow(
+    signal_instance_id: uuid.UUID,
+    payload: SignalWorkflowRouteRequest,
+    db: AsyncSession = Depends(get_db),
+    auth_user: User | None = Depends(get_current_user_or_api_key),
+) -> SignalWorkflowRouteResponse:
+    """
+    Routes a detected signal into designated CRM follow-up workflows ('opportunity',
+    'engagement_renewal', 'executive_touchpoint').
+    """
+    return await signal_routing_service.route_signal_to_workflow(
+        db, signal_instance_id, payload=payload, user=auth_user
+    )

@@ -45,6 +45,10 @@ async def update_detected_signal(
             selectinload(DetectedSignal.person),
             selectinload(DetectedSignal.opportunity),
             selectinload(DetectedSignal.engagement),
+            selectinload(DetectedSignal.owner),
+            selectinload(DetectedSignal.assigned_by),
+            selectinload(DetectedSignal.escalated_to),
+            selectinload(DetectedSignal.routed_opportunity),
             selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
             selectinload(DetectedSignal.connected_persons),
         )

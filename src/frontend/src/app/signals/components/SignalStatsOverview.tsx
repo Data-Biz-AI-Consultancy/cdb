@@ -15,12 +15,12 @@ interface SignalStatsOverviewProps {
   catalog: SignalDefinition[];
   evaluating: boolean;
   evaluationBanner: string | null;
-  activeTab: 'triage' | 'conflicts' | 'uncertain' | 'metrics' | 'catalog';
+  activeTab: 'triage' | 'escalated' | 'conflicts' | 'uncertain' | 'metrics' | 'catalog';
   severityFilter: string;
   onRunEvaluation: () => void;
   onDismissBanner: () => void;
   onSetSeverityFilter: (severity: string) => void;
-  onSelectTab: (tab: 'triage' | 'conflicts' | 'uncertain' | 'metrics' | 'catalog') => void;
+  onSelectTab: (tab: 'triage' | 'escalated' | 'conflicts' | 'uncertain' | 'metrics' | 'catalog') => void;
 }
 
 export const SignalStatsOverview: React.FC<SignalStatsOverviewProps> = ({
@@ -50,8 +50,8 @@ export const SignalStatsOverview: React.FC<SignalStatsOverviewProps> = ({
               </h1>
             </div>
             <p className="text-sm text-slate-500 mt-1">
-              Automated detection of relationship changes, account dormancy, communication lapses,
-              and contract milestones.
+              Automated detection, deterministic ownership routing, and escalation paths for
+              relationship risks and expansion deals.
             </p>
           </div>
 
@@ -144,15 +144,15 @@ export const SignalStatsOverview: React.FC<SignalStatsOverviewProps> = ({
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Snoozed Signals
+              Escalated Alerts
             </p>
-            <p className="text-2xl sm:text-3xl font-bold text-purple-600 mt-1">
-              {stats?.total_snoozed ?? signals.filter((s) => s.status === 'snoozed').length}
+            <p className="text-2xl sm:text-3xl font-bold text-rose-600 mt-1">
+              {stats?.total_escalated ?? signals.filter((s) => s.is_escalated).length}
             </p>
-            <p className="text-xs text-purple-500 mt-1">Suppressed until review date</p>
+            <p className="text-xs text-rose-500 mt-1">P0 & SLA breach emergencies</p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-xl text-purple-600">
-            💤
+          <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-xl text-rose-600">
+            🚨
           </div>
         </div>
 
@@ -297,6 +297,20 @@ export const SignalStatsOverview: React.FC<SignalStatsOverviewProps> = ({
             <span>All Active Signals</span>
             <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
               {signals.filter((s) => s.status === 'active').length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('escalated')}
+            className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
+              activeTab === 'escalated'
+                ? 'border-rose-600 text-rose-700 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <span>🚨 Escalated Risks</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">
+              {stats?.total_escalated ?? signals.filter((s) => s.is_escalated).length}
             </span>
           </button>
 

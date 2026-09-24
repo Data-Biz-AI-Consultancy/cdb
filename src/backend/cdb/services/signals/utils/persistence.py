@@ -102,9 +102,64 @@ async def persist_signal_record(
         existing.updated_at = now
         if expires_at:
             existing.expires_at = expires_at
+
+        # Auto-evaluate escalation on re-evaluated / updated signals if not already escalated
+        if not existing.is_escalated:
+            from cdb.services.signals.routing.service import evaluate_signal_escalation
+
+            is_esc, esc_level, esc_reason = evaluate_signal_escalation(
+                severity=severity,
+                priority_tier=metadata_payload.get("priority_tier"),
+                score=score,
+                key_metrics=metadata_payload.get("evidence", {}).get("key_metrics")
+                if isinstance(metadata_payload.get("evidence"), dict)
+                else {},
+            )
+            if is_esc:
+                existing.is_escalated = True
+                existing.escalation_level = esc_level
+                existing.escalation_reason = esc_reason
+                existing.escalated_at = now
+
+        # Auto-resolve owner if not currently assigned
+        if not existing.owner_id:
+            from cdb.services.signals.routing.service import resolve_signal_owner
+
+            resolved_owner = await resolve_signal_owner(
+                db,
+                company_id=existing.company_id,
+                opportunity_id=existing.opportunity_id,
+                engagement_id=existing.engagement_id,
+            )
+            if resolved_owner:
+                existing.owner_id = resolved_owner
+                existing.assigned_at = now
+
         return existing, False
 
-    # 4. Insert Brand-New Detected Signal
+    # 4. Auto-resolve initial owner & escalation for Brand-New Detected Signal
+    from cdb.services.signals.routing.service import (
+        evaluate_signal_escalation,
+        resolve_signal_owner,
+    )
+
+    initial_owner = await resolve_signal_owner(
+        db,
+        company_id=company_id,
+        opportunity_id=opportunity_id,
+        engagement_id=engagement_id,
+    )
+
+    is_esc, esc_level, esc_reason = evaluate_signal_escalation(
+        severity=severity,
+        priority_tier=metadata_payload.get("priority_tier"),
+        score=score,
+        key_metrics=metadata_payload.get("evidence", {}).get("key_metrics")
+        if isinstance(metadata_payload.get("evidence"), dict)
+        else {},
+    )
+
+    # 5. Insert Brand-New Detected Signal
     new_sig = DetectedSignal(
         signal_id=signal_id,
         company_id=company_id,
@@ -119,6 +174,12 @@ async def persist_signal_record(
         title=title,
         summary=summary,
         metadata_payload=metadata_payload,
+        owner_id=initial_owner,
+        assigned_at=now if initial_owner else None,
+        is_escalated=is_esc,
+        escalation_level=esc_level,
+        escalation_reason=esc_reason,
+        escalated_at=now if is_esc else None,
         reopen_count=0,
         detected_at=now,
         expires_at=expires_at,

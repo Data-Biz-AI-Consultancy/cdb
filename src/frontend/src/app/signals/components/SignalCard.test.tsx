@@ -215,4 +215,66 @@ describe('SignalCard component', () => {
 
     expect(screen.getByText('Restricted Source')).toBeInTheDocument();
   });
+
+  it('renders owner pill, escalate button, and create deal button and triggers modals', () => {
+    const onOpenActionModal = vi.fn();
+    render(
+      <SignalCard
+        sig={mockSignal}
+        columnVariant="risk"
+        isSelected={false}
+        actionInProgress={null}
+        onToggleSelect={vi.fn()}
+        onAcknowledge={vi.fn()}
+        onOpenActionModal={onOpenActionModal}
+        onLinkPerson={vi.fn()}
+        onUnlinkPerson={vi.fn()}
+      />
+    );
+
+    // Click owner pill to assign
+    const ownerPill = screen.getByRole('button', { name: /Unassigned/i });
+    fireEvent.click(ownerPill);
+    expect(onOpenActionModal).toHaveBeenCalledWith(mockSignal, 'assign');
+
+    // Click Escalate button
+    const escalateBtn = screen.getByRole('button', { name: /Escalate/i });
+    fireEvent.click(escalateBtn);
+    expect(onOpenActionModal).toHaveBeenCalledWith(mockSignal, 'escalate');
+
+    // Click Create Deal button
+    const dealBtn = screen.getByRole('button', { name: /Create Deal/i });
+    fireEvent.click(dealBtn);
+    expect(onOpenActionModal).toHaveBeenCalledWith(mockSignal, 'create_opportunity');
+  });
+
+  it('renders escalated banner notice and routed deal banner', () => {
+    const escalatedAndRoutedSignal: DetectedSignal = {
+      ...mockSignal,
+      is_escalated: true,
+      escalation_level: 'critical',
+      escalation_reason: 'Account sponsor left company with no active contacts',
+      routed_opportunity_id: 'opp-999',
+      routed_opportunity_title: 'Strategic Renewal Q4',
+    };
+
+    render(
+      <SignalCard
+        sig={escalatedAndRoutedSignal}
+        columnVariant="risk"
+        isSelected={false}
+        actionInProgress={null}
+        onToggleSelect={vi.fn()}
+        onAcknowledge={vi.fn()}
+        onOpenActionModal={vi.fn()}
+        onLinkPerson={vi.fn()}
+        onUnlinkPerson={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/ESCALATED \(CRITICAL\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Account sponsor left company with no active contacts/i)).toBeInTheDocument();
+    expect(screen.getByText(/Converted to Opportunity:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Strategic Renewal Q4/i)).toBeInTheDocument();
+  });
 });

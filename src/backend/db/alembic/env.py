@@ -33,6 +33,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table_column_length=128,
     )
 
     with context.begin_transaction():
@@ -40,7 +41,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table_column_length=128,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
@@ -48,12 +53,20 @@ def do_run_migrations(connection: Connection) -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode using synchronous connection."""
-    from sqlalchemy import create_engine
+    from sqlalchemy import create_engine, text
 
     ensure_database_exists(settings.SYNC_DATABASE_URL)
     connectable = create_engine(settings.SYNC_DATABASE_URL, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
+        try:
+            # Widen alembic_version.version_num if standard varchar(32) exists
+            connection.execute(
+                text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(128)")
+            )
+            connection.commit()
+        except Exception:
+            pass
         do_run_migrations(connection)
 
 

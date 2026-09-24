@@ -26,7 +26,7 @@ import { SignalActionModal } from './components/SignalActionModal';
 function SignalsPageContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<
-    'triage' | 'conflicts' | 'uncertain' | 'metrics' | 'catalog'
+    'triage' | 'escalated' | 'conflicts' | 'uncertain' | 'metrics' | 'catalog'
   >('triage');
   const [viewMode, setViewMode] = useState<'feed' | 'account_group'>('feed');
   const [catalog, setCatalog] = useState<SignalDefinition[]>([]);
@@ -49,13 +49,22 @@ function SignalsPageContent() {
   const [signalTypeFilter, setSignalTypeFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [qualityFilter, setQualityFilter] = useState<string>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('priority');
   const [lookbackDays, setLookbackDays] = useState<number>(90);
 
-  // Modal state for Action / Dismiss / Snooze / Resolve / False Positive
+  // Modal state for Action / Dismiss / Snooze / Resolve / False Positive / Assign / Escalate / Create Opportunity
   const [modalSignal, setModalSignal] = useState<DetectedSignal | null>(null);
   const [modalActionType, setModalActionType] = useState<
-    'actioned' | 'dismissed' | 'snoozed' | 'resolved' | 'false_positive' | null
+    | 'actioned'
+    | 'dismissed'
+    | 'snoozed'
+    | 'resolved'
+    | 'false_positive'
+    | 'assign'
+    | 'escalate'
+    | 'create_opportunity'
+    | null
   >(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [dismissalReason, setDismissalReason] = useState('Not Relevant');
@@ -63,6 +72,18 @@ function SignalsPageContent() {
   const [alsoDismiss, setAlsoDismiss] = useState(true);
   const [snoozeDays, setSnoozeDays] = useState<number>(14);
   const [customSnoozeDate, setCustomSnoozeDate] = useState<string>('');
+
+  // Ownership & Escalation Modal State
+  const [assignedOwnerId, setAssignedOwnerId] = useState('');
+  const [escalationLevel, setEscalationLevel] = useState('escalated');
+  const [escalationReason, setEscalationReason] = useState('');
+
+  // Deal Creation Modal State
+  const [oppTitle, setOppTitle] = useState('');
+  const [oppValue, setOppValue] = useState<string | number>('');
+  const [oppCurrency, setOppCurrency] = useState('EUR');
+  const [oppStage, setOppStage] = useState('prospect');
+  const [oppProbability, setOppProbability] = useState<string | number>(50);
 
   // Read URL search params on mount or param changes
   useEffect(() => {
@@ -92,7 +113,12 @@ function SignalsPageContent() {
       setStatusFilter(statusParam.toLowerCase());
     }
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['triage', 'conflicts', 'uncertain', 'metrics', 'catalog'].includes(tabParam.toLowerCase())) {
+    if (
+      tabParam &&
+      ['triage', 'escalated', 'conflicts', 'uncertain', 'metrics', 'catalog'].includes(
+        tabParam.toLowerCase()
+      )
+    ) {
       setActiveTab(tabParam.toLowerCase() as any);
     }
     const qParam = searchParams.get('q') || searchParams.get('search');
@@ -215,7 +241,15 @@ function SignalsPageContent() {
 
   const handleOpenActionModal = (
     signal: DetectedSignal,
-    action: 'actioned' | 'dismissed' | 'snoozed' | 'resolved' | 'false_positive'
+    action:
+      | 'actioned'
+      | 'dismissed'
+      | 'snoozed'
+      | 'resolved'
+      | 'false_positive'
+      | 'assign'
+      | 'escalate'
+      | 'create_opportunity'
   ) => {
     setModalSignal(signal);
     setModalActionType(action);
@@ -225,6 +259,18 @@ function SignalsPageContent() {
     setAlsoDismiss(true);
     setSnoozeDays(14);
     setCustomSnoozeDate('');
+
+    // Setup initial values for assign, escalate, create_opportunity
+    setAssignedOwnerId(signal.owner_id || '');
+    setEscalationLevel(signal.escalation_level || 'escalated');
+    setEscalationReason(signal.escalation_reason || '');
+
+    const prefix = signal.company_name ? `${signal.company_name} - ` : '';
+    setOppTitle(`${prefix}${signal.title}`);
+    setOppValue(50000);
+    setOppCurrency('EUR');
+    setOppStage('prospect');
+    setOppProbability(50);
   };
 
   const handleSaveModalAction = async () => {
@@ -242,6 +288,39 @@ function SignalsPageContent() {
             feedback_notes: resolutionNotes.trim() || undefined,
             is_false_positive: true,
             also_dismiss: alsoDismiss,
+          }),
+        });
+      } else if (modalActionType === 'assign') {
+        // Assign or reassign owner
+        await apiFetch(`/api/v1/signals/detected/${modalSignal.id}/assign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            owner_id: assignedOwnerId.trim() || null,
+          }),
+        });
+      } else if (modalActionType === 'escalate') {
+        // Escalate signal
+        await apiFetch(`/api/v1/signals/detected/${modalSignal.id}/escalate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            escalation_level: escalationLevel,
+            escalation_reason: escalationReason.trim(),
+          }),
+        });
+      } else if (modalActionType === 'create_opportunity') {
+        // Create commercial opportunity and route signal
+        await apiFetch(`/api/v1/signals/detected/${modalSignal.id}/create-opportunity`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: oppTitle.trim() || modalSignal.title,
+            value: oppValue !== '' ? Number(oppValue) : undefined,
+            currency: oppCurrency || 'EUR',
+            stage: oppStage || 'prospect',
+            probability: oppProbability !== '' ? Number(oppProbability) : undefined,
+            notes: resolutionNotes.trim() || undefined,
           }),
         });
       } else {
@@ -319,6 +398,9 @@ function SignalsPageContent() {
   const filteredSignals = useMemo(() => {
     const list = signals.filter((s) => {
       // Dedicated tab filters
+      if (activeTab === 'escalated' && !s.is_escalated) {
+        return false;
+      }
       if (activeTab === 'conflicts' && !s.has_conflict) {
         return false;
       }
@@ -328,6 +410,14 @@ function SignalsPageContent() {
 
       // Status filter
       if (statusFilter !== 'all' && s.status !== statusFilter) {
+        return false;
+      }
+
+      // Owner filter
+      if (ownerFilter === 'unassigned' && s.owner_id) {
+        return false;
+      }
+      if (ownerFilter === 'assigned' && !s.owner_id) {
         return false;
       }
 
@@ -464,6 +554,7 @@ function SignalsPageContent() {
     qualityFilter,
     searchQuery,
     sortBy,
+    ownerFilter,
   ]);
 
   const toggleSelectAll = () => {
@@ -570,6 +661,7 @@ function SignalsPageContent() {
     setSignalTypeFilter('all');
     setPriorityFilter('all');
     setQualityFilter('all');
+    setOwnerFilter('all');
     setSortBy('priority');
   };
 
@@ -639,6 +731,8 @@ function SignalsPageContent() {
           setPriorityFilter={setPriorityFilter}
           qualityFilter={qualityFilter}
           setQualityFilter={setQualityFilter}
+          ownerFilter={ownerFilter}
+          setOwnerFilter={setOwnerFilter}
           sortBy={sortBy}
           setSortBy={setSortBy}
           lookbackDays={lookbackDays}
@@ -657,7 +751,7 @@ function SignalsPageContent() {
         />
       )}
 
-      {/* Action / Resolve / Snooze / Dismiss / False Positive Modal */}
+      {/* Action / Resolve / Snooze / Dismiss / False Positive / Assign / Escalate / Create Deal Modal */}
       <SignalActionModal
         modalSignal={modalSignal}
         modalActionType={modalActionType}
@@ -670,6 +764,22 @@ function SignalsPageContent() {
         setAlsoDismiss={setAlsoDismiss}
         snoozeDays={snoozeDays}
         customSnoozeDate={customSnoozeDate}
+        assignedOwnerId={assignedOwnerId}
+        setAssignedOwnerId={setAssignedOwnerId}
+        escalationLevel={escalationLevel}
+        setEscalationLevel={setEscalationLevel}
+        escalationReason={escalationReason}
+        setEscalationReason={setEscalationReason}
+        oppTitle={oppTitle}
+        setOppTitle={setOppTitle}
+        oppValue={oppValue}
+        setOppValue={setOppValue}
+        oppCurrency={oppCurrency}
+        setOppCurrency={setOppCurrency}
+        oppStage={oppStage}
+        setOppStage={setOppStage}
+        oppProbability={oppProbability}
+        setOppProbability={setOppProbability}
         onClose={() => {
           setModalSignal(null);
           setModalActionType(null);

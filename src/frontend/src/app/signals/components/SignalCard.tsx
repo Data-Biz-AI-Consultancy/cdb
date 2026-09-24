@@ -24,7 +24,15 @@ interface SignalCardProps {
   onAcknowledge: (id: string) => void;
   onOpenActionModal: (
     sig: DetectedSignal,
-    actionType: 'actioned' | 'dismissed' | 'snoozed' | 'resolved' | 'false_positive'
+    actionType:
+      | 'actioned'
+      | 'dismissed'
+      | 'snoozed'
+      | 'resolved'
+      | 'false_positive'
+      | 'assign'
+      | 'escalate'
+      | 'create_opportunity'
   ) => void;
   onLinkPerson: (signalId: string, personId: string, role: string) => void;
   onUnlinkPerson: (signalId: string, personId: string) => void;
@@ -42,7 +50,9 @@ export const SignalCard: React.FC<SignalCardProps> = ({
   onUnlinkPerson,
 }) => {
   const borderAccent =
-    columnVariant === 'opportunity'
+    sig.is_escalated
+      ? 'border-l-4 border-l-rose-600 ring-1 ring-rose-500/20'
+      : columnVariant === 'opportunity'
       ? 'border-l-4 border-l-emerald-500'
       : columnVariant === 'risk'
       ? 'border-l-4 border-l-rose-500'
@@ -113,6 +123,17 @@ export const SignalCard: React.FC<SignalCardProps> = ({
             title="Select signal for bulk actions"
           />
 
+          {/* Escalated Emergency Banner Badge */}
+          {sig.is_escalated && (
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full border bg-rose-600 text-white border-rose-700 font-extrabold flex items-center gap-1 shadow-2xs animate-pulse"
+              title={sig.escalation_reason || 'Escalated risk / emergency'}
+            >
+              <span>🚨</span>
+              <span>ESCALATED ({sig.escalation_level?.toUpperCase() || 'P0'})</span>
+            </span>
+          )}
+
           {/* Priority Tier & Impact Badge */}
           <span
             className={`text-[11px] px-2 py-0.5 rounded-full border font-bold flex items-center gap-1 ${priorityBadge.className}`}
@@ -153,6 +174,20 @@ export const SignalCard: React.FC<SignalCardProps> = ({
               ? `💤 Snoozed until ${new Date(sig.snoozed_until).toLocaleDateString()}`
               : sig.status}
           </span>
+
+          {/* Assigned Owner Pill */}
+          <button
+            onClick={() => onOpenActionModal(sig, 'assign')}
+            className={`text-[11px] px-2 py-0.5 rounded-full border font-medium flex items-center gap-1 transition cursor-pointer ${
+              sig.owner_name
+                ? 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200'
+                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+            }`}
+            title={`Assigned to: ${sig.owner_name || 'Unassigned (Click to assign)'}`}
+          >
+            <span>👤</span>
+            <span>{sig.owner_name || 'Unassigned'}</span>
+          </button>
 
           {/* Evidence Health Pill */}
           <span
@@ -250,26 +285,59 @@ export const SignalCard: React.FC<SignalCardProps> = ({
           </span>
         </div>
 
-        {/* Business Impact 4-Dimension Mini Breakdown Meter */}
-        {breakdown && (
-          <div
-            className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs space-y-2"
-            title={breakdown.impact_rationale || 'Business Impact Breakdown'}
-          >
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 font-bold text-slate-700 text-[11px]">
-                <span>⚡</span>
-                <span>Impact Drivers</span>
-              </span>
-              {priorityScore !== null && (
-                <span className="text-[11px] text-slate-500">
-                  Composite: <strong className="font-extrabold text-slate-900">{priorityScore}</strong>
-                  <span className="text-slate-400 font-normal">/100</span>
-                </span>
-              )}
+        {/* Escalation Risk Reason Banner if active */}
+        {sig.is_escalated && sig.escalation_reason && (
+          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2">
+            <span className="text-base">🚨</span>
+            <div>
+              <p className="font-bold text-rose-950">Escalation Notice:</p>
+              <p className="text-rose-800 leading-snug mt-0.5">{sig.escalation_reason}</p>
             </div>
+          </div>
+        )}
 
-            <div className="grid grid-cols-4 gap-2">
+        {/* Routed Workflow Banner */}
+        {sig.routed_opportunity_id && (
+          <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 font-medium">
+              <span>💼</span>
+              <span>Converted to Opportunity: <strong>{sig.routed_opportunity_title || 'Deal'}</strong></span>
+            </div>
+            <Link
+              href={`/opportunities?search=${encodeURIComponent(sig.routed_opportunity_title || '')}`}
+              className="text-emerald-700 hover:text-emerald-900 font-bold underline ml-2"
+            >
+              View Deal →
+            </Link>
+          </div>
+        )}
+
+        {/* Title and Short Summary */}
+        <div>
+          <Link
+            href={`/signals/${sig.id}`}
+            className="text-sm sm:text-base font-semibold text-slate-900 hover:text-emerald-600 transition flex items-center gap-1.5 group"
+          >
+            <span className="text-base">{sig.signal?.icon || '⚡'}</span>
+            <span className="group-hover:underline">{sig.title}</span>
+          </Link>
+          {sig.summary && (
+            <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+              {sig.summary}
+            </p>
+          )}
+
+          {/* Why It Matters Callout */}
+          {whyItMatters && (
+            <div className="mt-1.5 p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg text-[11px] text-amber-900 leading-snug">
+              <span className="font-bold">⚡ Why it matters: </span>
+              <span>{whyItMatters}</span>
+            </div>
+          )}
+
+          {/* Business Impact Driver Breakdown */}
+          {breakdown && (
+            <div className="grid grid-cols-4 gap-1.5 pt-1.5">
               <div className="bg-white p-1.5 rounded-lg border border-slate-200/70 shadow-2xs flex flex-col items-center text-center">
                 <span className="text-[10px] font-semibold text-slate-500 truncate w-full">
                   Account
@@ -353,30 +421,6 @@ export const SignalCard: React.FC<SignalCardProps> = ({
                   />
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Title and Short Summary */}
-        <div>
-          <Link
-            href={`/signals/${sig.id}`}
-            className="text-sm sm:text-base font-semibold text-slate-900 hover:text-emerald-600 transition flex items-center gap-1.5 group"
-          >
-            <span className="text-base">{sig.signal?.icon || '⚡'}</span>
-            <span className="group-hover:underline">{sig.title}</span>
-          </Link>
-          {sig.summary && (
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
-              {sig.summary}
-            </p>
-          )}
-
-          {/* Why It Matters Callout */}
-          {whyItMatters && (
-            <div className="mt-1.5 p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg text-[11px] text-amber-900 leading-snug">
-              <span className="font-bold">⚡ Why it matters: </span>
-              <span>{whyItMatters}</span>
             </div>
           )}
 
@@ -512,6 +556,32 @@ export const SignalCard: React.FC<SignalCardProps> = ({
         </Link>
 
         <div className="flex flex-wrap items-center gap-1.5">
+          {/* Create Deal Workflow Button */}
+          {!sig.routed_opportunity_id && (
+            <button
+              onClick={() => onOpenActionModal(sig, 'create_opportunity')}
+              disabled={actionInProgress === sig.id}
+              className="px-2 py-1 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap flex items-center gap-1 shadow-2xs"
+              title="Convert Signal into Opportunity Deal"
+            >
+              <span>💼</span>
+              <span>Create Deal</span>
+            </button>
+          )}
+
+          {/* Escalate Button */}
+          {!sig.is_escalated && (
+            <button
+              onClick={() => onOpenActionModal(sig, 'escalate')}
+              disabled={actionInProgress === sig.id}
+              className="px-2 py-1 bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-300 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap flex items-center gap-1 shadow-2xs"
+              title="Escalate high-severity risk or opportunity"
+            >
+              <span>🚨</span>
+              <span>Escalate</span>
+            </button>
+          )}
+
           {sig.status === 'active' && (
             <button
               onClick={() => onAcknowledge(sig.id)}
@@ -579,17 +649,6 @@ export const SignalCard: React.FC<SignalCardProps> = ({
           >
             🚩 Report FP
           </button>
-
-          {(sig.status === 'dismissed' || sig.status === 'resolved') && (
-            <button
-              onClick={() => onOpenActionModal(sig, 'actioned')}
-              disabled={actionInProgress === sig.id}
-              className="px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 cursor-pointer"
-              title="Reopen or take follow-up action"
-            >
-              Reopen
-            </button>
-          )}
         </div>
       </div>
     </div>

@@ -219,6 +219,24 @@ def to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         1 for fb in feedback_entries_list if fb.get("is_false_positive", True)
     )
 
+    owner_name = None
+    owner_email = None
+    if getattr(sig, "owner", None):
+        owner_name = sig.owner.full_name or sig.owner.email
+        owner_email = sig.owner.email
+
+    assigned_by_name = None
+    if getattr(sig, "assigned_by", None):
+        assigned_by_name = sig.assigned_by.full_name or sig.assigned_by.email
+
+    escalated_to_name = None
+    if getattr(sig, "escalated_to", None):
+        escalated_to_name = sig.escalated_to.full_name or sig.escalated_to.email
+
+    routed_opp_title = None
+    if getattr(sig, "routed_opportunity", None):
+        routed_opp_title = sig.routed_opportunity.title
+
     return DetectedSignalResponse(
         id=sig.id,
         signal_id=sig.signal_id,
@@ -259,6 +277,22 @@ def to_detected_response(sig: DetectedSignal) -> DetectedSignalResponse:
         title=sig.title,
         summary=sig.summary,
         metadata_payload=meta,
+        owner_id=sig.owner_id,
+        owner_name=owner_name,
+        owner_email=owner_email,
+        assigned_at=sig.assigned_at,
+        assigned_by_id=sig.assigned_by_id,
+        assigned_by_name=assigned_by_name,
+        is_escalated=sig.is_escalated or False,
+        escalation_level=sig.escalation_level or "none",
+        escalated_to_id=sig.escalated_to_id,
+        escalated_to_name=escalated_to_name,
+        escalated_at=sig.escalated_at,
+        escalation_reason=sig.escalation_reason,
+        routed_opportunity_id=sig.routed_opportunity_id,
+        routed_opportunity_title=routed_opp_title,
+        routed_workflow_type=sig.routed_workflow_type,
+        routed_at=sig.routed_at,
         actioned_at=sig.actioned_at,
         actioned_by_id=sig.actioned_by_id,
         resolution_notes=sig.resolution_notes,
