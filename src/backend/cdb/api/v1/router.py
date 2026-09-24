@@ -13,11 +13,13 @@ from cdb.api.v1.opportunities import router as opportunities_router
 from cdb.api.v1.persons import router as persons_router
 from cdb.api.v1.segments import router as segments_router
 from cdb.api.v1.signals import router as signals_router
+from cdb.api.v1.users import router as users_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
 api_v1_router.include_router(health_router)
 api_v1_router.include_router(auth_router)
+api_v1_router.include_router(users_router)
 api_v1_router.include_router(persons_router)
 api_v1_router.include_router(companies_router)
 api_v1_router.include_router(engagements_router)

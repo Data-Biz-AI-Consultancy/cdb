@@ -60,6 +60,28 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Team & Access Management Quick Link */}
+      <div className="bg-gradient-to-r from-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/30 text-indigo-200 border border-indigo-400/20">
+              Access Control
+            </span>
+            <h2 className="text-lg font-extrabold tracking-tight">Team Members & User Directory</h2>
+          </div>
+          <p className="text-xs text-slate-300 max-w-xl">
+            Manage user roles (Admin, AE, SDR, Manager), active accounts, and signal ownership routing assignees.
+          </p>
+        </div>
+        <Link
+          href="/settings/users"
+          className="px-4 py-2.5 bg-white text-slate-950 font-bold text-xs rounded-xl hover:bg-slate-100 transition shadow-sm flex-shrink-0 flex items-center gap-1.5"
+        >
+          <span>Manage Team Members</span>
+          <span>→</span>
+        </Link>
+      </div>
+
       {/* System Status Section */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
         <div className="flex justify-between items-center">

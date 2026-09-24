@@ -715,9 +715,19 @@ CREATE TABLE detected_signals (
     evidence_fingerprint VARCHAR(64),                           -- SHA-256 canonical hash of trigger payload for alert deduplication
     reopen_count         INTEGER NOT NULL DEFAULT 0,            -- Number of times signal was re-opened by new evidence
     last_reopened_at     TIMESTAMPTZ,                           -- Most recent re-opening timestamp
-    snoozed_until        TIMESTAMPTZ,                           -- Snooze expiration timestamp (auto-wakes when past)
     actioned_at          TIMESTAMPTZ,
     actioned_by_id       UUID REFERENCES users(id) ON DELETE SET NULL,
+    owner_id             UUID REFERENCES users(id) ON DELETE SET NULL,          -- assigned signal owner
+    assigned_at          TIMESTAMPTZ,
+    assigned_by_id       UUID REFERENCES users(id) ON DELETE SET NULL,
+    is_escalated         BOOLEAN NOT NULL DEFAULT FALSE,                        -- emergency / SLA escalation flag
+    escalation_level     VARCHAR(32),                                           -- 'warning' | 'escalated' | 'critical'
+    escalated_to_id      UUID REFERENCES users(id) ON DELETE SET NULL,
+    escalated_at         TIMESTAMPTZ,
+    escalation_reason    TEXT,
+    routed_opportunity_id UUID REFERENCES opportunities(id) ON DELETE SET NULL, -- converted commercial deal
+    routed_workflow_type VARCHAR(64),                                           -- 'opportunity' | 'engagement' | 'touchpoint'
+    routed_at            TIMESTAMPTZ,
     resolution_notes     TEXT,
     detected_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at           TIMESTAMPTZ,
@@ -740,6 +750,9 @@ CREATE INDEX idx_detected_signals_activity_id     ON detected_signals (activity_
 CREATE INDEX idx_detected_signals_detected_at     ON detected_signals (detected_at);
 CREATE INDEX idx_detected_signals_fingerprint     ON detected_signals (evidence_fingerprint);
 CREATE INDEX idx_detected_signals_snoozed_until   ON detected_signals (snoozed_until);
+CREATE INDEX idx_detected_signals_owner_id        ON detected_signals (owner_id);
+CREATE INDEX idx_detected_signals_is_escalated    ON detected_signals (is_escalated);
+CREATE INDEX idx_detected_signals_routed_opp      ON detected_signals (routed_opportunity_id);
 ```
 
 > **Supporting Evidence Contract**: `metadata['evidence']` contains standardized evidence payloads (`evidence_type`, `trigger_event_title`, `why_it_matters_now`, `occurred_at`, `days_elapsed`, `excerpt`, `evidence_status`, `evidence_notes`, `commercial_context`, `relationship_context`, and `key_metrics`) enabling end-to-end traceability and evidence health tracking.

@@ -126,3 +126,75 @@ export async function apiFetch<T>(
 
   return res.json();
 }
+
+export interface UserItem {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserListResponse {
+  items: UserItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface CreateUserData {
+  email: string;
+  password: string;
+  full_name?: string | null;
+  role?: string;
+  is_active?: boolean;
+}
+
+export interface UpdateUserData {
+  email?: string;
+  password?: string;
+  full_name?: string | null;
+  role?: string;
+  is_active?: boolean;
+}
+
+export async function fetchUsers(params?: {
+  q?: string;
+  role?: string;
+  is_active?: boolean;
+  page?: number;
+  page_size?: number;
+}): Promise<UserListResponse> {
+  const query = new URLSearchParams();
+  if (params?.q) query.set('q', params.q);
+  if (params?.role) query.set('role', params.role);
+  if (params?.is_active !== undefined) query.set('is_active', String(params.is_active));
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.page_size) query.set('page_size', String(params.page_size));
+
+  const queryString = query.toString() ? `?${query.toString()}` : '';
+  return apiFetch<UserListResponse>(`/api/v1/users${queryString}`);
+}
+
+export async function createUser(data: CreateUserData): Promise<UserItem> {
+  return apiFetch<UserItem>('/api/v1/users', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateUser(userId: string, data: UpdateUserData): Promise<UserItem> {
+  return apiFetch<UserItem>(`/api/v1/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deactivateUser(userId: string): Promise<{ message: string; id: string }> {
+  return apiFetch<{ message: string; id: string }>(`/api/v1/users/${userId}`, {
+    method: 'DELETE',
+  });
+}
+

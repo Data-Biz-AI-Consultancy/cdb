@@ -111,6 +111,63 @@ Invalidates the refresh token.
 
 ---
 
+## 2.1 Users & Team Directory
+
+### `GET /users`
+List active and inactive team members for user management and ownership assignment pickers.
+
+**Query params:**
+- `q` (string): Search across `full_name` and `email`
+- `role` (string): Filter by role (`admin`, `manager`, `ae`, `sdr`, `member`)
+- `is_active` (bool): Filter by active status
+- `page` (int >= 1, default 1)
+- `page_size` (int 1-200, default 50)
+
+**Response 200:**
+```json
+{
+  "items": [
+    {
+      "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "email": "sarah.connor@acme.com",
+      "full_name": "Sarah Connor",
+      "role": "manager",
+      "is_active": true,
+      "created_at": "2026-09-24T08:00:00Z",
+      "updated_at": "2026-09-24T08:00:00Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 50
+}
+```
+
+### `POST /users`
+Create / invite a new team member.
+
+**Request:**
+```json
+{
+  "email": "alex.henderson@company.com",
+  "password": "securepassword123",
+  "full_name": "Alex Henderson",
+  "role": "ae",
+  "is_active": true
+}
+```
+
+### `GET /users/{id}`
+Fetch specific team member profile by UUID.
+
+### `PATCH /users/{id}`
+Update user profile, role, password, or active status.
+
+### `DELETE /users/{id}`
+Deactivate team member (`is_active = false`).
+
+---
+
 ## 3. Persons
 
 ### `GET /persons`
@@ -1563,9 +1620,80 @@ Update investigation status and resolution notes for a signal feedback report.
 }
 ```
 
-**Response 200:** Updated `SignalFeedbackResponse`
+### `POST /signals/detected/{signal_instance_id}/assign`
+
+Assign or reassign signal ownership to an internal team member, or unassign to return to the unassigned queue.
+
+**Request:**
+```json
+{
+  "owner_id": "<user_uuid>" // or null to unassign
+}
+```
+
+**Response 200:** Updated `DetectedSignalResponse` with `owner_id`, `owner_name`, `assigned_at`, `assigned_by_id`.
+
+### `POST /signals/detected/{signal_instance_id}/escalate`
+
+Escalate a high-severity risk or opportunity to management/partners with an explicit severity level and required justification.
+
+**Request:**
+```json
+{
+  "escalation_level": "critical", // "warning" | "escalated" | "critical"
+  "escalation_reason": "High probability renewal cliff on Tier 1 account",
+  "escalated_to_id": "<user_uuid>" // optional
+}
+```
+
+**Response 200:** Updated `DetectedSignalResponse` with `is_escalated: true`, `escalation_level`, `escalation_reason`, `escalated_at`.
+
+### `POST /signals/detected/{signal_instance_id}/de-escalate`
+
+De-escalate an active signal once risk is mitigated or handled.
+
+**Response 200:** Updated `DetectedSignalResponse` with `is_escalated: false`, `escalation_level: null`.
+
+### `POST /signals/detected/{signal_instance_id}/create-opportunity`
+
+Convert a signal directly into an active commercial deal while retaining full entity context, evidence excerpts, and establishing bidirectional backlinks.
+
+**Request:**
+```json
+{
+  "title": "Acme Corp - Enterprise Advisory",
+  "value": 60000,
+  "currency": "EUR",
+  "stage": "prospect",
+  "probability": 50,
+  "notes": "Follow up on leadership transition signal"
+}
+```
+
+**Response 201:** `SignalWorkflowRouteResponse` with created `OpportunityResponse` and updated `DetectedSignalResponse`.
+
+### `POST /signals/detected/{signal_instance_id}/route-workflow`
+
+Route a signal into a specified follow-up workflow (`opportunity`, `engagement`, `touchpoint`).
+
+**Request:**
+```json
+{
+  "workflow_type": "opportunity",
+  "target_owner_id": "<user_uuid>",
+  "routing_notes": "Routing to account lead for review",
+  "opportunity_payload": {
+    "title": "Acme Corp - Retainer Extension",
+    "value": 45000,
+    "stage": "qualified"
+  }
+}
+```
+
+**Response 200:** `SignalWorkflowRouteResponse`
 
 ---
 
 *See [Database Schema](src/backend/db/README.md) for field definitions and [Signal Catalog Specification](src/backend/cdb/services/signals/README.md) for business interpretation details.*
+
 

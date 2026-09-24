@@ -35,6 +35,9 @@ async def list_detected_signals(
     person_id: uuid.UUID | None = None,
     opportunity_id: uuid.UUID | None = None,
     engagement_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
+    unassigned: bool | None = None,
+    is_escalated: bool | None = None,
     is_uncertain: bool | None = None,
     has_quality_warning: bool | None = None,
     source_reliability: str | None = None,
@@ -55,6 +58,10 @@ async def list_detected_signals(
         selectinload(DetectedSignal.person),
         selectinload(DetectedSignal.opportunity),
         selectinload(DetectedSignal.engagement),
+        selectinload(DetectedSignal.owner),
+        selectinload(DetectedSignal.assigned_by),
+        selectinload(DetectedSignal.escalated_to),
+        selectinload(DetectedSignal.routed_opportunity),
         selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
         selectinload(DetectedSignal.connected_persons),
         selectinload(DetectedSignal.feedback_entries),
@@ -74,6 +81,12 @@ async def list_detected_signals(
         stmt = stmt.where(DetectedSignal.opportunity_id == opportunity_id)
     if engagement_id:
         stmt = stmt.where(DetectedSignal.engagement_id == engagement_id)
+    if owner_id:
+        stmt = stmt.where(DetectedSignal.owner_id == owner_id)
+    if unassigned is True:
+        stmt = stmt.where(DetectedSignal.owner_id.is_(None))
+    if is_escalated is not None:
+        stmt = stmt.where(DetectedSignal.is_escalated == is_escalated)
     if category:
         stmt = stmt.join(Signal, Signal.id == DetectedSignal.signal_id).where(
             Signal.category == category
@@ -204,6 +217,9 @@ async def list_grouped_detected_signals(
     status: DetectedSignalStatus | None = None,
     severity: SignalSeverity | None = None,
     company_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
+    unassigned: bool | None = None,
+    is_escalated: bool | None = None,
     priority_tier: str | None = None,
     sort_by: str = "priority",
     lookback_days: int | None = None,
@@ -219,6 +235,9 @@ async def list_grouped_detected_signals(
         status=status,
         severity=severity,
         company_id=company_id,
+        owner_id=owner_id,
+        unassigned=unassigned,
+        is_escalated=is_escalated,
         priority_tier=priority_tier,
         sort_by=sort_by,
         lookback_days=lookback_days,
@@ -302,6 +321,8 @@ async def get_detected_signal_stats(
     total_uncertain = 0
     total_quality_warnings = 0
     total_false_positives = 0
+    total_escalated = 0
+    total_unassigned = 0
 
     for r in records:
         by_status[r.status] = by_status.get(r.status, 0) + 1
@@ -317,8 +338,13 @@ async def get_detected_signal_stats(
                 if fb.is_false_positive:
                     total_false_positives += 1
 
+        if r.is_escalated:
+            total_escalated += 1
+
         if r.status == "active":
             total_active += 1
+            if r.owner_id is None:
+                total_unassigned += 1
             if meta.get("has_conflict"):
                 total_conflicting += 1
             if meta.get("is_uncertain"):
@@ -358,6 +384,8 @@ async def get_detected_signal_stats(
         total_uncertain=total_uncertain,
         total_quality_warnings=total_quality_warnings,
         total_false_positives=total_false_positives,
+        total_escalated=total_escalated,
+        total_unassigned=total_unassigned,
         by_severity=by_severity,
         by_category=by_category,
         by_signal=by_signal,
@@ -384,6 +412,10 @@ async def get_detected_signal(
             selectinload(DetectedSignal.person),
             selectinload(DetectedSignal.opportunity),
             selectinload(DetectedSignal.engagement),
+            selectinload(DetectedSignal.owner),
+            selectinload(DetectedSignal.assigned_by),
+            selectinload(DetectedSignal.escalated_to),
+            selectinload(DetectedSignal.routed_opportunity),
             selectinload(DetectedSignal.signal_persons).selectinload(DetectedSignalPerson.person),
             selectinload(DetectedSignal.connected_persons),
             selectinload(DetectedSignal.feedback_entries),

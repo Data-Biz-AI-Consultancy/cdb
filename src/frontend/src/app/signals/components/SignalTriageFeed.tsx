@@ -32,6 +32,8 @@ interface SignalTriageFeedProps {
   setPriorityFilter: (val: string) => void;
   qualityFilter?: string;
   setQualityFilter?: (val: string) => void;
+  ownerFilter?: string;
+  setOwnerFilter?: (val: string) => void;
   sortBy: string;
   setSortBy: (val: string) => void;
   lookbackDays: number;
@@ -70,6 +72,8 @@ export const SignalTriageFeed: React.FC<SignalTriageFeedProps> = ({
   setPriorityFilter,
   qualityFilter = 'all',
   setQualityFilter,
+  ownerFilter = 'all',
+  setOwnerFilter,
   sortBy,
   setSortBy,
   lookbackDays,
@@ -288,6 +292,20 @@ export const SignalTriageFeed: React.FC<SignalTriageFeedProps> = ({
             </select>
           )}
 
+          {setOwnerFilter && (
+            <select
+              id="owner-filter"
+              aria-label="Filter by Owner Assignment"
+              value={ownerFilter}
+              onChange={(e) => setOwnerFilter(e.target.value)}
+              className="px-3 py-2 text-xs font-semibold bg-slate-100 border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
+            >
+              <option value="all">Owner: All</option>
+              <option value="unassigned">Owner: Unassigned</option>
+              <option value="assigned">Owner: Assigned Only</option>
+            </select>
+          )}
+
           <select
             id="sort-by-filter"
             aria-label="Sort Signals"
@@ -322,6 +340,7 @@ export const SignalTriageFeed: React.FC<SignalTriageFeedProps> = ({
             signalTypeFilter !== 'all' ||
             priorityFilter !== 'all' ||
             qualityFilter !== 'all' ||
+            ownerFilter !== 'all' ||
             sortBy !== 'priority' ||
             lookbackDays !== 90 ||
             searchQuery.trim().length > 0) && (

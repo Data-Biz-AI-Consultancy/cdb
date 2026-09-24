@@ -122,6 +122,51 @@ class DetectedSignal(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         "metadata", JSONB, nullable=False, default=dict
     )
 
+    # Ownership & Assignment
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    assigned_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    assigned_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Escalation
+    is_escalated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    escalation_level: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="none"
+    )  # 'none' | 'warning' | 'escalated' | 'critical'
+    escalated_to_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    escalated_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    escalation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Workflow Routing
+    routed_opportunity_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("opportunities.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    routed_workflow_type: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )  # 'opportunity' | 'engagement_renewal' | 'executive_touchpoint'
+    routed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     actioned_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -153,10 +198,24 @@ class DetectedSignal(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     signal: Mapped[Signal] = relationship("Signal", lazy="joined")
     company: Mapped["Company | None"] = relationship("Company", lazy="selectin")
     person: Mapped["Person | None"] = relationship("Person", lazy="selectin")
-    opportunity: Mapped["Opportunity | None"] = relationship("Opportunity", lazy="selectin")
+    opportunity: Mapped["Opportunity | None"] = relationship(
+        "Opportunity", foreign_keys=[opportunity_id], lazy="selectin"
+    )
     engagement: Mapped["Engagement | None"] = relationship("Engagement", lazy="selectin")
     activity: Mapped["Activity | None"] = relationship("Activity", lazy="selectin")
-    actioned_by: Mapped["User | None"] = relationship("User", lazy="selectin")
+    actioned_by: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[actioned_by_id], lazy="selectin"
+    )
+    owner: Mapped["User | None"] = relationship("User", foreign_keys=[owner_id], lazy="selectin")
+    assigned_by: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[assigned_by_id], lazy="selectin"
+    )
+    escalated_to: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[escalated_to_id], lazy="selectin"
+    )
+    routed_opportunity: Mapped["Opportunity | None"] = relationship(
+        "Opportunity", foreign_keys=[routed_opportunity_id], lazy="selectin"
+    )
     signal_persons: Mapped[list["DetectedSignalPerson"]] = relationship(
         "DetectedSignalPerson",
         back_populates="signal",

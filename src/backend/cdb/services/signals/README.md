@@ -478,17 +478,82 @@ Signals must protect users from taking commercial action on stale, unreliable, r
 
 ---
 
-### Detection, Triage & Feedback Endpoints
-* `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities, evaluates data quality safeguards, detects conflicts, suppresses duplicate/low-quality evidence, and returns execution statistics.
-* `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`, `is_uncertain`, `has_conflict`, `has_data_quality_warning`, `source_reliability`).
+### Detection, Triage, Ownership, Routing & Feedback Endpoints
+* `POST /api/v1/signals/evaluate`: Runs detection engine on-demand across all entities, evaluates data quality safeguards, automatically resolves signal owners, evaluates escalation triggers, detects conflicts, and returns execution statistics.
+* `GET /api/v1/signals/detected`: Paginated list of detected signals with multi-dimensional filtering (`status`, `signal_id`, `category`, `company_id`, `person_id`, `opportunity_id`, `engagement_id`, `severity`, `is_uncertain`, `has_conflict`, `has_data_quality_warning`, `source_reliability`, `owner_id`, `unassigned`, `is_escalated`).
 * `GET /api/v1/signals/detected/grouped`: Account/Organization-clustered detected signals grouped by client company.
 * `POST /api/v1/signals/detected/bulk-status`: Batch updates status (`snoozed`, `resolved`, `dismissed`, `actioned`, `acknowledged`) for an array of signal IDs in a single atomic transaction.
-* `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, signal type, plus `total_snoozed`, `total_conflicting`, `total_uncertain`, `total_quality_warnings`, and `total_false_positives`.
+* `GET /api/v1/signals/detected/stats`: Summary counts of active signals grouped by severity, category, signal type, plus `total_snoozed`, `total_conflicting`, `total_uncertain`, `total_quality_warnings`, `total_false_positives`, `total_escalated`, and `total_unassigned`.
+* `POST /api/v1/signals/detected/{id}/assign`: Assigns or reassigns signal ownership to an internal user (`owner_id`), or unassigns to return to the unassigned queue.
+* `POST /api/v1/signals/detected/{id}/escalate`: Escalates high-severity risk or opportunity signals with an explicit escalation level (`warning`, `escalated`, `critical`), reason, and optional assignee.
+* `POST /api/v1/signals/detected/{id}/de-escalate`: Clears active escalation status once risk is mitigated.
+* `POST /api/v1/signals/detected/{id}/create-opportunity`: Converts an opportunity or risk signal directly into a commercial pipeline deal, pre-populating title, deal value, stage, attached companies and contacts, supporting evidence excerpt, and why it matters context, while transitioning signal status to `actioned` and attaching bidirectional backlinks.
+* `POST /api/v1/signals/detected/{id}/route-workflow`: Routes a signal into standard follow-up workflows (`opportunity`, `engagement`, `touchpoint`).
 * `POST /api/v1/signals/detected/{id}/feedback`: Submits false-positive or data quality feedback on a signal, with optional atomic signal dismissal.
 * `GET /api/v1/signals/feedback`: Paginated feedback monitoring list filterable by status (`pending`, `investigated`, `resolved`, `rejected`), feedback reason, or signal instance ID.
 * `PATCH /api/v1/signals/feedback/{id}`: Updates investigation notes and resolution status for false-positive reports.
 * `GET /api/v1/signals/metrics`: Comprehensive success, quality, false positive rate (FPR), quality warning rate, operational latency (MTTA), downstream outcomes, and revenue attribution metrics across a configurable lookback window (`lookback_days`, default: 90).
 * `PATCH /api/v1/signals/detected/{id}`: Update signal state (`acknowledged`, `actioned`, `snoozed`, `resolved`, `dismissed`) with resolution notes and snooze duration.
+
+---
+
+## 🧭 Signal Ownership & Deterministic Routing
+
+To ensure detected commercial opportunities and relationship risks reach the right people immediately without losing context, CDB provides a deterministic **Signal Ownership & Routing Engine** (`cdb.services.signals.routing`).
+
+```mermaid
+flowchart TD
+    Signal[Signal Detected / Evaluated] --> Match{Account / Entity Context}
+    Match -->|Active Engagement Lead| Lead[Assign to Active Engagement Owner]
+    Match -->|Open Deal Owner| Deal[Assign to Open Opportunity Owner]
+    Match -->|Historical Account Lead| Hist[Assign to Most Active Internal Lead]
+    Match -->|No Account Association| Unassigned[Unassigned Triage Queue]
+    
+    Lead --> CheckEscalation{Auto-Escalation Check}
+    Deal --> CheckEscalation
+    Hist --> CheckEscalation
+    Unassigned --> CheckEscalation
+    
+    CheckEscalation -->|P0 or Critical SLA Breach > 7d| Escalate[🚨 Auto-Escalate to Senior Partner]
+    CheckEscalation -->|Standard Priority| Normal[Standard Triage Feed]
+    
+    Normal --> Convert{Triage Decision}
+    Escalate --> Convert
+    
+    Convert -->|Create Deal| Opp[💼 Create Commercial Deal with Context]
+    Convert -->|Manual Reassign| Reassign[👤 Reassign Owner]
+    Convert -->|Resolve / Dismiss| Close[✅ Record Resolution & Notes]
+```
+
+### 1. Ownership Resolution Hierarchy
+When a signal is detected or evaluated, CDB determines its owner using a strict 4-tier hierarchy:
+1. **Active Engagement Lead**: If the account has an active consulting engagement (`in_delivery`, `active`), ownership routes to the engagement lead (`engagement.lead_user_id` or `engagement.created_by_id`).
+2. **Open Opportunity Owner**: If the account has an active deal (`prospect`, `qualified`, `proposal`, `negotiation`), ownership routes to the opportunity owner (`opportunity.owner_user_id` or `opportunity.created_by_id`).
+3. **Company Historical Lead**: If no active deals or engagements exist, ownership routes to the internal user with the highest interaction count on the account.
+4. **Unassigned Fallback**: Signals without identifiable account leads default to `owner_id = null` and surface in the **Unassigned** triage queue.
+
+### 2. Automatic & Manual Escalation
+High-severity risks and high-impact opportunities cannot linger in general inboxes:
+- **Auto-Escalation**:
+  - Signals in the **`P0` Critical Emergency** tier (Score $\ge 90$).
+  - `unanswered_conversation` signals older than 7 days (Critical SLA breach).
+  - Automatically flags `is_escalated = True`, sets `escalation_level = 'critical'`, assigns partner escalation, and generates an audit reason.
+- **Manual Escalation**:
+  - Users can escalate any signal via `POST /api/v1/signals/detected/{id}/escalate` specifying `warning`, `escalated`, or `critical` level with an explicit justification reason.
+
+### 3. Direct Workflow & Opportunity Deal Routing
+Signals can be smoothly converted into active commercial deals via `POST /api/v1/signals/detected/{id}/create-opportunity`:
+- **Context Retention**: Pre-populates the new Opportunity with:
+  - Deal title (`[Account Name] - [Signal Title]`)
+  - Estimated deal value and currency
+  - Attached company (`OpportunityCompanyLink`)
+  - Attached contacts and participants (`OpportunityPersonLink`)
+  - Supporting evidence excerpt and why it matters context in notes
+  - Backlink reference (`opportunity.attributes["originating_signal_id"] = signal.id`)
+- **Signal Lifecycle Synchronization**:
+  - Automatically transitions signal status to `actioned` (`actioned_at = NOW()`).
+  - Sets `signal.routed_opportunity_id` and `signal.routed_workflow_type = 'opportunity'`.
+  - Renders a prominent **Converted to Opportunity** banner in the UI linking directly to the new deal.
 
 ---
 

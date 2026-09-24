@@ -1,5 +1,4 @@
 import uuid
-from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,165 +16,14 @@ from cdb.schemas.signals import (
     DetectedSignalStatus,
     DetectedSignalUpdate,
     GroupedDetectedSignalsResponse,
-    SignalCatalogResponse,
-    SignalCategory,
-    SignalDefinition,
-    SignalEvaluationResult,
-    SignalFeedbackCreate,
-    SignalFeedbackResponse,
-    SignalFeedbackUpdate,
-    SignalMetricsResponse,
     SignalPersonLinkRequest,
     SignalSeverity,
-    SignalTargetEntity,
-)
-from cdb.services.signals import (
-    catalog as signal_catalog_service,
-)
-from cdb.services.signals import (
-    compute_signal_success_metrics,
 )
 from cdb.services.signals import (
     detected as detected_signal_service,
 )
-from cdb.services.signals import (
-    detector as detector_service,
-)
-from cdb.services.signals import (
-    feedback as signal_feedback_service,
-)
 
-router = APIRouter(prefix="/signals", tags=["Signals"])
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Signal Catalog Endpoints (Dimension)
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-@router.get(
-    "/catalog",
-    response_model=SignalCatalogResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def get_signal_catalog(
-    category: SignalCategory | None = Query(
-        None, description="Filter by signal category (opportunity, risk, hybrid)"
-    ),
-    target_entity: SignalTargetEntity | None = Query(
-        None, description="Filter by target entity (company, person, opportunity, engagement)"
-    ),
-    severity: SignalSeverity | None = Query(
-        None, description="Filter by severity level (critical, high, medium, low)"
-    ),
-    active_only: bool = Query(True, description="Filter to active signals only"),
-    db: AsyncSession = Depends(get_db),
-    auth_user: User | None = Depends(get_current_user_or_api_key),
-) -> SignalCatalogResponse:
-    """
-    Returns the Opportunity & Risk Signal Catalog stored in the PostgreSQL dimension table.
-    Supports filtering by category, target entity, and severity, and includes aggregate summary statistics.
-    """
-    return await signal_catalog_service.get_catalog_response(
-        db,
-        category=category,
-        target_entity=target_entity,
-        severity=severity,
-        active_only=active_only,
-    )
-
-
-@router.get(
-    "/catalog/{signal_id}",
-    response_model=SignalDefinition,
-    status_code=status.HTTP_200_OK,
-)
-async def get_signal_definition(
-    signal_id: str,
-    db: AsyncSession = Depends(get_db),
-    auth_user: User | None = Depends(get_current_user_or_api_key),
-) -> SignalDefinition:
-    """
-    Retrieves the complete definition, business interpretation, trigger parameters,
-    and recommended action playbook for a specific signal from the PostgreSQL dimension table.
-    """
-    signal = await signal_catalog_service.get_signal_by_id(db, signal_id)
-    if not signal:
-        raise NotFoundError(
-            message=f"Signal with id '{signal_id}' not found in catalog",
-            details={"signal_id": signal_id},
-        )
-    return SignalDefinition.model_validate(signal)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Automated Detection & Evaluation
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-@router.post(
-    "/evaluate",
-    response_model=SignalEvaluationResult,
-    status_code=status.HTTP_200_OK,
-)
-async def trigger_signal_evaluation(
-    lookback_days: int = Query(
-        90,
-        ge=1,
-        le=730,
-        description="Lookback window in days (default: 90 / 3 months; up to 730 / 2 years)",
-    ),
-    db: AsyncSession = Depends(get_db),
-    auth_user: User | None = Depends(get_current_user_or_api_key),
-) -> Any:
-    """
-    Runs the Signal Detection Engine across all 6 initial catalog signals:
-    - Dormant strategic accounts
-    - Unanswered conversations
-    - Expiring contracts
-    - Leadership changes
-    - Hiring or funding events
-    - Competitor signals
-    """
-    return await detector_service.evaluate_all_signals(db, lookback_days=lookback_days)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. Detected Signals (Fact / Bridge Instances)
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-@router.get(
-    "/metrics",
-    response_model=SignalMetricsResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def get_signal_metrics(
-    lookback_days: int = Query(
-        90,
-        ge=1,
-        le=730,
-        description="Timeframe window in days (default: 90 / 3 months; up to 730 / 2 years)",
-    ),
-    signal_id: str | None = Query(None, description="Filter metrics by signal ID"),
-    category: str | None = Query(
-        None, description="Filter metrics by category (opportunity, risk, hybrid)"
-    ),
-    severity: str | None = Query(None, description="Filter metrics by severity"),
-    db: AsyncSession = Depends(get_db),
-    auth_user: User | None = Depends(get_current_user_or_api_key),
-) -> SignalMetricsResponse:
-    """
-    Computes and returns comprehensive success, quality, operational latency,
-    downstream outcomes, and revenue attribution metrics for detected signals.
-    """
-    return await compute_signal_success_metrics(
-        db,
-        lookback_days=lookback_days,
-        signal_id=signal_id,
-        category=category,
-        severity=severity,
-    )
+router = APIRouter()
 
 
 @router.get(
@@ -286,6 +134,9 @@ async def list_detected_signals(
     person_id: uuid.UUID | None = Query(None, description="Filter by person ID"),
     opportunity_id: uuid.UUID | None = Query(None, description="Filter by opportunity ID"),
     engagement_id: uuid.UUID | None = Query(None, description="Filter by engagement ID"),
+    owner_id: uuid.UUID | None = Query(None, description="Filter by assigned owner user ID"),
+    unassigned: bool | None = Query(None, description="Filter to unassigned signals only"),
+    is_escalated: bool | None = Query(None, description="Filter by escalation status"),
     is_uncertain: bool | None = Query(
         None, description="Filter by uncertain / needs verification status"
     ),
@@ -331,6 +182,9 @@ async def list_detected_signals(
         person_id=person_id,
         opportunity_id=opportunity_id,
         engagement_id=engagement_id,
+        owner_id=owner_id,
+        unassigned=unassigned,
+        is_escalated=is_escalated,
         is_uncertain=is_uncertain,
         has_quality_warning=has_quality_warning,
         source_reliability=source_reliability,
@@ -400,100 +254,6 @@ async def update_detected_signal_status(
         raise NotFoundError(
             message=f"Detected signal with id '{signal_instance_id}' not found",
             details={"id": str(signal_instance_id)},
-        )
-    return updated
-
-
-@router.post(
-    "/detected/{signal_instance_id}/feedback",
-    response_model=SignalFeedbackResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def submit_signal_feedback(
-    signal_instance_id: uuid.UUID,
-    payload: SignalFeedbackCreate,
-    db: AsyncSession = Depends(get_db),
-    auth_user: User | None = Depends(get_current_user_or_api_key),
-) -> SignalFeedbackResponse:
-    """
-    Submits false-positive or data quality feedback on a detected signal.
-    Optionally dismisses the signal and logs an investigation audit record.
-    """
-    feedback = await signal_feedback_service.create_signal_feedback(
-        db, signal_id=signal_instance_id, payload=payload, user=auth_user
-    )
-    if not feedback:
-        raise NotFoundError(
-            message=f"Detected signal with id '{signal_instance_id}' not found",
-            details={"id": str(signal_instance_id)},
-        )
-    return feedback
-
-
-@router.get(
-    "/feedback",
-    response_model=PaginatedResponse[SignalFeedbackResponse],
-    status_code=status.HTTP_200_OK,
-)
-async def list_signal_feedback(
-    status_filter: str | None = Query(
-        None,
-        alias="status",
-        description="Filter by feedback status (pending, investigated, resolved, rejected)",
-    ),
-    feedback_reason: str | None = Query(None, description="Filter by feedback reason"),
-    signal_id: uuid.UUID | None = Query(None, description="Filter by detected signal instance ID"),
-    page: int = Query(1, ge=1, description="1-indexed page number"),
-    page_size: int = Query(50, ge=1, le=200, description="Items per page"),
-    db: AsyncSession = Depends(get_db),
-    auth_user: User | None = Depends(get_current_user_or_api_key),
-) -> PaginatedResponse[SignalFeedbackResponse]:
-    """
-    Lists and filters false-positive and data quality feedback entries for monitoring and investigation.
-    """
-    offset = (page - 1) * page_size
-    items, total = await signal_feedback_service.list_signal_feedback(
-        db,
-        status=status_filter,
-        feedback_reason=feedback_reason,
-        signal_id=signal_id,
-        limit=page_size,
-        offset=offset,
-    )
-    has_more = (offset + len(items)) < total
-    return PaginatedResponse(
-        data=items,
-        pagination=PaginationMetadata(
-            page=page,
-            page_size=page_size,
-            total=total,
-            has_more=has_more,
-        ),
-    )
-
-
-@router.patch(
-    "/feedback/{feedback_id}",
-    response_model=SignalFeedbackResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def update_feedback_investigation(
-    feedback_id: uuid.UUID,
-    payload: SignalFeedbackUpdate,
-    db: AsyncSession = Depends(get_db),
-    auth_user: User | None = Depends(get_current_user_or_api_key),
-) -> SignalFeedbackResponse:
-    """
-    Updates the investigation status ('pending', 'investigated', 'resolved', 'rejected')
-    and investigation notes for a false-positive feedback entry.
-    """
-    updated = await signal_feedback_service.update_feedback_investigation(
-        db, feedback_id=feedback_id, payload=payload, user=auth_user
-    )
-    if not updated:
-        raise NotFoundError(
-            message=f"Signal feedback with id '{feedback_id}' not found",
-            details={"id": str(feedback_id)},
         )
     return updated
 

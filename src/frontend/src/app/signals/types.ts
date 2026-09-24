@@ -168,11 +168,31 @@ export interface DetectedSignal {
   conflict_summary?: string | null;
   conflict_scope?: string | null;
   evidence?: SupportingEvidence | Record<string, any> | null;
+  evidence_payload?: any;
   why_it_matters_now?: string | null;
   evidence_fingerprint?: string | null;
   title: string;
   summary?: string | null;
+  category?: SignalCategory;
+  signal_type?: string;
+  dismissal_reason?: string | null;
   metadata?: Record<string, any>;
+  owner_id?: string | null;
+  owner_name?: string | null;
+  owner_email?: string | null;
+  assigned_at?: string | null;
+  assigned_by_id?: string | null;
+  assigned_by_name?: string | null;
+  is_escalated?: boolean;
+  escalation_level?: 'none' | 'warning' | 'escalated' | 'critical' | string;
+  escalated_to_id?: string | null;
+  escalated_to_name?: string | null;
+  escalated_at?: string | null;
+  escalation_reason?: string | null;
+  routed_opportunity_id?: string | null;
+  routed_opportunity_title?: string | null;
+  routed_workflow_type?: string | null;
+  routed_at?: string | null;
   actioned_at?: string | null;
   actioned_by_id?: string | null;
   resolution_notes?: string | null;
@@ -276,6 +296,8 @@ export interface DetectedSignalStatsResponse {
   total_uncertain?: number;
   total_quality_warnings?: number;
   total_false_positives?: number;
+  total_escalated?: number;
+  total_unassigned?: number;
   by_severity: Record<string, number>;
   by_category: Record<string, number>;
   by_signal: Record<string, number>;
@@ -297,6 +319,9 @@ export interface SignalEvaluationResult {
   total_quality_warnings?: number;
   new_signals_detected: number;
   refreshed_signals: number;
+  signals_created?: number;
+  signals_updated?: number;
+  total_evaluated?: number;
   by_signal: Record<string, number>;
 }
 
@@ -304,5 +329,45 @@ export interface AccountGroupedSignals {
   company_id: string;
   company_name: string;
   signals: DetectedSignal[];
+}
+
+export interface SignalAssignPayload {
+  owner_id?: string | null;
+}
+
+export interface SignalEscalatePayload {
+  escalated_to_id?: string | null;
+  escalation_level?: 'warning' | 'escalated' | 'critical' | string;
+  escalation_reason: string;
+}
+
+export interface SignalDeescalatePayload {
+  resolution_notes?: string;
+}
+
+export interface SignalCreateOpportunityPayload {
+  title?: string;
+  value?: number;
+  currency?: string;
+  stage?: string;
+  expected_close_date?: string;
+  probability?: number;
+  notes?: string;
+  owner_id?: string | null;
+}
+
+export interface SignalWorkflowRoutePayload {
+  workflow_type: 'opportunity' | 'engagement_renewal' | 'executive_touchpoint' | string;
+  opportunity_payload?: SignalCreateOpportunityPayload;
+  notes?: string;
+}
+
+export interface SignalWorkflowRouteResponse {
+  success: boolean;
+  workflow_type: string;
+  routed_entity_id?: string | null;
+  routed_entity_type?: string | null;
+  signal: DetectedSignal;
+  message: string;
 }
 
