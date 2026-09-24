@@ -1,4 +1,6 @@
 import { AccountAIBriefResponse, NextBestActionItem } from '@/app/signals/types';
+export { PIPELINE_STAGES as STAGES, STAGE_OPTIONS } from '@/lib/pipelineStages';
+export type { StageDefinition } from '@/lib/pipelineStages';
 
 // Segment definitions & visual mapping
 export const SEGMENT_META: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -56,14 +58,7 @@ export const ACTIVITY_TYPE_META: Record<string, { label: string; icon: string; c
   note: { label: 'Internal Note', icon: '📌', color: 'bg-slate-100 text-slate-800 border-slate-200' },
 };
 
-export const STAGES = [
-  { id: 'prospect', label: 'Prospect' },
-  { id: 'qualified', label: 'Qualified' },
-  { id: 'proposal', label: 'Proposal' },
-  { id: 'negotiation', label: 'Negotiation' },
-  { id: 'closed_won', label: 'Closed Won' },
-  { id: 'closed_lost', label: 'Closed Lost' },
-];
+// STAGES is now exported from '@/lib/pipelineStages' via the re-export above.
 
 export type CompanyActiveTab =
   | 'brief'

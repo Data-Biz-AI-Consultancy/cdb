@@ -3,12 +3,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch, ApiResponse } from '@/lib/api';
 import { Opportunity, OpportunityDetectedSignal } from '../types';
+import {
+  SignalSubFilter,
+  applySignalSubFilter,
+  isSignalRisk,
+  isSignalOpportunity,
+} from '@/lib/signalPolarity';
 
 export function useOpportunitySignals(activeOpportunity: Opportunity | null) {
   const [signals, setSignals] = useState<OpportunityDetectedSignal[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [signalSubFilter, setSignalSubFilter] = useState<'all' | 'active' | 'risk' | 'opportunity'>('all');
+  const [signalSubFilter, setSignalSubFilter] = useState<SignalSubFilter>('all');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const loadSignalsForOpportunity = useCallback(async (opp: Opportunity) => {
@@ -102,46 +108,10 @@ export function useOpportunitySignals(activeOpportunity: Opportunity | null) {
     }
   };
 
-  const filteredSignals = signals.filter((sig) => {
-    if (signalSubFilter === 'active') return sig.status === 'active';
-    if (signalSubFilter === 'risk') {
-      return (
-        sig.effective_polarity === 'risk' ||
-        sig.signal?.category === 'risk' ||
-        sig.signal_id?.includes('dormant') ||
-        sig.signal_id?.includes('unanswered') ||
-        sig.signal_id?.includes('competitor')
-      );
-    }
-    if (signalSubFilter === 'opportunity') {
-      return (
-        sig.effective_polarity === 'opportunity' ||
-        sig.signal?.category === 'opportunity' ||
-        sig.signal_id?.includes('hiring') ||
-        sig.signal_id?.includes('funding') ||
-        sig.signal_id?.includes('expansion')
-      );
-    }
-    return true;
-  });
-
+  const filteredSignals = applySignalSubFilter(signals, signalSubFilter);
   const activeSignals = signals.filter((s) => s.status === 'active');
-  const riskSignals = signals.filter(
-    (s) =>
-      s.effective_polarity === 'risk' ||
-      s.signal?.category === 'risk' ||
-      s.signal_id?.includes('dormant') ||
-      s.signal_id?.includes('unanswered') ||
-      s.signal_id?.includes('competitor')
-  );
-  const oppSignals = signals.filter(
-    (s) =>
-      s.effective_polarity === 'opportunity' ||
-      s.signal?.category === 'opportunity' ||
-      s.signal_id?.includes('hiring') ||
-      s.signal_id?.includes('funding') ||
-      s.signal_id?.includes('expansion')
-  );
+  const riskSignals = signals.filter(isSignalRisk);
+  const oppSignals = signals.filter(isSignalOpportunity);
 
   return {
     signals,

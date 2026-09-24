@@ -1,3 +1,15 @@
+'use client';
+
+// Re-export shared signal primitives to avoid duplication with signals/types.ts
+export type {
+  DetectedSignalStatus,
+  SignalSeverity,
+} from '@/lib/signalBadges';
+
+// Re-export canonical stage definitions
+export { PIPELINE_STAGES as STAGES } from '@/lib/pipelineStages';
+export type { StageDefinition } from '@/lib/pipelineStages';
+
 export interface OpportunityPerson {
   person_id: string;
   role?: string | null;
@@ -71,15 +83,11 @@ export interface CompanyOption {
   domain?: string | null;
 }
 
-export interface StageDefinition {
-  id: string;
-  label: string;
-  icon: string;
-  color: string;
-  headerBg: string;
-  badge: string;
-}
-
+/**
+ * Supporting evidence shape attached to a detected signal.
+ * Canonical version lives in signals/types.ts as SupportingEvidence;
+ * this alias keeps the name that opportunities components use.
+ */
 export interface DetectedSignalEvidence {
   evidence_type?: string;
   source_entity_type?: string;
@@ -103,9 +111,13 @@ export interface DetectedSignalEvidence {
   has_quality_warning?: boolean;
 }
 
+/**
+ * A person connected to an opportunity's detected signal.
+ * Kept here for backwards compatibility; canonical type in signals/types.ts.
+ */
 export interface ConnectedPerson {
   id: string;
-  name: string;
+  name?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   email?: string | null;
@@ -162,12 +174,3 @@ export interface OpportunityDetectedSignal {
   snoozed_until?: string | null;
   detected_at: string;
 }
-
-export const STAGES: StageDefinition[] = [
-  { id: 'prospect', label: 'Prospect', icon: '🎯', color: 'border-slate-300 bg-slate-50', headerBg: 'bg-slate-100 text-slate-700', badge: 'bg-slate-100 text-slate-700' },
-  { id: 'qualified', label: 'Qualified', icon: '🔍', color: 'border-blue-300 bg-blue-50/30', headerBg: 'bg-blue-100 text-blue-800', badge: 'bg-blue-100 text-blue-800' },
-  { id: 'proposal', label: 'Proposal', icon: '📑', color: 'border-amber-300 bg-amber-50/30', headerBg: 'bg-amber-100 text-amber-800', badge: 'bg-amber-100 text-amber-800' },
-  { id: 'negotiation', label: 'Negotiation', icon: '🤝', color: 'border-purple-300 bg-purple-50/30', headerBg: 'bg-purple-100 text-purple-800', badge: 'bg-purple-100 text-purple-800' },
-  { id: 'closed_won', label: 'Closed Won', icon: '🏆', color: 'border-emerald-300 bg-emerald-50/30', headerBg: 'bg-emerald-100 text-emerald-800', badge: 'bg-emerald-100 text-emerald-800' },
-  { id: 'closed_lost', label: 'Closed Lost', icon: '❌', color: 'border-rose-300 bg-rose-50/30', headerBg: 'bg-rose-100 text-rose-800', badge: 'bg-rose-100 text-rose-800' },
-];
