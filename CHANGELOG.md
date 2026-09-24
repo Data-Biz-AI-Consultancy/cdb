@@ -1,3 +1,12 @@
+# [1.37.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.36.0...v1.37.0) (2026-09-24)
+
+
+### Features
+
+* add user management backend API, settings page, and UserSelect component ([0efa089](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/0efa0899aaa4b501f476b1c51e8c66162ad73950))
+* **DAT-132:** implement signal ownership routing, escalation workflows, and frontend triage filtering ([aa410db](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/aa410db97b2f8fd4817f91f758f9289e378bb79e))
+* replace native select with custom searchable dropdown in UserSelect ([178092e](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/178092efa34c28c1f8f3c9f8f2bd641c8f763463))
+
 # [1.36.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.35.0...v1.36.0) (2026-09-23)
 
 
