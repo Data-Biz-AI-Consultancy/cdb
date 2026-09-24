@@ -19,4 +19,10 @@
   - Run `npm test` in `src/frontend`.
 - Never commit or complete a turn with unformatted code, unused imports/variables, lint violations, or failing test suites.
 
+### 3. File Length & Modularity Limits (Mandatory)
+- **Code files must not exceed 400–500 lines.**
+- Whenever a file approaches or exceeds this threshold, it must be proactively refactored and decomposed into smaller, focused modules, components, custom hooks, services, or utilities.
+- Avoid monolithic files; maintain clean separation of concerns and co-locate subcomponents/utilities in dedicated folders when needed.
+
+
 
