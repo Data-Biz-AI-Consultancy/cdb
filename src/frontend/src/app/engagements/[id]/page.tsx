@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiFetch, ApiResponse, getAuthToken } from '@/lib/api';
 import { COMMON_CURRENCIES, formatMoney, getCurrencySymbol } from '@/lib/currency';
 import SearchableCombobox, { ComboboxOption } from '@/components/SearchableCombobox';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 import { EngagementItem, EngagementAISummaryItem } from '../page';
 
 interface ActivityItem {
@@ -823,7 +824,7 @@ export default function EngagementDetailPage({ params }: { params: Promise<{ id:
             <span className="font-bold text-indigo-300 block mb-1 uppercase tracking-wider text-[10px]">
               Executive Overview
             </span>
-            {aiSummary.executive_summary}
+            <MarkdownRenderer content={aiSummary.executive_summary} className="text-indigo-100" />
           </div>
 
           {/* 3-Column Intelligence Grid */}

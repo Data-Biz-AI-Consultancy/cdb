@@ -222,7 +222,7 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     commercial_posture: 'growing',
     relationship_health_score: 85,
     relationship_health_rationale: 'Active delivery engagement and multi-threaded relationships',
-    executive_summary: 'Acme AI Systems maintains strong commercial momentum with active engagements and growing Series B runway.',
+    executive_summary: 'Acme AI Systems is assessed under a **GROWING** commercial posture with an overall relationship health score of **85/100**.',
     key_highlights: ['Operating in Artificial Intelligence sector', 'Active delivery engagement in progress'],
     key_risks: [
       {
@@ -533,8 +533,8 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     await waitFor(() => {
       expect(screen.getByText('AI Account Intelligence Brief')).toBeInTheDocument();
       expect(screen.getByText(/Posture: growing/i)).toBeInTheDocument();
-      expect(screen.getByText('85/100')).toBeInTheDocument();
-      expect(screen.getByText(/Acme AI Systems maintains strong commercial momentum/i)).toBeInTheDocument();
+      expect(screen.getAllByText('85/100').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('GROWING').tagName).toBe('STRONG');
       expect(screen.getByText('Operating in Artificial Intelligence sector')).toBeInTheDocument();
     });
 

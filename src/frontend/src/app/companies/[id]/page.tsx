@@ -1,79 +1,29 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
-import { formatMoney } from '@/lib/currency';
 import {
   AccountAIBriefResponse,
   NextBestActionItem,
-  AccountBriefSignalItem,
 } from '@/app/signals/types';
-
-// Segment definitions & visual mapping
-const SEGMENT_META: Record<string, { label: string; bg: string; text: string; border: string }> = {
-  clients_and_prospects: {
-    label: 'Clients & Prospects',
-    bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    text: 'text-emerald-700',
-    border: 'border-emerald-200',
-  },
-  hiring_decision_makers: {
-    label: 'Hiring Decision-Makers',
-    bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    text: 'text-indigo-700',
-    border: 'border-indigo-200',
-  },
-  recruiters_and_talent: {
-    label: 'Recruiters & Talent',
-    bg: 'bg-purple-50 text-purple-700 border-purple-200',
-    text: 'text-purple-700',
-    border: 'border-purple-200',
-  },
-  former_colleagues_alumni: {
-    label: 'Alumni & Colleagues',
-    bg: 'bg-amber-50 text-amber-700 border-amber-200',
-    text: 'text-amber-700',
-    border: 'border-amber-200',
-  },
-  peer_collaborators: {
-    label: 'Peer Collaborators',
-    bg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-    text: 'text-cyan-700',
-    border: 'border-cyan-200',
-  },
-  general_network: {
-    label: 'General Network',
-    bg: 'bg-slate-100 text-slate-700 border-slate-200',
-    text: 'text-slate-700',
-    border: 'border-slate-200',
-  },
-};
-
-const TEMPERATURE_META: Record<string, { label: string; icon: string; bg: string; text: string; order: number }> = {
-  hot: { label: 'Hot', icon: '🔥', bg: 'bg-red-100 border-red-200', text: 'text-red-700', order: 1 },
-  warm: { label: 'Warm', icon: '☀️', bg: 'bg-amber-100 border-amber-200', text: 'text-amber-700', order: 2 },
-  cold: { label: 'Cold', icon: '❄️', bg: 'bg-blue-100 border-blue-200', text: 'text-blue-700', order: 3 },
-  dormant: { label: 'Dormant', icon: '⏳', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-600', order: 4 },
-};
-
-const ACTIVITY_TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
-  linkedin_message: { label: 'LinkedIn Message', icon: '💼', color: 'bg-sky-100 text-sky-800 border-sky-200' },
-  meeting: { label: 'Meeting / Notion Notes', icon: '📝', color: 'bg-violet-100 text-violet-800 border-violet-200' },
-  email: { label: 'Email', icon: '✉️', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  call: { label: 'Phone Call', icon: '📞', color: 'bg-orange-100 text-orange-800 border-orange-200' },
-  whatsapp: { label: 'WhatsApp', icon: '💬', color: 'bg-green-100 text-green-800 border-green-200' },
-  note: { label: 'Internal Note', icon: '📌', color: 'bg-slate-100 text-slate-800 border-slate-200' },
-};
-
-const STAGES = [
-  { id: 'prospect', label: 'Prospect' },
-  { id: 'qualified', label: 'Qualified' },
-  { id: 'proposal', label: 'Proposal' },
-  { id: 'negotiation', label: 'Negotiation' },
-  { id: 'closed_won', label: 'Closed Won' },
-  { id: 'closed_lost', label: 'Closed Lost' },
-];
+import {
+  TEMPERATURE_META,
+  CompanyActiveTab,
+} from './types';
+import {
+  CompanyHeroHeader,
+  CompanyAIBriefTab,
+  CompanyEmployeesTab,
+  CompanyTimelineTab,
+  CompanyNotesTab,
+  CompanyOpportunitiesTab,
+  CompanyLeadsTab,
+  CompanyEngagementsTab,
+  CompanyProfileTab,
+  CompanySignalsTab,
+  CompanyModals,
+} from './components';
 
 export default function CompanyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [id, setId] = useState<string>('');
@@ -95,8 +45,8 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
   const [nextBestActions, setNextBestActions] = useState<NextBestActionItem[]>([]);
   const [regeneratingBrief, setRegeneratingBrief] = useState(false);
 
-  // Active Tab
-  const [activeTab, setActiveTab] = useState<'brief' | 'employees' | 'timeline' | 'notes' | 'opportunities' | 'leads' | 'engagements' | 'signals' | 'profile'>('brief');
+  // Active Tab (Defaults to AI Account Brief & Actions)
+  const [activeTab, setActiveTab] = useState<CompanyActiveTab>('brief');
 
   // Employee Tab Controls: Subfilter & Sorting
   const [employeeSubFilter, setEmployeeSubFilter] = useState<'all' | 'current' | 'alumni'>('all');
@@ -104,6 +54,10 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
 
   // Activity filter
   const [activityTypeFilter, setActivityTypeFilter] = useState<string>('all');
+
+  // Signals filter
+  const [detectedSignals, setDetectedSignals] = useState<any[]>([]);
+  const [signalSubFilter, setSignalSubFilter] = useState<'all' | 'active' | 'risk' | 'opportunity'>('active');
 
   // Modals state
   const [showEditCompany, setShowEditCompany] = useState(false);
@@ -166,9 +120,6 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
     signal_strength: 'strong',
     notes: '',
   });
-
-  const [detectedSignals, setDetectedSignals] = useState<any[]>([]);
-  const [signalSubFilter, setSignalSubFilter] = useState<'all' | 'active' | 'risk' | 'opportunity'>('active');
 
   useEffect(() => {
     if (params && typeof (params as any).then === 'function') {
@@ -593,16 +544,12 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  const currentEmployeesCount = employees.filter((e) => e.is_current).length;
-  const alumniCount = employees.filter((e) => !e.is_current).length;
   const totalOppValue = opportunities.reduce((sum, o) => sum + (Number(o.value) || 0), 0);
   const companyNotes = activities.filter((a) => a.type === 'note');
   const filteredActivities = activities.filter((act) => {
     if (activityTypeFilter === 'all') return true;
     return act.type === activityTypeFilter;
   });
-
-  const customTags: string[] = Array.isArray(company.attributes?.tags) ? company.attributes.tags : [];
 
   return (
     <div className="space-y-6">
@@ -619,196 +566,22 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      {/* Top Breadcrumb */}
-      <div className="flex items-center justify-between">
-        <Link
-          href="/companies"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition"
-        >
-          <span>←</span>
-          <span>Back to Companies Directory</span>
-        </Link>
-        <span className="text-xs text-slate-400 font-mono">ID: {company.id}</span>
-      </div>
-
       {/* Hero Header Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          {/* Left Avatar & Identity */}
-          <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-700 to-slate-900 text-white flex items-center justify-center text-xl font-bold tracking-tight shadow-md shrink-0 border-2 border-slate-700">
-              {company.name?.[0]?.toUpperCase() || 'C'}
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{company.name}</h1>
-                {company.industry && (
-                  <span className="text-xs px-3 py-1 rounded-full font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                    {company.industry}
-                  </span>
-                )}
-                {company.size_range && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                    👥 {company.size_range}
-                  </span>
-                )}
-              </div>
-
-              {/* Domain, Location & Social */}
-              <div className="text-sm text-slate-600 mt-2 flex flex-wrap items-center gap-3">
-                {company.domain && (
-                  <a
-                    href={`https://${company.domain}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-blue-600 hover:underline font-mono text-xs bg-slate-50 px-2 py-0.5 rounded border border-slate-200"
-                  >
-                    <span>🌐</span>
-                    <span>{company.domain}</span>
-                    <span className="text-[10px]">↗</span>
-                  </a>
-                )}
-                {(company.city || company.country) && (
-                  <span className="inline-flex items-center gap-1 text-slate-500 text-xs">
-                    <span>📍</span>
-                    <span>{[company.city, company.country].filter(Boolean).join(', ')}</span>
-                  </span>
-                )}
-                {company.linkedin_url && (
-                  <a
-                    href={company.linkedin_url.startsWith('http') ? company.linkedin_url : `https://${company.linkedin_url}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sky-700 hover:underline text-xs bg-sky-50 px-2 py-0.5 rounded border border-sky-200"
-                  >
-                    <span>💼 LinkedIn</span>
-                    <span className="text-[10px]">↗</span>
-                  </a>
-                )}
-              </div>
-
-              {/* Tags */}
-              {customTags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {customTags.map((tag, idx) => (
-                    <span
-                      key={idx}
-                      className="text-[11px] font-mono px-2 py-0.5 bg-slate-50 text-slate-600 rounded-md border border-slate-200"
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setShowLogActivity(true)}
-              className="px-3.5 py-2 text-xs font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 shadow-sm transition flex items-center gap-1.5"
-            >
-              <span>+</span>
-              <span>Log Activity</span>
-            </button>
-            <button
-              onClick={() => setShowAddNote(true)}
-              className="px-3.5 py-2 text-xs font-semibold bg-white text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 shadow-sm transition flex items-center gap-1.5"
-            >
-              <span>📌</span>
-              <span>Add Note</span>
-            </button>
-            <button
-              onClick={() => setShowLinkContact(true)}
-              className="px-3.5 py-2 text-xs font-semibold bg-white text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 shadow-sm transition flex items-center gap-1.5"
-            >
-              <span>👥</span>
-              <span>Link Contact</span>
-            </button>
-            <button
-              onClick={() => setShowAddOpp(true)}
-              className="px-3.5 py-2 text-xs font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm transition flex items-center gap-1.5"
-            >
-              <span>💼</span>
-              <span>New Deal</span>
-            </button>
-            <button
-              onClick={() => setShowAddLead(true)}
-              className="px-3.5 py-2 text-xs font-semibold bg-amber-500 text-white rounded-xl hover:bg-amber-600 shadow-sm transition flex items-center gap-1.5"
-            >
-              <span>🎯</span>
-              <span>New Lead</span>
-            </button>
-            <button
-              onClick={() => setShowEditCompany(true)}
-              className="px-3 py-2 text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-200 transition flex items-center gap-1"
-            >
-              <span>✏️</span>
-              <span>Edit</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Key KPI Metrics Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-100">
-          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-            <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Associated Contacts</div>
-            <div className="text-xl font-bold text-slate-900 mt-0.5">{employees.length}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              <span className="text-emerald-700 font-semibold">{currentEmployeesCount} active</span> · {alumniCount} alumni
-            </div>
-          </div>
-
-          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-            <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Pipeline Value</div>
-            <div className="text-xl font-bold text-emerald-700 mt-0.5">€{totalOppValue.toLocaleString()}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">{opportunities.length} open/active deals</div>
-          </div>
-
-          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-            <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Active Leads</div>
-            <div className="text-xl font-bold text-amber-600 mt-0.5">{leads.length}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Inbound & outbound signals</div>
-          </div>
-
-          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-            <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Activities Logged</div>
-            <div className="text-xl font-bold text-slate-800 mt-0.5">{activities.length}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Meetings, notes & touchpoints</div>
-          </div>
-        </div>
-
-        {/* Active Signals Alert Banner */}
-        {detectedSignals.filter((s) => s.status === 'active').length > 0 && (
-          <div className="mt-4 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-amber-300/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-xl font-bold shadow-xs">
-                ⚡
-              </div>
-              <div>
-                <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <span>{detectedSignals.filter((s) => s.status === 'active').length} Active Opportunity & Risk Signals Detected</span>
-                  {detectedSignals.some((s) => s.status === 'active' && s.severity === 'critical') && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-600 text-white font-bold uppercase tracking-wider">
-                      Critical SLA
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  Actionable relationship moments detected across touchpoints, contracts, and company enrichment data.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setActiveTab('signals')}
-              className="px-3.5 py-2 text-xs font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition whitespace-nowrap self-start sm:self-auto shadow-xs"
-            >
-              Review Signals →
-            </button>
-          </div>
-        )}
-      </div>
+      <CompanyHeroHeader
+        company={company}
+        employees={employees}
+        opportunities={opportunities}
+        leads={leads}
+        activities={activities}
+        detectedSignals={detectedSignals}
+        onLogActivity={() => setShowLogActivity(true)}
+        onAddNote={() => setShowAddNote(true)}
+        onLinkContact={() => setShowLinkContact(true)}
+        onAddOpportunity={() => setShowAddOpp(true)}
+        onAddLead={() => setShowAddLead(true)}
+        onEditCompany={() => setShowEditCompany(true)}
+        onReviewSignals={() => setActiveTab('signals')}
+      />
 
       {/* Tabs Header */}
       <div className="flex border-b border-slate-200 overflow-x-auto gap-2 bg-white px-3 pt-2 rounded-t-xl border">
@@ -850,7 +623,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
               : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
           }`}
         >
-          <span>⏱️ Timeline & Activities</span>
+          <span>⏱️ Activity Timeline</span>
           <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
             {activities.length}
           </span>
@@ -879,7 +652,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
           }`}
         >
           <span>💼 Opportunities</span>
-          <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+          <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
             {opportunities.length}
           </span>
         </button>
@@ -892,8 +665,8 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
               : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
           }`}
         >
-          <span>🎯 Leads</span>
-          <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+          <span>🎯 Leads & Signals</span>
+          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
             {leads.length}
           </span>
         </button>
@@ -907,7 +680,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
           }`}
         >
           <span>📋 Engagements</span>
-          <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold">
             {engagements.length}
           </span>
         </button>
@@ -921,15 +694,15 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
           }`}
         >
           <span>⚡ Signals</span>
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-              detectedSignals.filter((s) => s.status === 'active').length > 0
-                ? 'bg-amber-100 text-amber-800'
-                : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            {detectedSignals.length}
-          </span>
+          {detectedSignals.filter((s) => s.status === 'active').length > 0 ? (
+            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold animate-pulse">
+              {detectedSignals.filter((s) => s.status === 'active').length} Active
+            </span>
+          ) : (
+            <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+              {detectedSignals.length}
+            </span>
+          )}
         </button>
 
         <button
@@ -946,1924 +719,133 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Tab: AI Account Brief & Actions */}
       {activeTab === 'brief' && (
-        <div className="space-y-6">
-          {/* Executive Overview & Health Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🤖</span>
-                  <h2 className="text-xl font-bold tracking-tight text-white">
-                    AI Account Intelligence Brief
-                  </h2>
-                  {aiBrief?.commercial_posture && (
-                    <span
-                      className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                        aiBrief.commercial_posture === 'growing'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                          : aiBrief.commercial_posture === 'at_risk'
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                          : aiBrief.commercial_posture === 'dormant'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                      }`}
-                    >
-                      Posture: {aiBrief.commercial_posture.replace('_', ' ')}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-300 max-w-2xl">
-                  Synthesized executive intelligence across delivery engagements, active deal pipeline, stakeholder touchpoints, and detected opportunity/risk signals.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-4 self-start md:self-auto">
-                <div className="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Health Score</div>
-                    <div className="text-lg font-black text-white">
-                      {aiBrief?.relationship_health_score ?? 80}/100
-                    </div>
-                  </div>
-                  <div className="w-10 h-10 rounded-full border-4 border-emerald-400 flex items-center justify-center font-bold text-xs">
-                    {aiBrief?.relationship_health_score ?? 80}%
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleRegenerateBrief}
-                  disabled={regeneratingBrief}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 text-white text-xs font-semibold rounded-xl transition flex items-center gap-2 shadow-sm whitespace-nowrap"
-                >
-                  <span className={regeneratingBrief ? 'animate-spin' : ''}>🔄</span>
-                  <span>{regeneratingBrief ? 'Synthesizing...' : 'Regenerate Brief'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Health Rationale Bar */}
-            {aiBrief?.relationship_health_rationale && (
-              <div className="bg-slate-50 border-b border-slate-200 px-6 py-2.5 text-xs text-slate-700 flex items-center gap-2">
-                <span className="font-semibold text-slate-900">Health Drivers:</span>
-                <span className="text-slate-600">{aiBrief.relationship_health_rationale}</span>
-              </div>
-            )}
-
-            {/* Executive Narrative */}
-            <div className="p-6 space-y-4">
-              <div className="prose prose-sm max-w-none text-slate-800 whitespace-pre-line leading-relaxed text-sm bg-slate-50/50 p-4 rounded-xl border border-slate-200/70">
-                {aiBrief?.executive_summary || 'Synthesizing account intelligence...'}
-              </div>
-
-              {/* Highlights Chips */}
-              {aiBrief?.key_highlights && aiBrief.key_highlights.length > 0 && (
-                <div className="pt-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                    Key Account Highlights
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {aiBrief.key_highlights.map((hl, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-indigo-50/70 border border-indigo-100 text-indigo-950 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"
-                      >
-                        <span className="text-indigo-600 font-bold">✓</span>
-                        <span>{hl}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 🎯 Prioritized Next Best Actions (NBA) */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🎯</span>
-                <h3 className="text-base font-bold text-slate-900">
-                  Ranked Next Best Actions (NBA)
-                </h3>
-                <span className="text-xs bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">
-                  {nextBestActions.length} Recommended
-                </span>
-                {nextBestActions.some((a) => a.is_reconciled_conflict) && (
-                  <span className="text-xs bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <span>⚖️</span>
-                    <span>Conflict Reconciled</span>
-                  </span>
-                )}
-              </div>
-              <span className="text-xs text-slate-500">
-                Sorted by Business Impact & Urgency
-              </span>
-            </div>
-
-            {nextBestActions.length === 0 ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
-                <p className="text-sm">No pending Next Best Actions for this account.</p>
-                <p className="text-xs text-slate-400 mt-1">All active signal playbooks and relationship milestones are up to date.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {nextBestActions.map((nba) => (
-                  <div
-                    key={nba.id}
-                    className={`bg-white rounded-xl border p-5 space-y-3 shadow-xs hover:shadow-md transition flex flex-col justify-between ${
-                      nba.is_reconciled_conflict
-                        ? 'border-purple-200 ring-1 ring-purple-100'
-                        : nba.priority_tier === 'P0'
-                        ? 'border-rose-300 ring-1 ring-rose-100'
-                        : 'border-slate-200'
-                    }`}
-                  >
-                    <div className="space-y-2">
-                      {/* Top Badges */}
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-xs font-extrabold px-2 py-0.5 rounded-md ${
-                              nba.priority_tier === 'P0'
-                                ? 'bg-rose-600 text-white'
-                                : nba.priority_tier === 'P1'
-                                ? 'bg-amber-500 text-white'
-                                : nba.priority_tier === 'P2'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-200 text-slate-800'
-                            }`}
-                          >
-                            {nba.priority_tier} ({Math.round(nba.priority_score)} pts)
-                          </span>
-
-                          <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${
-                              nba.urgency === 'immediate'
-                                ? 'bg-rose-100 text-rose-800'
-                                : nba.urgency === 'high'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {nba.urgency} Urgency
-                          </span>
-                        </div>
-
-                        {nba.freshness_status && (
-                          <span className="text-[11px] text-slate-500 font-medium capitalize">
-                            Status: {nba.freshness_status}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Title & Description */}
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                          <span>{nba.action_type === 'schedule_sync' ? '📅' : nba.action_type === 'send_message' ? '✉️' : nba.action_type === 'prepare_proposal' ? '📝' : '⚡'}</span>
-                          <span>{nba.title}</span>
-                        </h4>
-                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                          {nba.description}
-                        </p>
-                      </div>
-
-                      {/* Reconciled Conflict Note */}
-                      {nba.is_reconciled_conflict && (
-                        <div className="bg-purple-50 border border-purple-200 text-purple-900 rounded-lg p-2.5 text-xs flex items-center gap-2">
-                          <span className="text-base">⚖️</span>
-                          <div>
-                            <span className="font-bold">Reconciled Guidance: </span>
-                            <span>{nba.conflict_resolution_notes || 'Harmonized co-occurring opportunity and risk signals.'}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Why it matters / Rationale */}
-                      {nba.rationale && (
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 text-xs text-slate-700 space-y-1">
-                          <div className="font-semibold text-slate-900 flex items-center gap-1">
-                            <span>🔍 Why It Matters Now:</span>
-                          </div>
-                          <p className="text-slate-600">{nba.rationale}</p>
-                        </div>
-                      )}
-
-                      {/* Sequential Execution Steps */}
-                      {nba.action_steps && nba.action_steps.length > 0 && (
-                        <div className="pt-1">
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                            Prescriptive Steps:
-                          </div>
-                          <ul className="space-y-1 text-xs text-slate-600">
-                            {nba.action_steps.map((step, idx) => (
-                              <li key={idx} className="flex items-start gap-1.5">
-                                <span className="font-bold text-blue-600 text-[11px] mt-0.5">
-                                  {idx + 1}.
-                                </span>
-                                <span>{step}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Footer Actions & Assignee */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
-                      <div className="text-slate-500">
-                        {nba.target_person_name ? (
-                          <span className="font-medium text-slate-700">Contact: {nba.target_person_name}</span>
-                        ) : nba.suggested_owner_name ? (
-                          <span>Owner: {nba.suggested_owner_name}</span>
-                        ) : (
-                          <span>Account Level</span>
-                        )}
-                      </div>
-
-                      {nba.originating_signal_ids && nba.originating_signal_ids.length > 0 ? (
-                        <Link
-                          href={`/signals/${nba.originating_signal_ids[0]}`}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition text-xs flex items-center gap-1 shadow-xs"
-                        >
-                          <span>Execute Action</span>
-                          <span>→</span>
-                        </Link>
-                      ) : (
-                        <button
-                          onClick={() => setActiveTab('timeline')}
-                          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg transition text-xs shadow-xs"
-                        >
-                          Log Outreach →
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Current Opportunities & Risks Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-            {/* Opportunities Column */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🟢</span>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Current Opportunities ({aiBrief?.key_opportunities?.length ?? 0})
-                  </h3>
-                </div>
-                <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold">
-                  Commercial Upside
-                </span>
-              </div>
-
-              {(!aiBrief?.key_opportunities || aiBrief.key_opportunities.length === 0) ? (
-                <div className="py-8 text-center text-xs text-slate-500">
-                  No active commercial opportunities detected.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {aiBrief.key_opportunities.map((opp) => (
-                    <div
-                      key={opp.detected_signal_id}
-                      className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-3.5 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-emerald-950">{opp.title}</span>
-                        <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">
-                          {opp.priority_tier} • {Math.round(opp.priority_score)} pts
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-700 leading-relaxed">
-                        {opp.why_it_matters}
-                      </p>
-                      {opp.evidence_excerpt && (
-                        <div className="text-[11px] text-slate-500 bg-white/80 p-2 rounded border border-emerald-100/60 font-mono">
-                          "{opp.evidence_excerpt}"
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between pt-1 text-[11px]">
-                        <span className="text-slate-500">Confidence: {Math.round(opp.confidence_score * 100)}%</span>
-                        <Link
-                          href={`/signals/${opp.detected_signal_id}`}
-                          className="text-emerald-700 font-semibold hover:underline"
-                        >
-                          View Triage →
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Risks Column */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🔴</span>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Active Risks ({aiBrief?.key_risks?.length ?? 0})
-                  </h3>
-                </div>
-                <span className="text-xs text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full font-semibold">
-                  Relationship & Contract
-                </span>
-              </div>
-
-              {(!aiBrief?.key_risks || aiBrief.key_risks.length === 0) ? (
-                <div className="py-8 text-center text-xs text-slate-500">
-                  No active relationship or delivery risks detected.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {aiBrief.key_risks.map((risk) => (
-                    <div
-                      key={risk.detected_signal_id}
-                      className="bg-rose-50/40 border border-rose-100 rounded-xl p-3.5 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-rose-950">{risk.title}</span>
-                        <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md">
-                          {risk.priority_tier} • {risk.severity.toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-700 leading-relaxed">
-                        {risk.why_it_matters}
-                      </p>
-                      {risk.evidence_excerpt && (
-                        <div className="text-[11px] text-slate-500 bg-white/80 p-2 rounded border border-rose-100/60 font-mono">
-                          "{risk.evidence_excerpt}"
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between pt-1 text-[11px]">
-                        <span className="text-slate-500">Confidence: {Math.round(risk.confidence_score * 100)}%</span>
-                        <Link
-                          href={`/signals/${risk.detected_signal_id}`}
-                          className="text-rose-700 font-semibold hover:underline"
-                        >
-                          View Triage →
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <CompanyAIBriefTab
+          aiBrief={aiBrief}
+          nextBestActions={nextBestActions}
+          regeneratingBrief={regeneratingBrief}
+          onRegenerateBrief={handleRegenerateBrief}
+          onNavigateToTimeline={() => setActiveTab('timeline')}
+        />
       )}
 
-      {/* Tab 1: Employees & Contacts */}
+      {/* Tab: Employees & Contacts */}
       {activeTab === 'employees' && (
-        <div className="space-y-4">
-          {/* Controls Bar: Sub-filters & Sort dropdown */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
-            {/* Filter Pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Filter:</span>
-              <button
-                onClick={() => setEmployeeSubFilter('all')}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-                  employeeSubFilter === 'all'
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                All Contacts ({employees.length})
-              </button>
-              <button
-                onClick={() => setEmployeeSubFilter('current')}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-                  employeeSubFilter === 'current'
-                    ? 'bg-emerald-700 text-white shadow-sm'
-                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
-                }`}
-              >
-                Current Staff ({currentEmployeesCount})
-              </button>
-              <button
-                onClick={() => setEmployeeSubFilter('alumni')}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-                  employeeSubFilter === 'alumni'
-                    ? 'bg-amber-700 text-white shadow-sm'
-                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
-                }`}
-              >
-                Alumni / Past ({alumniCount})
-              </button>
-            </div>
-
-            {/* Sort & Action Controls */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-semibold text-slate-500 whitespace-nowrap">Sort by:</label>
-                <select
-                  value={employeeSortBy}
-                  onChange={(e) => setEmployeeSortBy(e.target.value as any)}
-                  className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-800 font-medium focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="warmth">🔥 Warmth (Hot → Cold)</option>
-                  <option value="interaction">⏱️ Latest Interaction (Newest)</option>
-                  <option value="name">🔤 Name (A-Z)</option>
-                  <option value="tenure">📅 Tenure / Start Date</option>
-                </select>
-              </div>
-
-              <button
-                onClick={() => setShowLinkContact(true)}
-                className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition"
-              >
-                + Link Person
-              </button>
-            </div>
-          </div>
-
-          {/* Employees List */}
-          {processedEmployees.length === 0 ? (
-            <div className="bg-white p-8 rounded-xl border border-slate-200 text-center space-y-3 shadow-sm">
-              <p className="text-sm text-slate-500">No contacts match the selected filter.</p>
-              <button
-                onClick={() => setShowLinkContact(true)}
-                className="px-3.5 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm"
-              >
-                + Link First Person
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {processedEmployees.map((emp) => {
-                const empName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || 'Unnamed Contact';
-                const empInitials = `${emp.first_name?.[0] || ''}${emp.last_name?.[0] || ''}`.toUpperCase() || 'P';
-                const rawSegment = emp.attributes?.segment || 'general_network';
-                const segInfo = SEGMENT_META[rawSegment] || SEGMENT_META.general_network;
-                const rawTemp = emp.attributes?.temperature || emp.attributes?.engagement_temperature;
-                const tempInfo = rawTemp ? TEMPERATURE_META[rawTemp.toLowerCase()] : null;
-                const lastAct = latestInteractionByPerson[emp.person_id];
-
-                return (
-                  <div
-                    key={emp.relationship_id}
-                    className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center text-sm font-bold shadow shrink-0">
-                            {empInitials}
-                          </div>
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Link
-                                href={`/persons/${emp.person_id}`}
-                                className="font-bold text-slate-900 hover:text-blue-600 transition text-base"
-                              >
-                                {empName}
-                              </Link>
-                              {emp.is_current ? (
-                                <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
-                                  Current
-                                </span>
-                              ) : (
-                                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                                  Alumni
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs font-medium text-slate-700 mt-0.5">
-                              {emp.title || 'Role not specified'}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Unlink Action */}
-                        <button
-                          onClick={() => handleUnlinkContact(emp.person_id)}
-                          title="Unlink contact from company"
-                          className="text-slate-400 hover:text-red-600 text-xs p-1 rounded transition"
-                        >
-                          ✕
-                        </button>
-                      </div>
-
-                      {/* Badges: Segment & Warmth */}
-                      <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold border ${segInfo.bg}`}>
-                          {segInfo.label}
-                        </span>
-
-                        {tempInfo && (
-                          <span
-                            className={`text-[11px] px-2 py-0.5 rounded-full font-semibold border ${tempInfo.bg} ${tempInfo.text} inline-flex items-center gap-1`}
-                          >
-                            <span>{tempInfo.icon}</span>
-                            <span>{tempInfo.label}</span>
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Contact Info & Location */}
-                      <div className="text-xs text-slate-600 mt-3 space-y-1">
-                        {emp.primary_email && (
-                          <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-700">
-                            <span>✉️</span>
-                            <a href={`mailto:${emp.primary_email}`} className="hover:underline text-blue-600">
-                              {emp.primary_email}
-                            </a>
-                          </div>
-                        )}
-                        {(emp.city || emp.country) && (
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                            <span>📍</span>
-                            <span>{[emp.city, emp.country].filter(Boolean).join(', ')}</span>
-                          </div>
-                        )}
-                        {emp.linkedin_url && (
-                          <div className="flex items-center gap-1.5 text-[11px]">
-                            <span>💼</span>
-                            <a
-                              href={emp.linkedin_url.startsWith('http') ? emp.linkedin_url : `https://${emp.linkedin_url}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sky-700 hover:underline"
-                            >
-                              LinkedIn Profile ↗
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Footer: Dates & Last Interaction */}
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-                      <div>
-                        {emp.started_at ? (
-                          <span>
-                            Tenure: {emp.started_at} {emp.ended_at ? `to ${emp.ended_at}` : '→ Present'}
-                          </span>
-                        ) : (
-                          <span>Tenure dates not set</span>
-                        )}
-                      </div>
-
-                      {lastAct ? (
-                        <div className="inline-flex items-center gap-1 text-slate-700 font-medium bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-                          <span>⏱️ Last touch:</span>
-                          <span>{new Date(lastAct.occurred_at).toLocaleDateString()}</span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 italic">No logged interaction</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <CompanyEmployeesTab
+          employees={employees}
+          processedEmployees={processedEmployees}
+          employeeSubFilter={employeeSubFilter}
+          setEmployeeSubFilter={setEmployeeSubFilter}
+          employeeSortBy={employeeSortBy}
+          setEmployeeSortBy={setEmployeeSortBy}
+          latestInteractionByPerson={latestInteractionByPerson}
+          onLinkContact={() => setShowLinkContact(true)}
+          onUnlinkContact={handleUnlinkContact}
+        />
       )}
 
-      {/* Tab 2: Timeline & Activities */}
+      {/* Tab: Timeline & Activities */}
       {activeTab === 'timeline' && (
-        <div className="space-y-4">
-          {/* Activity Filters & Log Button */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Type:</span>
-              <button
-                onClick={() => setActivityTypeFilter('all')}
-                className={`text-xs px-2.5 py-1 rounded-lg font-medium transition ${
-                  activityTypeFilter === 'all'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                All ({activities.length})
-              </button>
-              {Object.entries(ACTIVITY_TYPE_META).map(([typeKey, meta]) => {
-                const count = activities.filter((a) => a.type === typeKey).length;
-                if (count === 0 && activityTypeFilter !== typeKey) return null;
-                return (
-                  <button
-                    key={typeKey}
-                    onClick={() => setActivityTypeFilter(typeKey)}
-                    className={`text-xs px-2.5 py-1 rounded-lg font-medium transition flex items-center gap-1 ${
-                      activityTypeFilter === typeKey
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span>{meta.icon}</span>
-                    <span>{meta.label}</span>
-                    <span className="text-[10px] opacity-75">({count})</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => setShowLogActivity(true)}
-              className="px-3 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-sm transition"
-            >
-              + Log Activity
-            </button>
-          </div>
-
-          {/* Activity List */}
-          {filteredActivities.length === 0 ? (
-            <div className="bg-white p-8 rounded-xl border border-slate-200 text-center space-y-3 shadow-sm">
-              <p className="text-sm text-slate-500">No activities recorded for this filter.</p>
-              <button
-                onClick={() => setShowLogActivity(true)}
-                className="px-3.5 py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-sm"
-              >
-                + Log First Activity
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredActivities.map((act) => {
-                const meta = ACTIVITY_TYPE_META[act.type] || {
-                  label: act.type,
-                  icon: '📌',
-                  color: 'bg-slate-100 text-slate-800 border-slate-200',
-                };
-                const linkedPerson = employees.find((e) => e.person_id === act.person_id);
-
-                return (
-                  <div
-                    key={act.id}
-                    className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition flex items-start gap-3.5"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center text-lg shrink-0 border border-slate-200 shadow-xs">
-                      {meta.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-slate-900 text-sm">{act.title || meta.label}</span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${meta.color}`}>
-                            {meta.label}
-                          </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
-                            {act.source}
-                          </span>
-                        </div>
-                        <span className="text-xs text-slate-400 font-mono">
-                          {new Date(act.occurred_at).toLocaleString()}
-                        </span>
-                      </div>
-
-                      {linkedPerson && (
-                        <div className="mt-1 text-xs text-slate-600">
-                          <span>With contact: </span>
-                          <Link
-                            href={`/persons/${linkedPerson.person_id}`}
-                            className="font-medium text-blue-600 hover:underline"
-                          >
-                            {linkedPerson.first_name} {linkedPerson.last_name} ({linkedPerson.title || 'Staff'})
-                          </Link>
-                        </div>
-                      )}
-
-                      {act.summary && (
-                        <p className="text-xs text-slate-600 mt-2 bg-slate-50/80 p-3 rounded-lg border border-slate-100 whitespace-pre-wrap">
-                          {act.summary}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <CompanyTimelineTab
+          activities={activities}
+          filteredActivities={filteredActivities}
+          employees={employees}
+          activityTypeFilter={activityTypeFilter}
+          setActivityTypeFilter={setActivityTypeFilter}
+          onLogActivity={() => setShowLogActivity(true)}
+        />
       )}
 
-      {/* Tab 3: Notes */}
+      {/* Tab: Notes */}
       {activeTab === 'notes' && (
-        <div className="space-y-6">
-          {/* Quick Note Composer */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <span>📌</span>
-              <span>Internal Company Scratchpad & Notes</span>
-            </h3>
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={noteForm.title}
-                onChange={(e) => setNoteForm((prev) => ({ ...prev, title: e.target.value }))}
-                placeholder="Note title (e.g. Q4 Budget Discussion, Tech Stack Audit)..."
-                className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
-              />
-              <textarea
-                value={noteForm.summary}
-                onChange={(e) => setNoteForm((prev) => ({ ...prev, summary: e.target.value }))}
-                rows={3}
-                placeholder="Write internal observations, meeting notes, stakeholder sentiments, or action items..."
-                className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => handleAddNote()}
-                  disabled={!noteForm.summary.trim()}
-                  className="px-4 py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition disabled:opacity-50 shadow-sm"
-                >
-                  Save Internal Note
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Notes Feed */}
-          {companyNotes.length === 0 ? (
-            <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500 text-sm shadow-sm">
-              No internal notes recorded yet for this company.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {companyNotes.map((n) => (
-                <div key={n.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-900">{n.title || 'Internal Note'}</span>
-                    <span className="text-slate-400 font-mono">{new Date(n.occurred_at).toLocaleString()}</span>
-                  </div>
-                  <p className="text-xs text-slate-700 whitespace-pre-wrap bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    {n.summary}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <CompanyNotesTab
+          companyNotes={companyNotes}
+          noteForm={noteForm}
+          setNoteForm={setNoteForm}
+          onAddNote={handleAddNote}
+        />
       )}
 
-      {/* Tab 4: Opportunities */}
+      {/* Tab: Opportunities */}
       {activeTab === 'opportunities' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Deals & Opportunities Pipeline</h2>
-              <p className="text-xs text-slate-500">
-                Total pipeline value: <span className="font-semibold text-emerald-700">€{totalOppValue.toLocaleString()}</span> across{' '}
-                {opportunities.length} deals.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowAddOpp(true)}
-              className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition"
-            >
-              + New Deal
-            </button>
-          </div>
-
-          {opportunities.length === 0 ? (
-            <div className="bg-white p-8 rounded-xl border border-slate-200 text-center space-y-3 shadow-sm">
-              <p className="text-sm text-slate-500">No deals currently linked to this company.</p>
-              <button
-                onClick={() => setShowAddOpp(true)}
-                className="px-3.5 py-2 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm"
-              >
-                + Create Deal
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {opportunities.map((opp) => (
-                <div
-                  key={opp.id}
-                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3 flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-bold text-slate-900 text-sm">{opp.title}</h3>
-                        <div className="text-base font-extrabold text-emerald-700 mt-1">
-                          {opp.value ? `€${Number(opp.value).toLocaleString()}` : 'Value Unspecified'}
-                        </div>
-                      </div>
-                      <span className="text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        {opp.stage.replace(/_/g, ' ')}
-                      </span>
-                    </div>
-
-                    {opp.probability !== null && (
-                      <div className="mt-3 space-y-1">
-                        <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-                          <span>Confidence Level</span>
-                          <span>{opp.probability}%</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-emerald-500 rounded-full"
-                            style={{ width: `${opp.probability}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {opp.notes && <p className="text-xs text-slate-600 mt-3 bg-slate-50 p-2.5 rounded border">{opp.notes}</p>}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="text-slate-400 font-mono text-[11px]">
-                      {opp.expected_close_date ? `Close: ${opp.expected_close_date}` : 'No target date'}
-                    </span>
-                    {opp.stage !== 'closed_won' && opp.stage !== 'closed_lost' && (
-                      <button
-                        onClick={() => handleAdvanceOpportunity(opp.id)}
-                        className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition"
-                      >
-                        Advance Stage →
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <CompanyOpportunitiesTab
+          opportunities={opportunities}
+          totalOppValue={totalOppValue}
+          onAddOpportunity={() => setShowAddOpp(true)}
+          onAdvanceOpportunity={handleAdvanceOpportunity}
+        />
       )}
 
-      {/* Tab 5: Leads */}
+      {/* Tab: Leads */}
       {activeTab === 'leads' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Leads & Inbound Signals</h2>
-              <p className="text-xs text-slate-500">{leads.length} active lead signals registered for this account.</p>
-            </div>
-            <button
-              onClick={() => setShowAddLead(true)}
-              className="px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 shadow-sm transition"
-            >
-              + New Lead
-            </button>
-          </div>
-
-          {leads.length === 0 ? (
-            <div className="bg-white p-8 rounded-xl border border-slate-200 text-center space-y-3 shadow-sm">
-              <p className="text-sm text-slate-500">No leads currently tracked for this company.</p>
-              <button
-                onClick={() => setShowAddLead(true)}
-                className="px-3.5 py-2 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 shadow-sm"
-              >
-                + Create Lead
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {leads.map((lead) => (
-                <div
-                  key={lead.id}
-                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3 flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-bold text-slate-900 text-sm">{lead.title}</h3>
-                        {lead.intent && <div className="text-xs font-medium text-slate-600 mt-1">Intent: {lead.intent}</div>}
-                      </div>
-                      <span className="text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
-                        {lead.stage}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {lead.signal_strength && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                          Signal: {lead.signal_strength}
-                        </span>
-                      )}
-                      {lead.source && (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                          {lead.source}
-                        </span>
-                      )}
-                    </div>
-
-                    {(lead.description || lead.notes) && <p className="text-xs text-slate-600 mt-3 bg-slate-50 p-2.5 rounded border leading-relaxed">{lead.description || lead.notes}</p>}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="text-slate-400 font-mono text-[11px]">
-                      {new Date(lead.created_at).toLocaleDateString()}
-                    </span>
-                    {lead.stage !== 'converted' && lead.stage !== 'disqualified' && (
-                      <button
-                        onClick={() => handleConvertLead(lead.id, lead.title)}
-                        className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition"
-                      >
-                        Convert to Opp →
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <CompanyLeadsTab
+          leads={leads}
+          onAddLead={() => setShowAddLead(true)}
+          onConvertLead={handleConvertLead}
+        />
       )}
 
       {/* Tab: Client Engagements */}
       {activeTab === 'engagements' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span>📋</span> Client Engagements & Signed Contracts
-              </h2>
-              <p className="text-xs text-slate-500">Active and historical delivery work with {company.name}.</p>
-            </div>
-            <Link
-              href="/engagements"
-              className="px-4 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition inline-flex items-center gap-1.5 self-start sm:self-auto"
-            >
-              <span>+</span> Log New Engagement
-            </Link>
-          </div>
-
-          {engagements.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl border border-dashed border-slate-300 p-6 space-y-2">
-              <span className="text-3xl">📋</span>
-              <p className="text-sm font-semibold text-slate-700">No active client engagements logged for {company.name}.</p>
-              <p className="text-xs text-slate-400">Track signed contracts, daily/hourly rates, terms & conditions, and meeting notes.</p>
-              <Link
-                href="/engagements"
-                className="inline-block mt-3 px-4 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Create Engagement
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {engagements.map((eng: any) => (
-                <div
-                  key={eng.id}
-                  className="bg-white rounded-xl border border-slate-200 hover:border-blue-300 p-5 shadow-sm space-y-3 transition"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full ${
-                          eng.status === 'active'
-                            ? 'bg-emerald-500'
-                            : eng.status === 'in_delivery'
-                            ? 'bg-blue-500'
-                            : 'bg-slate-400'
-                        }`}
-                      />
-                      <Link
-                        href={`/engagements/${eng.id}`}
-                        className="text-base font-bold text-slate-900 hover:text-blue-600 transition"
-                      >
-                        {eng.title}
-                      </Link>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 capitalize">
-                        {eng.engagement_type?.replace('_', ' ') || 'Consultancy'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        {eng.rate_value ? (
-                          <span className="text-sm font-bold text-slate-900">
-                            {formatMoney(eng.rate_value, eng.currency)} <span className="text-xs font-medium text-slate-500">/{eng.rate_type}</span>
-                          </span>
-                        ) : (
-                          <span className="text-sm font-bold text-slate-900">
-                            {formatMoney(eng.total_value, eng.currency, { includeCode: true })}
-                          </span>
-                        )}
-                      </div>
-                      <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full font-medium capitalize ${
-                          eng.status === 'active'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : eng.status === 'in_delivery'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {eng.status?.replace('_', ' ')}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 pt-2 border-t border-slate-100">
-                    <div>
-                      <span className="text-slate-400">Contract Ref:</span>{' '}
-                      <span className="font-mono font-medium text-slate-800">
-                        {eng.contract_ref || 'Signed Agreement'}
-                      </span>
-                      {eng.signed_at && <span className="text-slate-400 ml-1">({eng.signed_at})</span>}
-                    </div>
-
-                    <div>
-                      <span className="text-slate-400">Timeline:</span>{' '}
-                      <span className="font-medium text-slate-800">
-                        {eng.start_date || 'Start'} → {eng.expected_end_date || 'Open-ended'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {eng.terms_and_conditions && (
-                    <div className="bg-slate-50 p-2.5 rounded-lg text-xs text-slate-700 border border-slate-100">
-                      <span className="font-semibold text-slate-800">T&C:</span> {eng.terms_and_conditions}
-                    </div>
-                  )}
-
-                  <div className="flex justify-end pt-1">
-                    <Link
-                      href={`/engagements/${eng.id}`}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-                    >
-                      Open Engagement Workspace →
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <CompanyEngagementsTab
+          company={company}
+          engagements={engagements}
+        />
       )}
 
-      {/* Tab 6: Profile & Metadata */}
+      {/* Tab: Profile & Metadata */}
       {activeTab === 'profile' && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b pb-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Company Intelligence & Profile</h2>
-              <p className="text-xs text-slate-500">Firmographic profile data, location, domain, and custom tags.</p>
-            </div>
-            <button
-              onClick={() => setShowEditCompany(true)}
-              className="px-3 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition"
-            >
-              ✎ Edit Information
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            <div className="space-y-4">
-              <div>
-                <dt className="text-xs text-slate-500 font-medium">Company Name</dt>
-                <dd className="text-slate-900 font-bold text-base mt-0.5">{company.name}</dd>
-              </div>
-
-              <div>
-                <dt className="text-xs text-slate-500 font-medium">Domain</dt>
-                <dd className="text-slate-900 font-mono text-xs mt-0.5">{company.domain || '—'}</dd>
-              </div>
-
-              <div>
-                <dt className="text-xs text-slate-500 font-medium">Industry</dt>
-                <dd className="text-slate-900 font-medium mt-0.5">{company.industry || '—'}</dd>
-              </div>
-
-              <div>
-                <dt className="text-xs text-slate-500 font-medium">Company Size</dt>
-                <dd className="text-slate-900 font-medium mt-0.5">{company.size_range || '—'}</dd>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <dt className="text-xs text-slate-500 font-medium">Headquarters Location</dt>
-                <dd className="text-slate-900 font-medium mt-0.5">
-                  {[company.city, company.country].filter(Boolean).join(', ') || '—'}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="text-xs text-slate-500 font-medium">LinkedIn URL</dt>
-                <dd className="text-slate-900 mt-0.5">
-                  {company.linkedin_url ? (
-                    <a
-                      href={company.linkedin_url.startsWith('http') ? company.linkedin_url : `https://${company.linkedin_url}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-xs"
-                    >
-                      {company.linkedin_url} ↗
-                    </a>
-                  ) : (
-                    '—'
-                  )}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="text-xs text-slate-500 font-medium">Record Timestamps</dt>
-                <dd className="text-slate-600 font-mono text-xs mt-0.5">
-                  Created: {new Date(company.created_at).toLocaleDateString()} · Updated:{' '}
-                  {new Date(company.updated_at).toLocaleDateString()}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="text-xs text-slate-500 font-medium">Internal Notes & Context</dt>
-                <dd className="text-slate-700 text-xs mt-0.5 bg-slate-50 p-2.5 rounded border">
-                  {company.attributes?.notes || 'No overview notes entered.'}
-                </dd>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CompanyProfileTab
+          company={company}
+          onEditCompany={() => setShowEditCompany(true)}
+        />
       )}
 
       {/* Tab: Account Opportunity & Risk Signals */}
       {activeTab === 'signals' && (
-        <div className="space-y-4">
-          {/* Controls Bar: Filters & Summary */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Filter:</span>
-              <button
-                onClick={() => setSignalSubFilter('active')}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-                  signalSubFilter === 'active'
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Active ({detectedSignals.filter((s) => s.status === 'active').length})
-              </button>
-              <button
-                onClick={() => setSignalSubFilter('all')}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-                  signalSubFilter === 'all'
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                All Signals ({detectedSignals.length})
-              </button>
-              <button
-                onClick={() => setSignalSubFilter('risk')}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-                  signalSubFilter === 'risk'
-                    ? 'bg-red-700 text-white shadow-sm'
-                    : 'bg-red-50 text-red-700 hover:bg-red-100'
-                }`}
-              >
-                Risks ({detectedSignals.filter((s) => s.signal?.category === 'risk' || s.signal_id?.includes('dormant') || s.signal_id?.includes('unanswered') || s.signal_id?.includes('competitor')).length})
-              </button>
-              <button
-                onClick={() => setSignalSubFilter('opportunity')}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-                  signalSubFilter === 'opportunity'
-                    ? 'bg-emerald-700 text-white shadow-sm'
-                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                }`}
-              >
-                Opportunities ({detectedSignals.filter((s) => s.signal?.category === 'opportunity' || s.signal_id?.includes('hiring') || s.signal_id?.includes('funding')).length})
-              </button>
-            </div>
-
-            <div className="text-xs text-slate-500 flex items-center gap-2">
-              <span>Automated Detection:</span>
-              <span className="font-semibold text-slate-700">Activity · Contract · Enrichment</span>
-            </div>
-          </div>
-
-          {/* Signals List */}
-          {(() => {
-            const filteredSignals = detectedSignals.filter((sig) => {
-              if (signalSubFilter === 'active') return sig.status === 'active';
-              if (signalSubFilter === 'risk') {
-                return sig.signal?.category === 'risk' || sig.signal_id?.includes('dormant') || sig.signal_id?.includes('unanswered') || sig.signal_id?.includes('competitor');
-              }
-              if (signalSubFilter === 'opportunity') {
-                return sig.signal?.category === 'opportunity' || sig.signal_id?.includes('hiring') || sig.signal_id?.includes('funding');
-              }
-              return true;
-            });
-
-            if (filteredSignals.length === 0) {
-              return (
-                <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-sm">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-2xl mx-auto mb-3">
-                    🛡️
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-900">No Detected Signals for this Filter</h3>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                    No active risks or commercial opportunities have triggered under the current criteria for {company.name}.
-                  </p>
-                </div>
-              );
-            }
-
-            return (
-              <div className="space-y-4">
-                {filteredSignals.map((sig) => {
-                  const severityStyles = {
-                    critical: 'bg-red-50 text-red-700 border-red-200',
-                    high: 'bg-orange-50 text-orange-700 border-orange-200',
-                    medium: 'bg-amber-50 text-amber-700 border-amber-200',
-                    low: 'bg-slate-50 text-slate-700 border-slate-200',
-                  }[sig.severity as 'critical' | 'high' | 'medium' | 'low'] || 'bg-slate-50 text-slate-700 border-slate-200';
-
-                  const categoryStyles = {
-                    risk: 'bg-red-100 text-red-800',
-                    opportunity: 'bg-emerald-100 text-emerald-800',
-                    hybrid: 'bg-orange-100 text-orange-800',
-                  }[sig.signal?.category as 'risk' | 'opportunity' | 'hybrid'] || 'bg-slate-100 text-slate-700';
-
-                  const evidence = sig.evidence || sig.metadata_payload?.evidence;
-
-                  return (
-                    <div
-                      key={sig.id}
-                      className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-slate-300 transition space-y-4"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-lg shrink-0">
-                            {sig.signal?.icon || (sig.severity === 'critical' ? '🚨' : '⚡')}
-                          </div>
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-sm font-bold text-slate-900">{sig.title}</h3>
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border uppercase tracking-wider ${severityStyles}`}>
-                                {sig.severity}
-                              </span>
-                              {sig.signal?.category && (
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize ${categoryStyles}`}>
-                                  {sig.signal.category}
-                                </span>
-                              )}
-                              <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-600 capitalize">
-                                {sig.status}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-600 mt-1">{sig.summary}</p>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-[11px] text-slate-400">
-                            Detected {new Date(sig.detected_at).toLocaleDateString()}
-                          </div>
-                          {sig.confidence_score !== null && sig.confidence_score !== undefined && (
-                            <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-                              Confidence: {Math.round(Number(sig.confidence_score) * 100)}%
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Supporting Context & Evidence */}
-                      {evidence && (
-                        <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-3 text-xs space-y-1.5">
-                          <div className="font-semibold text-slate-700 flex items-center gap-1.5">
-                            <span>🔍 Supporting Evidence:</span>
-                            <span className="font-normal text-slate-500">
-                              {evidence.excerpt || 'Context recorded from detection engine'}
-                            </span>
-                          </div>
-
-                          {evidence.key_metrics && Object.keys(evidence.key_metrics).length > 0 && (
-                            <div className="flex flex-wrap gap-3 pt-1 border-t border-slate-200/60 text-[11px] text-slate-600">
-                              {Object.entries(evidence.key_metrics).map(([k, v]) => (
-                                <div key={k} className="flex items-center gap-1">
-                                  <span className="font-medium text-slate-500 capitalize">{k.replace(/_/g, ' ')}:</span>
-                                  <span className="font-semibold text-slate-800">{String(v)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Conflicting Signal Warning */}
-                      {sig.has_conflict && (
-                        <div className="bg-purple-50 border border-purple-200 text-purple-900 rounded-lg p-2.5 text-xs flex items-center gap-2">
-                          <span className="text-base">⚠️</span>
-                          <div>
-                            <span className="font-bold">Conflicting Signal Detected: </span>
-                            <span>{sig.conflict_summary || 'Co-occurring signals have opposing commercial polarities.'}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Uncertainty Warning */}
-                      {sig.is_uncertain && (
-                        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-2.5 text-xs flex items-center gap-2">
-                          <span className="text-base">❓</span>
-                          <div>
-                            <span className="font-bold">Verification Needed: </span>
-                            <span>{sig.uncertainty_reasons?.join(', ') || 'Signal evidence requires manual confirmation.'}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Recommended Action Playbook */}
-                      {sig.signal?.recommended_action && (
-                        <div className="bg-blue-50/70 border border-blue-100 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div>
-                            <div className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
-                              <span>🎯 Playbook:</span>
-                              <span>{sig.signal.recommended_action.title}</span>
-                            </div>
-                            <p className="text-[11px] text-blue-900/80 mt-0.5">
-                              {sig.signal.recommended_action.description}
-                            </p>
-                          </div>
-
-                          <a
-                            href={`/signals/${sig.id}`}
-                            className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition whitespace-nowrap self-start sm:self-auto shadow-xs"
-                          >
-                            Open Triage →
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </div>
+        <CompanySignalsTab
+          company={company}
+          detectedSignals={detectedSignals}
+          signalSubFilter={signalSubFilter}
+          setSignalSubFilter={setSignalSubFilter}
+        />
       )}
 
-      {/* Edit Company Modal */}
-      {showEditCompany && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Edit Company Profile</h2>
-            <form onSubmit={handleUpdateCompany} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Company Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={companyForm.name}
-                  onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Domain</label>
-                  <input
-                    type="text"
-                    value={companyForm.domain}
-                    onChange={(e) => setCompanyForm({ ...companyForm, domain: e.target.value })}
-                    placeholder="example.com"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Industry</label>
-                  <input
-                    type="text"
-                    value={companyForm.industry}
-                    onChange={(e) => setCompanyForm({ ...companyForm, industry: e.target.value })}
-                    placeholder="e.g. Artificial Intelligence"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Size Range</label>
-                  <input
-                    type="text"
-                    value={companyForm.size_range}
-                    onChange={(e) => setCompanyForm({ ...companyForm, size_range: e.target.value })}
-                    placeholder="51-200"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">City</label>
-                  <input
-                    type="text"
-                    value={companyForm.city}
-                    onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })}
-                    placeholder="Berlin"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Country (ISO)</label>
-                  <input
-                    type="text"
-                    maxLength={2}
-                    value={companyForm.country}
-                    onChange={(e) => setCompanyForm({ ...companyForm, country: e.target.value.toUpperCase() })}
-                    placeholder="DE"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">LinkedIn URL</label>
-                <input
-                  type="text"
-                  value={companyForm.linkedin_url}
-                  onChange={(e) => setCompanyForm({ ...companyForm, linkedin_url: e.target.value })}
-                  placeholder="linkedin.com/company/acme"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Tags (comma-separated)</label>
-                <input
-                  type="text"
-                  value={companyForm.tags}
-                  onChange={(e) => setCompanyForm({ ...companyForm, tags: e.target.value })}
-                  placeholder="target_account, series_b, tech_modern"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Overview Notes</label>
-                <textarea
-                  rows={3}
-                  value={companyForm.notes}
-                  onChange={(e) => setCompanyForm({ ...companyForm, notes: e.target.value })}
-                  placeholder="Account strategy notes, tech stack insights, etc."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowEditCompany(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Link Contact Modal */}
-      {showLinkContact && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Link Contact to {company.name}</h2>
-            <form onSubmit={handleLinkContact} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Person *</label>
-                <select
-                  required
-                  value={linkForm.person_id}
-                  onChange={(e) => setLinkForm({ ...linkForm, person_id: e.target.value })}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white"
-                >
-                  <option value="">-- Choose Contact --</option>
-                  {allPersons.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.first_name} {p.last_name} ({p.primary_email || p.city || 'ID: ' + p.id.slice(0, 8)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Job Title / Role</label>
-                <input
-                  type="text"
-                  value={linkForm.title}
-                  onChange={(e) => setLinkForm({ ...linkForm, title: e.target.value })}
-                  placeholder="e.g. VP Engineering, Head of Data, CTO"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_current_emp"
-                  checked={linkForm.is_current}
-                  onChange={(e) => setLinkForm({ ...linkForm, is_current: e.target.checked })}
-                  className="rounded text-blue-600"
-                />
-                <label htmlFor="is_current_emp" className="text-xs font-semibold text-slate-800">
-                  Currently Employed at {company.name}
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={linkForm.started_at}
-                    onChange={(e) => setLinkForm({ ...linkForm, started_at: e.target.value })}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                  />
-                </div>
-                {!linkForm.is_current && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">End Date</label>
-                    <input
-                      type="date"
-                      value={linkForm.ended_at}
-                      onChange={(e) => setLinkForm({ ...linkForm, ended_at: e.target.value })}
-                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowLinkContact(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm"
-                >
-                  Link Contact
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Log Activity Modal */}
-      {showLogActivity && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Log Activity for {company.name}</h2>
-            <form onSubmit={handleLogActivity} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Activity Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={activityForm.title}
-                  onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
-                  placeholder="e.g. Architecture intro sync, contract proposal discussion"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Type</label>
-                  <select
-                    value={activityForm.type}
-                    onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white"
-                  >
-                    <option value="linkedin_message">LinkedIn Message</option>
-                    <option value="meeting">Meeting / Notion Sync</option>
-                    <option value="email">Email</option>
-                    <option value="call">Phone Call</option>
-                    <option value="whatsapp">WhatsApp</option>
-                    <option value="note">Internal Note</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Source</label>
-                  <select
-                    value={activityForm.source}
-                    onChange={(e) => setActivityForm({ ...activityForm, source: e.target.value })}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white"
-                  >
-                    <option value="linkedin">LinkedIn</option>
-                    <option value="notion">Notion</option>
-                    <option value="gmail">Gmail</option>
-                    <option value="whatsapp">WhatsApp</option>
-                    <option value="manual">Manual</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Associated Contact (Optional)
-                </label>
-                <select
-                  value={activityForm.person_id}
-                  onChange={(e) => setActivityForm({ ...activityForm, person_id: e.target.value })}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white"
-                >
-                  <option value="">-- No specific person (Company Wide) --</option>
-                  {employees.map((e) => (
-                    <option key={e.person_id} value={e.person_id}>
-                      {e.first_name} {e.last_name} ({e.title || 'Staff'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Summary / Notes</label>
-                <textarea
-                  rows={3}
-                  value={activityForm.summary}
-                  onChange={(e) => setActivityForm({ ...activityForm, summary: e.target.value })}
-                  placeholder="Key takeaways, discussed points, or next action items..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowLogActivity(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-sm"
-                >
-                  Log Activity
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Add Note Modal */}
-      {showAddNote && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Add Note for {company.name}</h2>
-            <form onSubmit={handleAddNote} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Title</label>
-                <input
-                  type="text"
-                  value={noteForm.title}
-                  onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
-                  placeholder="e.g. Account Strategy Note"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Note Content *</label>
-                <textarea
-                  required
-                  rows={4}
-                  value={noteForm.summary}
-                  onChange={(e) => setNoteForm({ ...noteForm, summary: e.target.value })}
-                  placeholder="Enter internal CRM note..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowAddNote(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-sm"
-                >
-                  Save Note
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Create Opportunity Modal */}
-      {showAddOpp && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Create Deal for {company.name}</h2>
-            <form onSubmit={handleAddOpportunity} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Deal Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={oppForm.title}
-                  onChange={(e) => setOppForm({ ...oppForm, title: e.target.value })}
-                  placeholder="e.g. Enterprise Data Platform Modernization"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Stage</label>
-                  <select
-                    value={oppForm.stage}
-                    onChange={(e) => setOppForm({ ...oppForm, stage: e.target.value })}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white"
-                  >
-                    {STAGES.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Value (EUR)</label>
-                  <input
-                    type="number"
-                    value={oppForm.value}
-                    onChange={(e) => setOppForm({ ...oppForm, value: e.target.value })}
-                    placeholder="75000"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Probability (%)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={oppForm.probability}
-                    onChange={(e) => setOppForm({ ...oppForm, probability: Number(e.target.value) })}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Close Date</label>
-                  <input
-                    type="date"
-                    value={oppForm.expected_close_date}
-                    onChange={(e) => setOppForm({ ...oppForm, expected_close_date: e.target.value })}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Notes</label>
-                <textarea
-                  rows={2}
-                  value={oppForm.notes}
-                  onChange={(e) => setOppForm({ ...oppForm, notes: e.target.value })}
-                  placeholder="Deal scope, deliverables, or procurement steps..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowAddOpp(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm"
-                >
-                  Create Deal
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Create Lead Modal */}
-      {showAddLead && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Create Lead for {company.name}</h2>
-            <form onSubmit={handleAddLead} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Contact *</label>
-                <select
-                  required
-                  value={leadForm.person_id}
-                  onChange={(e) => setLeadForm({ ...leadForm, person_id: e.target.value })}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white"
-                >
-                  <option value="">-- Choose Contact --</option>
-                  {employees.map((e) => (
-                    <option key={e.person_id} value={e.person_id}>
-                      {e.first_name} {e.last_name} ({e.title || 'Staff'})
-                    </option>
-                  ))}
-                  {allPersons.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.first_name} {p.last_name} (Directory Contact)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Lead Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={leadForm.title}
-                  onChange={(e) => setLeadForm({ ...leadForm, title: e.target.value })}
-                  placeholder="e.g. AI Governance advisory inquiry"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Source</label>
-                  <select
-                    value={leadForm.source}
-                    onChange={(e) => setLeadForm({ ...leadForm, source: e.target.value })}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white"
-                  >
-                    <option value="linkedin_message">LinkedIn Message</option>
-                    <option value="inbound">Inbound Website</option>
-                    <option value="referral">Referral</option>
-                    <option value="event">Event / Conference</option>
-                    <option value="manual">Manual</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Signal Strength</label>
-                  <select
-                    value={leadForm.signal_strength}
-                    onChange={(e) => setLeadForm({ ...leadForm, signal_strength: e.target.value })}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white"
-                  >
-                    <option value="strong">Strong (High Intent)</option>
-                    <option value="medium">Medium</option>
-                    <option value="weak">Weak</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Intent</label>
-                <input
-                  type="text"
-                  value={leadForm.intent}
-                  onChange={(e) => setLeadForm({ ...leadForm, intent: e.target.value })}
-                  placeholder="e.g. Consulting Inquiry, Architecture Audit"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Notes</label>
-                <textarea
-                  rows={2}
-                  value={leadForm.notes}
-                  onChange={(e) => setLeadForm({ ...leadForm, notes: e.target.value })}
-                  placeholder="Context, conversation history, or inquiry details..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowAddLead(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 shadow-sm"
-                >
-                  Create Lead
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Modals Dialogs */}
+      <CompanyModals
+        company={company}
+        employees={employees}
+        allPersons={allPersons}
+        showEditCompany={showEditCompany}
+        setShowEditCompany={setShowEditCompany}
+        showLinkContact={showLinkContact}
+        setShowLinkContact={setShowLinkContact}
+        showLogActivity={showLogActivity}
+        setShowLogActivity={setShowLogActivity}
+        showAddNote={showAddNote}
+        setShowAddNote={setShowAddNote}
+        showAddOpp={showAddOpp}
+        setShowAddOpp={setShowAddOpp}
+        showAddLead={showAddLead}
+        setShowAddLead={setShowAddLead}
+        companyForm={companyForm}
+        setCompanyForm={setCompanyForm}
+        handleUpdateCompany={handleUpdateCompany}
+        linkForm={linkForm}
+        setLinkForm={setLinkForm}
+        handleLinkContact={handleLinkContact}
+        activityForm={activityForm}
+        setActivityForm={setActivityForm}
+        handleLogActivity={handleLogActivity}
+        noteForm={noteForm}
+        setNoteForm={setNoteForm}
+        handleAddNote={handleAddNote}
+        oppForm={oppForm}
+        setOppForm={setOppForm}
+        handleAddOpportunity={handleAddOpportunity}
+        leadForm={leadForm}
+        setLeadForm={setLeadForm}
+        handleAddLead={handleAddLead}
+      />
     </div>
   );
 }
