@@ -3,6 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { Opportunity, OpportunityDetectedSignal } from '../types';
+import { SignalSubFilterBar } from '@/components/SignalSubFilterBar';
+import {
+  SignalSubFilter,
+  isSignalRisk,
+  isSignalOpportunity,
+  getPolarityStyle,
+} from '@/lib/signalPolarity';
+import { getPriorityBadge } from '@/lib/signalBadges';
 
 interface OpportunitySignalsTabProps {
   opportunity: Opportunity;
@@ -10,8 +18,8 @@ interface OpportunitySignalsTabProps {
   filteredSignals: OpportunityDetectedSignal[];
   loading: boolean;
   error: string | null;
-  signalSubFilter: 'all' | 'active' | 'risk' | 'opportunity';
-  setSignalSubFilter: (filter: 'all' | 'active' | 'risk' | 'opportunity') => void;
+  signalSubFilter: SignalSubFilter;
+  setSignalSubFilter: (filter: SignalSubFilter) => void;
   actionLoadingId: string | null;
   onUpdateStatus: (
     signalId: string,
@@ -33,130 +41,20 @@ export const OpportunitySignalsTab: React.FC<OpportunitySignalsTabProps> = ({
   onRefresh,
 }) => {
   const activeCount = signals.filter((s) => s.status === 'active').length;
-  const riskCount = signals.filter(
-    (s) =>
-      s.effective_polarity === 'risk' ||
-      s.signal?.category === 'risk' ||
-      s.signal_id?.includes('dormant') ||
-      s.signal_id?.includes('unanswered') ||
-      s.signal_id?.includes('competitor')
-  ).length;
-  const oppCount = signals.filter(
-    (s) =>
-      s.effective_polarity === 'opportunity' ||
-      s.signal?.category === 'opportunity' ||
-      s.signal_id?.includes('hiring') ||
-      s.signal_id?.includes('funding') ||
-      s.signal_id?.includes('expansion')
-  ).length;
-
-  const getPriorityBadge = (tier?: string) => {
-    switch (tier) {
-      case 'P0':
-        return 'bg-red-600 text-white border-red-700 shadow-xs';
-      case 'P1':
-        return 'bg-rose-500 text-white border-rose-600';
-      case 'P2':
-        return 'bg-amber-500 text-white border-amber-600';
-      case 'P3':
-        return 'bg-blue-500 text-white border-blue-600';
-      default:
-        return 'bg-slate-500 text-white border-slate-600';
-    }
-  };
-
-  const getPolarityStyle = (sig: OpportunityDetectedSignal) => {
-    const isRisk =
-      sig.effective_polarity === 'risk' ||
-      sig.signal?.category === 'risk' ||
-      sig.signal_id?.includes('dormant') ||
-      sig.signal_id?.includes('unanswered') ||
-      sig.signal_id?.includes('competitor');
-    if (isRisk) {
-      return {
-        badge: 'bg-rose-100 text-rose-800 border-rose-200',
-        cardBorder: 'border-l-4 border-l-rose-500',
-        label: 'Risk Signal',
-        icon: '⚠️',
-      };
-    }
-    const isOpp =
-      sig.effective_polarity === 'opportunity' ||
-      sig.signal?.category === 'opportunity' ||
-      sig.signal_id?.includes('hiring') ||
-      sig.signal_id?.includes('funding') ||
-      sig.signal_id?.includes('expansion');
-    if (isOpp) {
-      return {
-        badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-        cardBorder: 'border-l-4 border-l-emerald-500',
-        label: 'Growth Opportunity',
-        icon: '🚀',
-      };
-    }
-    return {
-      badge: 'bg-purple-100 text-purple-800 border-purple-200',
-      cardBorder: 'border-l-4 border-l-purple-500',
-      label: 'Hybrid Signal',
-      icon: '⚡',
-    };
-  };
+  const riskCount = signals.filter(isSignalRisk).length;
+  const oppCount = signals.filter(isSignalOpportunity).length;
 
   return (
     <div className="space-y-4" data-testid="opportunity-signals-tab">
-      {/* Subfilter Header */}
-      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Filter:</span>
-          <button
-            onClick={() => setSignalSubFilter('active')}
-            className={`text-xs px-2.5 py-1 rounded-lg font-medium transition ${
-              signalSubFilter === 'active'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            Active ({activeCount})
-          </button>
-          <button
-            onClick={() => setSignalSubFilter('all')}
-            className={`text-xs px-2.5 py-1 rounded-lg font-medium transition ${
-              signalSubFilter === 'all'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            All ({signals.length})
-          </button>
-          <button
-            onClick={() => setSignalSubFilter('risk')}
-            className={`text-xs px-2.5 py-1 rounded-lg font-medium transition flex items-center gap-1 ${
-              signalSubFilter === 'risk'
-                ? 'bg-rose-700 text-white shadow-xs'
-                : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-            }`}
-          >
-            <span>⚠️</span> Risks ({riskCount})
-          </button>
-          <button
-            onClick={() => setSignalSubFilter('opportunity')}
-            className={`text-xs px-2.5 py-1 rounded-lg font-medium transition flex items-center gap-1 ${
-              signalSubFilter === 'opportunity'
-                ? 'bg-emerald-700 text-white shadow-xs'
-                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-            }`}
-          >
-            <span>🚀</span> Opportunities ({oppCount})
-          </button>
-        </div>
-
-        <button
-          onClick={onRefresh}
-          className="text-xs text-slate-500 hover:text-indigo-600 flex items-center gap-1 font-medium transition"
-        >
-          🔄 Refresh Signals
-        </button>
-      </div>
+      <SignalSubFilterBar
+        totalCount={signals.length}
+        activeCount={activeCount}
+        riskCount={riskCount}
+        oppCount={oppCount}
+        current={signalSubFilter}
+        onChange={setSignalSubFilter}
+        onRefresh={onRefresh}
+      />
 
       {loading && (
         <div className="py-12 flex justify-center items-center text-slate-400 gap-2">
@@ -178,7 +76,8 @@ export const OpportunitySignalsTab: React.FC<OpportunitySignalsTabProps> = ({
           </div>
           <h3 className="text-sm font-bold text-slate-900">No Detected Signals</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-            No active risks or expansion signals matching this filter for deal &quot;{opportunity.title}&quot;.
+            No active risks or expansion signals matching this filter for deal &quot;
+            {opportunity.title}&quot;.
           </p>
         </div>
       )}
@@ -188,6 +87,7 @@ export const OpportunitySignalsTab: React.FC<OpportunitySignalsTabProps> = ({
         <div className="space-y-3">
           {filteredSignals.map((sig) => {
             const pol = getPolarityStyle(sig);
+            const priorityBadge = getPriorityBadge(sig.priority_tier, sig.effective_polarity);
             const isProcessing = actionLoadingId === sig.id;
 
             return (
@@ -208,9 +108,7 @@ export const OpportunitySignalsTab: React.FC<OpportunitySignalsTabProps> = ({
 
                     {sig.priority_tier && (
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider border ${getPriorityBadge(
-                          sig.priority_tier
-                        )}`}
+                        className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider border ${priorityBadge.className}`}
                       >
                         {sig.priority_tier}
                       </span>
@@ -267,10 +165,14 @@ export const OpportunitySignalsTab: React.FC<OpportunitySignalsTabProps> = ({
                   sig.signal?.business_interpretation) && (
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-200/80 space-y-2 text-xs">
                     <div className="font-semibold text-slate-700 flex items-center gap-1.5">
-                      <span>💡</span> Supporting Context & Why It Matters Now:
+                      <span>💡</span> Supporting Context &amp; Why It Matters Now:
                     </div>
                     <p className="text-slate-600 italic">
-                      &quot;{sig.why_it_matters_now || sig.evidence?.why_it_matters_now || sig.signal?.business_interpretation}&quot;
+                      &quot;
+                      {sig.why_it_matters_now ||
+                        sig.evidence?.why_it_matters_now ||
+                        sig.signal?.business_interpretation}
+                      &quot;
                     </p>
 
                     {sig.evidence?.excerpt && (
@@ -289,12 +191,14 @@ export const OpportunitySignalsTab: React.FC<OpportunitySignalsTabProps> = ({
                       )}
                       {sig.evidence?.verification_status && (
                         <span className="bg-slate-200/70 px-1.5 py-0.5 rounded">
-                          Status: <strong className="capitalize">{sig.evidence.verification_status}</strong>
+                          Status:{' '}
+                          <strong className="capitalize">{sig.evidence.verification_status}</strong>
                         </span>
                       )}
                       {sig.confidence_tier && (
                         <span className="bg-slate-200/70 px-1.5 py-0.5 rounded">
-                          Confidence: <strong className="capitalize">{sig.confidence_tier}</strong>
+                          Confidence:{' '}
+                          <strong className="capitalize">{sig.confidence_tier}</strong>
                         </span>
                       )}
                       {sig.detected_at && (
@@ -314,7 +218,9 @@ export const OpportunitySignalsTab: React.FC<OpportunitySignalsTabProps> = ({
                       {sig.connected_persons[0].name || sig.connected_persons[0].primary_email}
                     </span>
                     {sig.connected_persons[0].role && (
-                      <span className="text-slate-400 text-[11px]">({sig.connected_persons[0].role})</span>
+                      <span className="text-slate-400 text-[11px]">
+                        ({sig.connected_persons[0].role})
+                      </span>
                     )}
                   </div>
                 )}

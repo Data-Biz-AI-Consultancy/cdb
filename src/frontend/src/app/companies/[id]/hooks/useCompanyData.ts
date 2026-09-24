@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch, ApiResponse } from '@/lib/api';
+import { useSuccessMessage } from '@/lib/useSuccessMessage';
 import {
   AccountAIBriefResponse,
   NextBestActionItem,
@@ -19,17 +20,14 @@ export function useCompanyData(id: string) {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const { successMessage, showSuccess, setSuccessMessage } = useSuccessMessage();
 
   // AI Account Brief & Next Best Actions
   const [aiBrief, setAiBrief] = useState<AccountAIBriefResponse | null>(null);
   const [nextBestActions, setNextBestActions] = useState<NextBestActionItem[]>([]);
   const [regeneratingBrief, setRegeneratingBrief] = useState(false);
 
-  const showSuccess = useCallback((msg: string) => {
-    setSuccessMessage(msg);
-    setTimeout(() => setSuccessMessage(null), 4000);
-  }, []);
 
   const loadAllData = useCallback(async (targetId: string = id) => {
     if (!targetId) return;

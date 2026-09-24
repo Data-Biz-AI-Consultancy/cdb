@@ -10,6 +10,8 @@ import {
   CreateUserData,
   UpdateUserData,
 } from '@/lib/api';
+import { useSuccessMessage } from '@/lib/useSuccessMessage';
+import { SuccessToast } from '@/components/SuccessToast';
 import { UsersHeader } from './components/UsersHeader';
 import { UsersMetricsCards } from './components/UsersMetricsCards';
 import { UsersFilterBar } from './components/UsersFilterBar';
@@ -21,7 +23,7 @@ export default function UsersManagementPage() {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { successMessage, showSuccess: showNotification, setSuccessMessage } = useSuccessMessage();
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,10 +69,7 @@ export default function UsersManagementPage() {
     loadUsers();
   }, []);
 
-  const showNotification = (msg: string) => {
-    setSuccessMessage(msg);
-    setTimeout(() => setSuccessMessage(null), 4000);
-  };
+
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,17 +185,7 @@ export default function UsersManagementPage() {
         onOpenAddModal={() => setIsAddModalOpen(true)}
       />
 
-      {successMessage && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-medium animate-fade-in flex items-center justify-between">
-          <span>✓ {successMessage}</span>
-          <button
-            onClick={() => setSuccessMessage(null)}
-            className="text-emerald-600 hover:text-emerald-900 cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      <SuccessToast message={successMessage} onDismiss={() => setSuccessMessage(null)} />
 
       {error && (
         <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium animate-fade-in flex items-center justify-between">

@@ -1,11 +1,21 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
+import { SignalSubFilterBar } from '@/components/SignalSubFilterBar';
+import {
+  SignalSubFilter,
+  applySignalSubFilter,
+  isSignalRisk,
+  isSignalOpportunity,
+} from '@/lib/signalPolarity';
+import { getSeverityBadge, getCategoryBadge } from '@/lib/signalBadges';
 
 interface CompanySignalsTabProps {
   company: any;
   detectedSignals: any[];
-  signalSubFilter: 'all' | 'active' | 'risk' | 'opportunity';
-  setSignalSubFilter: (filter: 'all' | 'active' | 'risk' | 'opportunity') => void;
+  signalSubFilter: SignalSubFilter;
+  setSignalSubFilter: (filter: SignalSubFilter) => void;
 }
 
 export const CompanySignalsTab: React.FC<CompanySignalsTabProps> = ({
@@ -14,70 +24,22 @@ export const CompanySignalsTab: React.FC<CompanySignalsTabProps> = ({
   signalSubFilter,
   setSignalSubFilter,
 }) => {
-  const filteredSignals = detectedSignals.filter((sig) => {
-    if (signalSubFilter === 'active') return sig.status === 'active';
-    if (signalSubFilter === 'risk') {
-      return sig.signal?.category === 'risk' || sig.signal_id?.includes('dormant') || sig.signal_id?.includes('unanswered') || sig.signal_id?.includes('competitor');
-    }
-    if (signalSubFilter === 'opportunity') {
-      return sig.signal?.category === 'opportunity' || sig.signal_id?.includes('hiring') || sig.signal_id?.includes('funding');
-    }
-    return true;
-  });
+  const filteredSignals = applySignalSubFilter(detectedSignals, signalSubFilter);
+
+  const activeCount = detectedSignals.filter((s) => s.status === 'active').length;
+  const riskCount = detectedSignals.filter(isSignalRisk).length;
+  const oppCount = detectedSignals.filter(isSignalOpportunity).length;
 
   return (
     <div className="space-y-4">
-      {/* Controls Bar: Filters & Summary */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Filter:</span>
-          <button
-            onClick={() => setSignalSubFilter('active')}
-            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-              signalSubFilter === 'active'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Active ({detectedSignals.filter((s) => s.status === 'active').length})
-          </button>
-          <button
-            onClick={() => setSignalSubFilter('all')}
-            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-              signalSubFilter === 'all'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            All Signals ({detectedSignals.length})
-          </button>
-          <button
-            onClick={() => setSignalSubFilter('risk')}
-            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-              signalSubFilter === 'risk'
-                ? 'bg-red-700 text-white shadow-sm'
-                : 'bg-red-50 text-red-700 hover:bg-red-100'
-            }`}
-          >
-            Risks ({detectedSignals.filter((s) => s.signal?.category === 'risk' || s.signal_id?.includes('dormant') || s.signal_id?.includes('unanswered') || s.signal_id?.includes('competitor')).length})
-          </button>
-          <button
-            onClick={() => setSignalSubFilter('opportunity')}
-            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
-              signalSubFilter === 'opportunity'
-                ? 'bg-emerald-700 text-white shadow-sm'
-                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-            }`}
-          >
-            Opportunities ({detectedSignals.filter((s) => s.signal?.category === 'opportunity' || s.signal_id?.includes('hiring') || s.signal_id?.includes('funding')).length})
-          </button>
-        </div>
-
-        <div className="text-xs text-slate-500 flex items-center gap-2">
-          <span>Automated Detection:</span>
-          <span className="font-semibold text-slate-700">Activity · Contract · Enrichment</span>
-        </div>
-      </div>
+      <SignalSubFilterBar
+        totalCount={detectedSignals.length}
+        activeCount={activeCount}
+        riskCount={riskCount}
+        oppCount={oppCount}
+        current={signalSubFilter}
+        onChange={setSignalSubFilter}
+      />
 
       {/* Signals List */}
       {filteredSignals.length === 0 ? (
@@ -87,25 +49,15 @@ export const CompanySignalsTab: React.FC<CompanySignalsTabProps> = ({
           </div>
           <h3 className="text-sm font-bold text-slate-900">No Detected Signals for this Filter</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-            No active risks or commercial opportunities have triggered under the current criteria for {company.name}.
+            No active risks or commercial opportunities have triggered under the current criteria for{' '}
+            {company.name}.
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           {filteredSignals.map((sig) => {
-            const severityStyles = {
-              critical: 'bg-red-50 text-red-700 border-red-200',
-              high: 'bg-orange-50 text-orange-700 border-orange-200',
-              medium: 'bg-amber-50 text-amber-700 border-amber-200',
-              low: 'bg-slate-50 text-slate-700 border-slate-200',
-            }[sig.severity as 'critical' | 'high' | 'medium' | 'low'] || 'bg-slate-50 text-slate-700 border-slate-200';
-
-            const categoryStyles = {
-              risk: 'bg-red-100 text-red-800',
-              opportunity: 'bg-emerald-100 text-emerald-800',
-              hybrid: 'bg-orange-100 text-orange-800',
-            }[sig.signal?.category as 'risk' | 'opportunity' | 'hybrid'] || 'bg-slate-100 text-slate-700';
-
+            const severityStyles = getSeverityBadge(sig.severity);
+            const categoryStyles = getCategoryBadge(sig.signal?.category);
             const evidence = sig.evidence || sig.metadata_payload?.evidence;
 
             return (
@@ -121,11 +73,15 @@ export const CompanySignalsTab: React.FC<CompanySignalsTabProps> = ({
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-sm font-bold text-slate-900">{sig.title}</h3>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border uppercase tracking-wider ${severityStyles}`}>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border uppercase tracking-wider ${severityStyles}`}
+                        >
                           {sig.severity}
                         </span>
                         {sig.signal?.category && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize ${categoryStyles}`}>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize ${categoryStyles}`}
+                          >
                             {sig.signal.category}
                           </span>
                         )}
@@ -163,7 +119,9 @@ export const CompanySignalsTab: React.FC<CompanySignalsTabProps> = ({
                       <div className="flex flex-wrap gap-3 pt-1 border-t border-slate-200/60 text-[11px] text-slate-600">
                         {Object.entries(evidence.key_metrics).map(([k, v]) => (
                           <div key={k} className="flex items-center gap-1">
-                            <span className="font-medium text-slate-500 capitalize">{k.replace(/_/g, ' ')}:</span>
+                            <span className="font-medium text-slate-500 capitalize">
+                              {k.replace(/_/g, ' ')}:
+                            </span>
                             <span className="font-semibold text-slate-800">{String(v)}</span>
                           </div>
                         ))}
@@ -178,7 +136,10 @@ export const CompanySignalsTab: React.FC<CompanySignalsTabProps> = ({
                     <span className="text-base">⚠️</span>
                     <div>
                       <span className="font-bold">Conflicting Signal Detected: </span>
-                      <span>{sig.conflict_summary || 'Co-occurring signals have opposing commercial polarities.'}</span>
+                      <span>
+                        {sig.conflict_summary ||
+                          'Co-occurring signals have opposing commercial polarities.'}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -189,7 +150,10 @@ export const CompanySignalsTab: React.FC<CompanySignalsTabProps> = ({
                     <span className="text-base">❓</span>
                     <div>
                       <span className="font-bold">Verification Needed: </span>
-                      <span>{sig.uncertainty_reasons?.join(', ') || 'Signal evidence requires manual confirmation.'}</span>
+                      <span>
+                        {sig.uncertainty_reasons?.join(', ') ||
+                          'Signal evidence requires manual confirmation.'}
+                      </span>
                     </div>
                   </div>
                 )}
