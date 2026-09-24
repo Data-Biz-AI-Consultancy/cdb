@@ -1,6 +1,8 @@
 import { AccountAIBriefResponse, NextBestActionItem } from '@/app/signals/types';
 export { PIPELINE_STAGES as STAGES, STAGE_OPTIONS } from '@/lib/pipelineStages';
 export type { StageDefinition } from '@/lib/pipelineStages';
+export { ACTIVITY_TYPE_CONFIG as ACTIVITY_TYPE_META, getActivityTypeConfig } from '@/lib/activityTypes';
+export type { ActivityTypeConfig } from '@/lib/activityTypes';
 
 // Segment definitions & visual mapping
 export const SEGMENT_META: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -49,14 +51,7 @@ export const TEMPERATURE_META: Record<string, { label: string; icon: string; bg:
   dormant: { label: 'Dormant', icon: '⏳', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-600', order: 4 },
 };
 
-export const ACTIVITY_TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
-  linkedin_message: { label: 'LinkedIn Message', icon: '💼', color: 'bg-sky-100 text-sky-800 border-sky-200' },
-  meeting: { label: 'Meeting / Notion Notes', icon: '📝', color: 'bg-violet-100 text-violet-800 border-violet-200' },
-  email: { label: 'Email', icon: '✉️', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  call: { label: 'Phone Call', icon: '📞', color: 'bg-orange-100 text-orange-800 border-orange-200' },
-  whatsapp: { label: 'WhatsApp', icon: '💬', color: 'bg-green-100 text-green-800 border-green-200' },
-  note: { label: 'Internal Note', icon: '📌', color: 'bg-slate-100 text-slate-800 border-slate-200' },
-};
+// ACTIVITY_TYPE_META is now re-exported from '@/lib/activityTypes' (as ACTIVITY_TYPE_CONFIG alias).
 
 // STAGES is now exported from '@/lib/pipelineStages' via the re-export above.
 

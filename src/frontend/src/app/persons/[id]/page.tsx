@@ -3,6 +3,10 @@
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
+import { useSuccessMessage } from '@/lib/useSuccessMessage';
+import { ACTIVITY_TYPE_CONFIG } from '@/lib/activityTypes';
+import { STAGE_OPTIONS as STAGES } from '@/lib/pipelineStages';
+import { SuccessToast } from '@/components/SuccessToast';
 
 // Human-friendly mapping for segments
 const SEGMENT_META: Record<string, { label: string; bg: string; text: string; border: string; desc: string }> = {
@@ -57,23 +61,9 @@ const TEMPERATURE_META: Record<string, { label: string; icon: string; bg: string
   cold: { label: 'Cold', icon: '❄️', bg: 'bg-blue-100 border-blue-200', text: 'text-blue-700' },
 };
 
-const ACTIVITY_TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
-  linkedin_message: { label: 'LinkedIn Message', icon: '💼', color: 'bg-sky-100 text-sky-800 border-sky-200' },
-  meeting: { label: 'Meeting / Notion Notes', icon: '📝', color: 'bg-violet-100 text-violet-800 border-violet-200' },
-  email: { label: 'Email', icon: '✉️', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  call: { label: 'Phone Call', icon: '📞', color: 'bg-orange-100 text-orange-800 border-orange-200' },
-  whatsapp: { label: 'WhatsApp', icon: '💬', color: 'bg-green-100 text-green-800 border-green-200' },
-  note: { label: 'Note', icon: '📌', color: 'bg-slate-100 text-slate-800 border-slate-200' },
-};
+// ACTIVITY_TYPE_CONFIG imported from '@/lib/activityTypes'
+// STAGE_OPTIONS imported from '@/lib/pipelineStages'
 
-const STAGES = [
-  { id: 'prospect', label: 'Prospect' },
-  { id: 'qualified', label: 'Qualified' },
-  { id: 'proposal', label: 'Proposal' },
-  { id: 'negotiation', label: 'Negotiation' },
-  { id: 'closed_won', label: 'Closed Won' },
-  { id: 'closed_lost', label: 'Closed Lost' },
-];
 
 export default function PersonDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [id, setId] = useState<string>('');
@@ -780,7 +770,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
           ) : (
             <div className="relative border-l-2 border-slate-200 ml-4 sm:ml-6 space-y-6 py-2">
               {filteredActivities.map((act) => {
-                const meta = ACTIVITY_TYPE_META[act.type] || {
+                const meta = ACTIVITY_TYPE_CONFIG[act.type] || {
                   label: act.type,
                   icon: '📌',
                   color: 'bg-slate-100 text-slate-800 border-slate-200',

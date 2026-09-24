@@ -3,125 +3,18 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
+import { useSuccessMessage } from '@/lib/useSuccessMessage';
+import { SuccessToast } from '@/components/SuccessToast';
+import { TablePagination } from '@/components/TablePagination';
+import { Spinner } from '@/components/Spinner';
+import { ACTIVITY_TYPE_CONFIG, ACTIVITY_SOURCE_BADGES, Activity, ActivityStats } from '@/lib/activityTypes';
+import { PersonOption, CompanyOption } from '@/lib/entityTypes';
 import SearchableCombobox, { ComboboxOption } from '@/components/SearchableCombobox';
 import ActivityTimelineChart, { ActivityTimelineBucket } from '@/components/ActivityTimelineChart';
 
-export interface ActivityPersonSummary {
-  id: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  primary_email?: string | null;
-  avatar_url?: string | null;
-  linkedin_url?: string | null;
-}
+// PersonOption and CompanyOption imported from '@/lib/entityTypes'
+// ACTIVITY_TYPE_CONFIG and ACTIVITY_SOURCE_BADGES imported from '@/lib/activityTypes'
 
-export interface ActivityCompanySummary {
-  id: string;
-  name: string;
-  domain?: string | null;
-  avatar_url?: string | null;
-  industry?: string | null;
-}
-
-export interface Activity {
-  id: string;
-  person_id?: string | null;
-  company_id?: string | null;
-  person?: ActivityPersonSummary | null;
-  company?: ActivityCompanySummary | null;
-  type: 'meeting' | 'email' | 'linkedin_message' | 'whatsapp' | 'call' | 'note' | string;
-  source: 'notion' | 'gmail' | 'linkedin' | 'whatsapp' | 'manual' | string;
-  source_id?: string | null;
-  occurred_at: string;
-  title?: string | null;
-  summary?: string | null;
-  raw_content?: string | null;
-  attributes?: Record<string, any>;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ActivityStats {
-  total: number;
-  by_type: Record<string, number>;
-  by_source: Record<string, number>;
-  timeline?: ActivityTimelineBucket[];
-}
-
-interface PersonOption {
-  id: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  primary_email?: string | null;
-}
-
-interface CompanyOption {
-  id: string;
-  name: string;
-  domain?: string | null;
-}
-
-const TYPE_CONFIG: Record<
-  string,
-  { label: string; icon: string; bg: string; border: string; text: string; badge: string }
-> = {
-  meeting: {
-    label: 'Meeting',
-    icon: '🤝',
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    text: 'text-emerald-800',
-    badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  },
-  linkedin_message: {
-    label: 'LinkedIn',
-    icon: '🔗',
-    bg: 'bg-indigo-50',
-    border: 'border-indigo-200',
-    text: 'text-indigo-800',
-    badge: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  },
-  email: {
-    label: 'Email',
-    icon: '✉️',
-    bg: 'bg-violet-50',
-    border: 'border-violet-200',
-    text: 'text-violet-800',
-    badge: 'bg-violet-100 text-violet-800 border-violet-200',
-  },
-  call: {
-    label: 'Phone Call',
-    icon: '📞',
-    bg: 'bg-sky-50',
-    border: 'border-sky-200',
-    text: 'text-sky-800',
-    badge: 'bg-sky-100 text-sky-800 border-sky-200',
-  },
-  note: {
-    label: 'Note',
-    icon: '📝',
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    text: 'text-amber-800',
-    badge: 'bg-amber-100 text-amber-800 border-amber-200',
-  },
-  whatsapp: {
-    label: 'WhatsApp',
-    icon: '💬',
-    bg: 'bg-teal-50',
-    border: 'border-teal-200',
-    text: 'text-teal-800',
-    badge: 'bg-teal-100 text-teal-800 border-teal-200',
-  },
-};
-
-const SOURCE_BADGES: Record<string, { label: string; bg: string }> = {
-  linkedin: { label: 'LinkedIn', bg: 'bg-sky-100 text-sky-800' },
-  notion: { label: 'Notion', bg: 'bg-stone-100 text-stone-800' },
-  gmail: { label: 'Gmail', bg: 'bg-red-100 text-red-800' },
-  whatsapp: { label: 'WhatsApp', bg: 'bg-emerald-100 text-emerald-800' },
-  manual: { label: 'Manual', bg: 'bg-slate-100 text-slate-700' },
-};
 
 function formatRelativeTime(dateStr: string): string {
   try {
@@ -610,7 +503,7 @@ export default function ActivitiesPage() {
             >
               All Types
             </button>
-            {Object.entries(TYPE_CONFIG).map(([typeKey, cfg]) => (
+            {Object.entries(ACTIVITY_TYPE_CONFIG).map(([typeKey, cfg]) => (
               <button
                 key={typeKey}
                 onClick={() => {
@@ -708,7 +601,7 @@ export default function ActivitiesPage() {
               {/* Items in Date Bucket */}
               <div className="relative border-l-2 border-slate-200 ml-4 pl-6 space-y-4">
                 {group.items.map((act) => {
-                  const cfg = TYPE_CONFIG[act.type] || {
+                  const cfg = ACTIVITY_TYPE_CONFIG[act.type] || {
                     label: act.type,
                     icon: '📌',
                     bg: 'bg-slate-50',
@@ -716,7 +609,7 @@ export default function ActivitiesPage() {
                     text: 'text-slate-800',
                     badge: 'bg-slate-100 text-slate-800 border-slate-200',
                   };
-                  const sourceCfg = SOURCE_BADGES[act.source] || { label: act.source, bg: 'bg-slate-100 text-slate-700' };
+                  const sourceCfg = ACTIVITY_SOURCE_BADGES[act.source] || { label: act.source, bg: 'bg-slate-100 text-slate-700' };
                   const isExpanded = !!expandedContentIds[act.id];
                   const hasRawContent = Boolean(act.raw_content && act.raw_content.trim() !== act.summary?.trim());
 
@@ -846,58 +739,20 @@ export default function ActivitiesPage() {
             </div>
           ))}
 
-          {/* Pagination Controls Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200 text-sm">
-            <div className="text-xs text-slate-500" data-testid="pagination-info">
-              Showing{' '}
-              <strong className="text-slate-800">
-                {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}
-              </strong>{' '}
-              to{' '}
-              <strong className="text-slate-800">{Math.min(page * pageSize, totalCount)}</strong>{' '}
-              of <strong className="text-slate-800">{totalCount}</strong> activities
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <span>Per page:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setPage(1);
-                  }}
-                  className="px-2 py-1 border border-slate-200 rounded bg-white text-slate-700 font-medium text-xs focus:outline-none"
-                >
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  data-testid="pagination-prev"
-                  className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition"
-                >
-                  ← Previous
-                </button>
-                <span className="px-2 text-xs font-medium text-slate-600">
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  data-testid="pagination-next"
-                  className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition"
-                >
-                  Next →
-                </button>
-              </div>
-            </div>
-          </div>
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            total={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+            entityLabel="activity"
+            showFirstLast={false}
+            pageSizeOptions={[20, 50, 100]}
+          />
         </div>
       )}
 
@@ -925,7 +780,7 @@ export default function ActivitiesPage() {
                   Activity Type *
                 </label>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {Object.entries(TYPE_CONFIG).map(([typeKey, cfg]) => (
+                  {Object.entries(ACTIVITY_TYPE_CONFIG).map(([typeKey, cfg]) => (
                     <button
                       key={typeKey}
                       type="button"
@@ -1162,11 +1017,11 @@ export default function ActivitiesPage() {
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">
-                    {TYPE_CONFIG[selectedActivity.type]?.icon || '📌'}
+                    {ACTIVITY_TYPE_CONFIG[selectedActivity.type]?.icon || '📌'}
                   </span>
                   <div>
                     <span className="text-xs uppercase font-bold text-indigo-600 tracking-wider">
-                      {TYPE_CONFIG[selectedActivity.type]?.label || selectedActivity.type}
+                      {ACTIVITY_TYPE_CONFIG[selectedActivity.type]?.label || selectedActivity.type}
                     </span>
                     <h3 className="text-lg font-bold text-slate-900 leading-snug">
                       {selectedActivity.title || 'Untitled Activity'}

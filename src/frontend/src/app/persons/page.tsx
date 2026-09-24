@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
+import { useSuccessMessage } from '@/lib/useSuccessMessage';
+import { SuccessToast } from '@/components/SuccessToast';
+import { TablePagination } from '@/components/TablePagination';
+import { Spinner } from '@/components/Spinner';
 
 export interface PersonItem {
   id: string;
@@ -29,7 +33,7 @@ export default function PersonsPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { successMessage, showSuccess, setSuccessMessage } = useSuccessMessage();
 
   // Bulk selection & edit state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -124,8 +128,7 @@ export default function PersonsPage() {
         city: '',
         country: '',
       });
-      setSuccessMessage('Person successfully created.');
-      setTimeout(() => setSuccessMessage(null), 4000);
+      showSuccess('Person successfully created.');
       loadPersons();
     } catch (err: any) {
       alert('Error creating person: ' + err.message);
@@ -137,8 +140,7 @@ export default function PersonsPage() {
     try {
       await apiFetch(`/api/v1/persons/${id}`, { method: 'DELETE' });
       setSelectedIds((prev) => prev.filter((item) => item !== id));
-      setSuccessMessage(`Person "${name}" deleted.`);
-      setTimeout(() => setSuccessMessage(null), 4000);
+      showSuccess(`Person "${name}" deleted.`);
       loadPersons();
     } catch (err: any) {
       alert('Error deleting person: ' + err.message);
@@ -273,17 +275,7 @@ export default function PersonsPage() {
       </div>
 
       {/* Notifications */}
-      {successMessage && (
-        <div className="p-3.5 bg-emerald-50 text-emerald-800 text-sm rounded-lg border border-emerald-200 flex items-center justify-between shadow-sm animate-fade-in">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">✓</span>
-            <span>{successMessage}</span>
-          </div>
-          <button onClick={() => setSuccessMessage(null)} className="text-emerald-600 hover:text-emerald-900 text-xs">
-            Dismiss
-          </button>
-        </div>
-      )}
+      <SuccessToast message={successMessage} onDismiss={() => setSuccessMessage(null)} />
 
       {error && (
         <div className="p-3.5 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200 flex items-center justify-between shadow-sm">
@@ -773,52 +765,16 @@ export default function PersonsPage() {
           </table>
         </div>
 
-        {/* Enhanced Pagination Controls */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm text-slate-600">
-          <div>
-            Showing <span className="font-semibold text-slate-800">{startRecord}</span> to{' '}
-            <span className="font-semibold text-slate-800">{endRecord}</span> of{' '}
-            <span className="font-semibold text-slate-800">{total}</span> records
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              disabled={page <= 1 || loading}
-              onClick={() => setPage(1)}
-              className="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium"
-              title="First Page"
-            >
-              «
-            </button>
-            <button
-              disabled={page <= 1 || loading}
-              onClick={() => setPage(page - 1)}
-              className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium"
-            >
-              Previous
-            </button>
-
-            <span className="px-3 py-1 bg-white border border-slate-300 rounded text-xs font-semibold text-slate-800">
-              Page {page} of {totalPages}
-            </span>
-
-            <button
-              disabled={page >= totalPages || loading}
-              onClick={() => setPage(page + 1)}
-              className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium"
-            >
-              Next
-            </button>
-            <button
-              disabled={page >= totalPages || loading}
-              onClick={() => setPage(totalPages)}
-              className="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium"
-              title="Last Page"
-            >
-              »
-            </button>
-          </div>
-        </div>
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          pageSize={pageSize}
+          loading={loading}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          entityLabel="person"
+        />
       </div>
     </div>
   );

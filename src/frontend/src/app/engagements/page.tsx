@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiResponse } from '@/lib/api';
 import { COMMON_CURRENCIES, formatMoney, getCurrencySymbol } from '@/lib/currency';
+import { PersonOption, CompanyOption } from '@/lib/entityTypes';
 import SearchableCombobox, { ComboboxOption } from '@/components/SearchableCombobox';
 
 export interface EngagementPersonItem {
@@ -77,17 +78,7 @@ export interface EngagementItem {
   } | null;
 }
 
-interface CompanyOption {
-  id: string;
-  name: string;
-}
-
-interface PersonOption {
-  id: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  primary_email?: string | null;
-}
+// PersonOption and CompanyOption imported from '@/lib/entityTypes'
 
 export default function EngagementsPage() {
   const [engagements, setEngagements] = useState<EngagementItem[]>([]);
