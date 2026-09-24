@@ -8,6 +8,7 @@ from cdb.api.deps import get_current_user, get_current_user_or_api_key, require_
 from cdb.core.database import get_db
 from cdb.models.relationship import PersonCompanyRelationship
 from cdb.models.user import User
+from cdb.schemas.account_brief import AccountAIBriefResponse
 from cdb.schemas.common import PaginatedResponse
 from cdb.schemas.company import (
     CompanyCreate,
@@ -19,7 +20,10 @@ from cdb.schemas.company import (
     RelationshipResponse,
     RelationshipUpdate,
 )
+from cdb.schemas.nba import NextBestActionListResponse
+from cdb.services import account_briefs as account_brief_service
 from cdb.services import companies as company_service
+from cdb.services.signals import nba as nba_service
 
 router = APIRouter(prefix="/companies", tags=["Companies"])
 
@@ -161,3 +165,46 @@ async def delete_person_relationship(
     current_user: User = Depends(get_current_user),
 ):
     await company_service.remove_person_from_company(db, person_id, company_id)
+
+
+# AI Account Briefing & Next Best Actions
+@router.get("/{company_id}/ai-brief", response_model=AccountAIBriefResponse)
+async def get_company_ai_brief(
+    company_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retrieves the executive AI Account Brief for a company, synthesizing relationship health,
+    active engagements, deals, recent activities, and current opportunity/risk signals.
+    """
+    return await account_brief_service.synthesize_account_brief(
+        db, company_id=company_id, force_refresh=False
+    )
+
+
+@router.post("/{company_id}/ai-brief/regenerate", response_model=AccountAIBriefResponse)
+async def regenerate_company_ai_brief(
+    company_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Explicitly re-runs AI synthesis across all company data, signals, and touchpoints,
+    updating the persisted briefing cache.
+    """
+    return await account_brief_service.synthesize_account_brief(
+        db, company_id=company_id, force_refresh=True
+    )
+
+
+@router.get("/{company_id}/next-best-actions", response_model=NextBestActionListResponse)
+async def get_company_next_best_actions(
+    company_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns ranked, deduplicated, and conflict-reconciled Next Best Actions for the company.
+    """
+    return await nba_service.get_company_next_best_actions(db, company_id=company_id)

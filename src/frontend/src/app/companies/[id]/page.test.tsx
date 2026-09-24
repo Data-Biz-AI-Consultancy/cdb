@@ -216,9 +216,102 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     ],
   };
 
+  const mockAIBrief = {
+    company_id: 'comp-1111-2222-3333',
+    company_name: 'Acme AI Systems',
+    commercial_posture: 'growing',
+    relationship_health_score: 85,
+    relationship_health_rationale: 'Active delivery engagement and multi-threaded relationships',
+    executive_summary: 'Acme AI Systems is assessed under a **GROWING** commercial posture with an overall relationship health score of **85/100**.',
+    key_highlights: ['Operating in Artificial Intelligence sector', 'Active delivery engagement in progress'],
+    key_risks: [
+      {
+        signal_id: 'expiring_contract',
+        detected_signal_id: 'sig-1',
+        title: 'Expiring Contract: AI Delivery Retainer',
+        category: 'hybrid',
+        effective_polarity: 'RISK',
+        severity: 'high',
+        priority_score: 82.0,
+        priority_tier: 'P1',
+        confidence_score: 0.95,
+        why_it_matters: 'Contract expires in 20 days.',
+        evidence_excerpt: 'Engagement expected end date is 2026-10-04',
+        evidence_status: 'fresh',
+      },
+    ],
+    key_opportunities: [
+      {
+        signal_id: 'hiring_funding_event',
+        detected_signal_id: 'sig-2',
+        title: 'Funding Event: Acme AI Systems (Series B)',
+        category: 'opportunity',
+        effective_polarity: 'OPPORTUNITY',
+        severity: 'medium',
+        priority_score: 78.0,
+        priority_tier: 'P1',
+        confidence_score: 0.90,
+        why_it_matters: 'Secured new funding round.',
+        evidence_excerpt: 'Company secured Series B ($25M)',
+        evidence_status: 'fresh',
+      },
+    ],
+    active_engagements: [],
+    open_pipeline_deals: [],
+    recommended_next_actions: [],
+    generated_at: '2026-09-24T10:00:00Z',
+  };
+
+  const mockNextBestActions = {
+    data: [
+      {
+        id: 'nba-1',
+        action_type: 'schedule_sync',
+        title: 'Schedule Contract Renewal Milestone Review',
+        description: 'Initiate 30-minute renewal discussion with Sarah Connor.',
+        rationale: 'Contract expires in 20 days and client secured new funding.',
+        priority_score: 88.0,
+        priority_tier: 'P1',
+        urgency: 'high',
+        category: 'opportunity',
+        target_person_name: 'Sarah Connor',
+        originating_signal_ids: ['sig-1'],
+        is_reconciled_conflict: false,
+        freshness_status: 'fresh',
+        action_steps: ['Review engagement milestones', 'Send renewal proposal'],
+      },
+      {
+        id: 'nba-reconciled',
+        action_type: 'reconciled_outreach',
+        title: 'Unified Strategic Outreach: Growth & Renewal',
+        description: 'Harmonize Series B growth discussion with retainer extension.',
+        rationale: 'Opposing signals harmonized into single executive sync.',
+        priority_score: 92.0,
+        priority_tier: 'P0',
+        urgency: 'immediate',
+        category: 'reconciled',
+        originating_signal_ids: ['sig-1', 'sig-2'],
+        is_reconciled_conflict: true,
+        conflict_resolution_notes: 'Harmonized growth and renewal signals.',
+        freshness_status: 'fresh',
+        action_steps: ['Prepare dual agenda deck', 'Schedule executive sync'],
+      },
+    ],
+    total_count: 2,
+    high_urgency_count: 2,
+    reconciled_count: 1,
+    generated_at: '2026-09-24T10:00:00Z',
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     (api.apiFetch as any).mockImplementation((url: string) => {
+      if (url.includes('/api/v1/companies/comp-1111-2222-3333/ai-brief')) {
+        return Promise.resolve(mockAIBrief);
+      }
+      if (url.includes('/api/v1/companies/comp-1111-2222-3333/next-best-actions')) {
+        return Promise.resolve(mockNextBestActions);
+      }
       if (url.includes('/api/v1/companies/comp-1111-2222-3333/employees')) {
         return Promise.resolve(mockEmployees);
       }
@@ -269,10 +362,15 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     render(<CompanyDetailPage params={Promise.resolve({ id: 'comp-1111-2222-3333' })} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.getByText('Alex Smith')).toBeInTheDocument();
+      expect(screen.getByText('Acme AI Systems')).toBeInTheDocument();
     });
+
+    // Switch to Employees & Contacts tab
+    fireEvent.click(screen.getByRole('button', { name: /Employees & Contacts/i }));
+
+    expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('Alex Smith')).toBeInTheDocument();
 
     // Check titles & warmth badges
     expect(screen.getByText('VP of Data Engineering')).toBeInTheDocument();
@@ -299,8 +397,13 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     render(<CompanyDetailPage params={Promise.resolve({ id: 'comp-1111-2222-3333' })} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
+      expect(screen.getByText('Acme AI Systems')).toBeInTheDocument();
     });
+
+    // Switch to Employees & Contacts tab
+    fireEvent.click(screen.getByRole('button', { name: /Employees & Contacts/i }));
+
+    expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
 
     const sortSelect = screen.getByRole('combobox');
     expect(sortSelect).toBeInTheDocument();
@@ -413,5 +516,62 @@ describe('CompanyDetailPage Comprehensive Entity Intelligence & Sorting', () => 
     // Check recommended action playbooks
     expect(screen.getByText('Initiate Contract Renewal & Scope Review')).toBeInTheDocument();
     expect(screen.getByText('Pitch Rapid Delivery & Acceleration')).toBeInTheDocument();
+  });
+
+  it('renders AI Account Intelligence Brief and Ranked Next Best Actions tab', async () => {
+    render(<CompanyDetailPage params={Promise.resolve({ id: 'comp-1111-2222-3333' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Acme AI Systems')).toBeInTheDocument();
+    });
+
+    // Click on AI Account Brief & Actions tab
+    const briefTabBtn = screen.getByRole('button', { name: /AI Account Brief & Actions/i });
+    fireEvent.click(briefTabBtn);
+
+    // Verify AI Account Brief elements
+    await waitFor(() => {
+      expect(screen.getByText('AI Account Intelligence Brief')).toBeInTheDocument();
+      expect(screen.getByText(/Posture: growing/i)).toBeInTheDocument();
+      expect(screen.getAllByText('85/100').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('GROWING').tagName).toBe('STRONG');
+      expect(screen.getByText('Operating in Artificial Intelligence sector')).toBeInTheDocument();
+    });
+
+    // Verify Ranked Next Best Actions
+    expect(screen.getByText('Ranked Next Best Actions (NBA)')).toBeInTheDocument();
+    expect(screen.getByText('Schedule Contract Renewal Milestone Review')).toBeInTheDocument();
+    expect(screen.getByText('Unified Strategic Outreach: Growth & Renewal')).toBeInTheDocument();
+    expect(screen.getByText(/Conflict Reconciled/i)).toBeInTheDocument();
+    expect(screen.getByText(/Harmonized growth and renewal signals/i)).toBeInTheDocument();
+
+    // Verify Opportunities and Risks lists in Brief
+    expect(screen.getByText(/Current Opportunities \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Active Risks \(1\)/i)).toBeInTheDocument();
+  });
+
+  it('handles Regenerate AI Account Brief interaction', async () => {
+    render(<CompanyDetailPage params={Promise.resolve({ id: 'comp-1111-2222-3333' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Acme AI Systems')).toBeInTheDocument();
+    });
+
+    // Switch to brief tab
+    fireEvent.click(screen.getByRole('button', { name: /AI Account Brief & Actions/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Regenerate Brief/i })).toBeInTheDocument();
+    });
+
+    const regenBtn = screen.getByRole('button', { name: /Regenerate Brief/i });
+    fireEvent.click(regenBtn);
+
+    await waitFor(() => {
+      expect(api.apiFetch).toHaveBeenCalledWith(
+        '/api/v1/companies/comp-1111-2222-3333/ai-brief/regenerate',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
   });
 });

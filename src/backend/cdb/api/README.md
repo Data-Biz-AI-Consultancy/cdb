@@ -480,6 +480,128 @@ List all persons associated with the company, differentiating between currently 
 
 Same conventions as persons.
 
+### `GET /companies/{id}/ai-brief`
+
+Retrieves or lazily computes the synthesized executive AI Account Brief for the specified company.
+
+```json
+// Response 200
+{
+  "company_id": "<uuid>",
+  "company_name": "Acme AI Systems",
+  "domain": "acmeai.io",
+  "industry": "Artificial Intelligence",
+  "commercial_posture": "growing",
+  "relationship_health_score": 85,
+  "relationship_health_rationale": "1 active delivery engagement(s); Multi-threaded coverage (3 contacts)",
+  "executive_summary": "Acme AI Systems is currently assessed under a GROWING commercial posture...",
+  "key_highlights": [
+    "Operating in Artificial Intelligence sector.",
+    "Contracted revenue totaling EUR 120,000.00 across signed engagements."
+  ],
+  "key_risks": [
+    {
+      "signal_id": "expiring_contract",
+      "detected_signal_id": "<uuid>",
+      "title": "Expiring Contract: AI Retainer",
+      "category": "hybrid",
+      "effective_polarity": "RISK",
+      "severity": "high",
+      "priority_score": 82.0,
+      "priority_tier": "P1",
+      "confidence_score": 0.95,
+      "why_it_matters": "Active delivery contract ends in 20 days.",
+      "evidence_status": "fresh"
+    }
+  ],
+  "key_opportunities": [
+    {
+      "signal_id": "hiring_funding_event",
+      "detected_signal_id": "<uuid>",
+      "title": "Hiring or Funding Event: Series B",
+      "category": "opportunity",
+      "effective_polarity": "OPPORTUNITY",
+      "severity": "medium",
+      "priority_score": 78.0,
+      "priority_tier": "P1",
+      "confidence_score": 0.90,
+      "why_it_matters": "Company secured $25M growth round.",
+      "evidence_status": "fresh"
+    }
+  ],
+  "active_engagements": [],
+  "open_pipeline_deals": [],
+  "recommended_next_actions": [
+    {
+      "id": "nba_reconciled_12345678",
+      "action_type": "reconciled_outreach",
+      "title": "Unified Executive Alignment: Harmonize Growth & Contract Renewal",
+      "description": "Reconcile outreach by acknowledging positive funding momentum while addressing renewal window.",
+      "rationale": "Simultaneous detection of opportunity and risk.",
+      "priority_score": 90.0,
+      "priority_tier": "P0",
+      "urgency": "immediate",
+      "category": "reconciled",
+      "is_reconciled_conflict": true,
+      "freshness_status": "fresh",
+      "action_steps": [
+        "Review combined evidence dossier across both opportunity and risk dimensions",
+        "Formulate dual-agenda briefing",
+        "Conduct executive sync with primary account sponsor"
+      ]
+    }
+  ],
+  "generated_at": "2026-09-24T10:00:00Z",
+  "cached": false
+}
+```
+
+### `POST /companies/{id}/ai-brief/regenerate`
+
+Explicitly triggers full re-synthesis across company details, active engagements, pipeline deals, meeting activities, and active opportunity/risk signals, refreshing the cache.
+
+### `GET /companies/{id}/next-best-actions`
+
+Returns deduplicated, priority-ranked Next Best Actions specifically targeting this account.
+
+```json
+// Response 200
+{
+  "data": [
+    {
+      "id": "nba_12345678",
+      "action_type": "schedule_sync",
+      "title": "Schedule Executive Check-In or QBR",
+      "description": "Reach out to past client sponsors...",
+      "rationale": "Client relationship is at risk of churn.",
+      "priority_score": 85.0,
+      "priority_tier": "P1",
+      "urgency": "high",
+      "category": "risk",
+      "target_company_id": "<uuid>",
+      "target_company_name": "Acme AI Systems",
+      "originating_signal_ids": ["<uuid>"],
+      "playbook_key": "executive_touchpoint",
+      "is_reconciled_conflict": false,
+      "freshness_status": "fresh",
+      "action_steps": [
+        "Review past engagement deliverables",
+        "Select relevant recent case study",
+        "Send personalized check-in email"
+      ]
+    }
+  ],
+  "total_count": 1,
+  "high_urgency_count": 1,
+  "reconciled_count": 0,
+  "generated_at": "2026-09-24T10:00:00Z"
+}
+```
+
+### `GET /signals/nba/feed`
+
+Global cross-account feed of ranked, deduplicated, and conflict-reconciled Next Best Actions. Query parameters: `limit` (default: 50), `owner_id` (optional).
+
 ---
 
 ## 5. Person-Company Relationships

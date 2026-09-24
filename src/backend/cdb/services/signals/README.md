@@ -589,9 +589,57 @@ CDB defines a multi-dimensional measurement framework to quantify detection accu
 
 ---
 
+## 🎯 Next Best Action (NBA) Ranking & AI Account Briefs Integration
+
+To empower advisory teams with coherent, high-priority operational playbooks without reconciling disjointed signals:
+
+```mermaid
+flowchart TD
+    Signals[Active Detected Signals P0-P4] --> NBA[Next Best Action Engine<br>cdb.services.signals.nba]
+    Activities[Recent Notion Notes & Touchpoints] --> NBA
+    Contracts[Active Engagements & Pipeline Deals] --> NBA
+    
+    NBA --> Dedupe{Multi-Signal Deduplication & Conflict Check}
+    Dedupe -->|Opposing Polarities Detected| Reconcile[Harmonize into Reconciled Strategic Outreach]
+    Dedupe -->|Same Stakeholder Actions| Merge[Merge into Consolidated Agenda]
+    Dedupe -->|Standard Signals| Rank[Calculate 4D Action Ranking Score]
+    
+    Reconcile --> Output[Prioritized Next Best Actions Feed]
+    Merge --> Output
+    Rank --> Output
+    
+    Output --> Brief[AI Account Intelligence Brief<br>cdb.services.account_briefs]
+    Output --> CompanyUI[Company Profile Page]
+    Output --> APIFeed[GET /api/v1/signals/nba/feed]
+```
+
+### 1. Next Best Action Ranking Engine (`cdb.services.signals.nba`)
+- **Ranking Score Formulation**: $\text{Score} = (\text{Base Signal Score} \times \text{Confidence Multiplier}) + \text{Urgency Boost} + \text{Conflict Boost} - \text{Staleness Penalty}$.
+- **Urgency & Tier Mapping**:
+  - `P0` ($\ge 90$ pts / Critical SLA): `immediate` urgency.
+  - `P1` ($75-89$ pts / High impact): `high` urgency.
+  - `P2` ($50-74$ pts / Medium impact): `medium` urgency.
+  - `P3`/`P4` ($< 50$ pts): `routine` urgency.
+
+### 2. Action Deduplication & Conflict Reconciliation
+- **Stakeholder Deduplication**: Multiple active signals targeting the same person (e.g. unanswered message + expiring contract) are automatically merged into a single consolidated touchpoint item with multi-topic prescriptive steps.
+- **Polarity Conflict Reconciliation**: When an account exhibits co-occurring opportunities and risks (e.g. Dormant Strategic Account [Risk] + Series B Funding [Opportunity]), the engine generates a **Reconciled Dual-Context Playbook** (`reconciled_outreach`) that instructs advisors how to acknowledge positive commercial momentum while proactively addressing contract or SLA risks.
+
+### 3. AI Account Intelligence Briefs (`cdb.services.account_briefs`)
+- **Executive Synthesis**: Combines company firmographics, multi-threaded relationship health (0–100 score), commercial posture (`growing`, `stable`, `at_risk`, `dormant`), key account highlights, and active opportunities/risks.
+- **Consistent Evidence Contract**: Preserves identical polarity (`OPPORTUNITY`, `RISK`), evidence timestamps, why-it-matters explanations, and freshness indicators (`fresh`, `stale`, `conflicting`, `unverified`) across all views.
+- **API Endpoints**:
+  - `GET /api/v1/companies/{id}/ai-brief`: Retrieve cached or synthesize on demand.
+  - `POST /api/v1/companies/{id}/ai-brief/regenerate`: Force re-synthesis from active records.
+  - `GET /api/v1/companies/{id}/next-best-actions`: Retrieve ranked, deduplicated NBAs for the account.
+  - `GET /api/v1/signals/nba/feed`: Retrieve global ranked NBA feed across all client accounts.
+
+---
+
 ### Automated Background Execution (Celery Beat)
 * **Periodic Schedule**: Configured in `celery_app.py` under `evaluate-signals-periodic`.
 * **Cadence**: Runs automatically every `SIGNALS_EVALUATION_HOURS_INTERVAL` (default: 6 hours, configured in `config.py`).
 * **Worker Task**: `cdb.workers.tasks.evaluate_signals_background` runs `evaluate_all_signals` asynchronously via Celery worker without blocking the API or UI.
+
 
 
