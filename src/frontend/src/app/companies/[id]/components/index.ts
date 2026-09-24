@@ -1,4 +1,5 @@
 export { CompanyHeroHeader } from './CompanyHeroHeader';
+export { CompanyTabsNav } from './CompanyTabsNav';
 export { CompanyAIBriefTab } from './CompanyAIBriefTab';
 export { CompanyEmployeesTab } from './CompanyEmployeesTab';
 export { CompanyTimelineTab } from './CompanyTimelineTab';
