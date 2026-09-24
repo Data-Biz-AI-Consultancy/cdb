@@ -3,6 +3,23 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { SignalActionModal } from './SignalActionModal';
 import { DetectedSignal } from '../types';
 
+vi.mock('@/components/UserSelect', () => ({
+  default: ({ value, onChange, label }: { value: string; onChange: (v: string) => void; label?: string }) => (
+    <div>
+      {label && <label>{label}</label>}
+      <select
+        data-testid="user-select"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">Unassigned</option>
+        <option value="user-123">User 123</option>
+        <option value="user-456">User 456</option>
+      </select>
+    </div>
+  ),
+}));
+
 const mockSignal: DetectedSignal = {
   id: 'sig-modal-1',
   signal_id: 'dormant_strategic_accounts',
@@ -203,9 +220,8 @@ describe('SignalActionModal component', () => {
     expect(screen.getByText('Assign Signal Owner')).toBeInTheDocument();
     expect(screen.getByText('Save Owner Assignment')).toBeInTheDocument();
 
-    const input = screen.getByPlaceholderText(/Enter User UUID or leave blank to unassign/i);
-    expect(input).toHaveValue('user-123');
-    fireEvent.change(input, { target: { value: 'user-456' } });
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'user-456' } });
     expect(setAssignedOwnerId).toHaveBeenCalledWith('user-456');
 
     const saveBtn = screen.getByText('Save Owner Assignment');

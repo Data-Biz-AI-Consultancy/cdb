@@ -127,6 +127,12 @@ Analytics (Intelligence & ROI)               │
 * **Data Quality Safeguards & False-Positive Feedback Subsystem (`signal_feedback`)**: Protects detection quality when source data is stale (> 180d), uncorroborated, restricted, or missing essential context. Low-evidence signals (< 0.25 confidence) are suppressed, while medium-evidence signals surface with explicit warning disclosure badges (`⚠️ Warning Flagged`, `Low Reliability`, `🔒 Restricted Source`). Triage operators can report false positives with structured root causes (`incorrect_intent`, `stale_outdated`, `wrong_entity_attribution`, `unreliable_source`, `confidential_restricted`, `other`), atomically auto-dismissing misleading signals while recording investigation trails for detector model calibration.
 * **Account-Centric Surfacing (`/companies/[id]`)**: High-visibility **Active Opportunity & Risk Signals** alert banners and a dedicated **⚡ Signals** tab directly on company profiles, presenting severity badges, evidence excerpts, and one-click triage links.
 
+### 7. Team Directory & User Access Management (`/settings/users`)
+* **First-Class Team & User Management API (`/api/v1/users`)**: Complete CRUD and directory listing (`GET /api/v1/users`, `POST /api/v1/users`, `GET /api/v1/users/{id}`, `PATCH /api/v1/users/{id}`, `DELETE /api/v1/users/{id}`).
+* **Role-Based Permissions & Tagging**: Support for structured organizational roles (`admin`, `manager`, `ae`, `sdr`, `member`) with active/inactive status toggles.
+* **Searchable Team Picker (`UserSelect`)**: Dropdown selector displaying initials avatar, user full name, email, and role badge for assigning signal owners, escalations, deal owners, and engagement leads.
+* **Dedicated Team & Users Settings Page (`/settings/users`)**: Modern UI for inviting team members, managing roles, monitoring user counts across sales/operations, and editing account details.
+
 ---
 
 ## 🚀 Quick Start (Docker Compose)

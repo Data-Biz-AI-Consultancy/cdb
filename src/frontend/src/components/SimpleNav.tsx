@@ -90,6 +90,11 @@ export const NAV_GROUPS: NavGroup[] = [
     name: 'Settings',
     items: [
       {
+        href: '/settings/users',
+        label: 'Users & Teams',
+        desc: 'Manage team members, roles & permissions',
+      },
+      {
         href: '/ingestion',
         label: 'Ingestion',
         desc: 'Data intake & background pipeline jobs',

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import UserSelect from '@/components/UserSelect';
 import { DetectedSignal } from '../types';
 
 interface SignalActionModalProps {
@@ -151,15 +152,12 @@ export const SignalActionModal: React.FC<SignalActionModalProps> = ({
           {/* Assign Owner Action */}
           {modalActionType === 'assign' && (
             <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              <label className="block text-xs font-semibold text-slate-900">
-                Owner / Assignee User ID
-              </label>
-              <input
-                type="text"
-                value={assignedOwnerId}
-                onChange={(e) => setAssignedOwnerId && setAssignedOwnerId(e.target.value)}
-                placeholder="Enter User UUID or leave blank to unassign"
-                className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800 text-slate-900"
+              <UserSelect
+                id="assign-owner-select"
+                label="Owner / Assignee"
+                value={assignedOwnerId || ''}
+                onChange={(uid) => setAssignedOwnerId && setAssignedOwnerId(uid)}
+                placeholder="Select team member (or leave unassigned)..."
               />
               <p className="text-[11px] text-slate-500">
                 Leave empty and submit to move this signal to the unassigned triage queue.

@@ -111,6 +111,63 @@ Invalidates the refresh token.
 
 ---
 
+## 2.1 Users & Team Directory
+
+### `GET /users`
+List active and inactive team members for user management and ownership assignment pickers.
+
+**Query params:**
+- `q` (string): Search across `full_name` and `email`
+- `role` (string): Filter by role (`admin`, `manager`, `ae`, `sdr`, `member`)
+- `is_active` (bool): Filter by active status
+- `page` (int >= 1, default 1)
+- `page_size` (int 1-200, default 50)
+
+**Response 200:**
+```json
+{
+  "items": [
+    {
+      "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "email": "sarah.connor@acme.com",
+      "full_name": "Sarah Connor",
+      "role": "manager",
+      "is_active": true,
+      "created_at": "2026-09-24T08:00:00Z",
+      "updated_at": "2026-09-24T08:00:00Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 50
+}
+```
+
+### `POST /users`
+Create / invite a new team member.
+
+**Request:**
+```json
+{
+  "email": "alex.henderson@company.com",
+  "password": "securepassword123",
+  "full_name": "Alex Henderson",
+  "role": "ae",
+  "is_active": true
+}
+```
+
+### `GET /users/{id}`
+Fetch specific team member profile by UUID.
+
+### `PATCH /users/{id}`
+Update user profile, role, password, or active status.
+
+### `DELETE /users/{id}`
+Deactivate team member (`is_active = false`).
+
+---
+
 ## 3. Persons
 
 ### `GET /persons`
