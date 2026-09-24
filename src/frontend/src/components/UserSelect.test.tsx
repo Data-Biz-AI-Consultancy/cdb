@@ -43,29 +43,62 @@ describe('UserSelect', () => {
     });
   });
 
-  it('renders dropdown and loads team members', async () => {
+  it('renders trigger button and loads team members on click', async () => {
     const handleChange = vi.fn();
     render(<UserSelect value="" onChange={handleChange} label="Assign Owner" />);
 
     expect(screen.getByText('Assign Owner')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText(/Alice Smith \(alice@example.com\)/i)).toBeInTheDocument();
-      expect(screen.getByText(/Bob Jones \(bob@example.com\)/i)).toBeInTheDocument();
+      expect(screen.getByText('Search & select a team member...')).toBeInTheDocument();
+    });
+
+    const trigger = screen.getByRole('button');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+      expect(screen.getByText('Bob Jones')).toBeInTheDocument();
     });
   });
 
-  it('calls onChange when selection changes', async () => {
+  it('filters team members when typing into search input', async () => {
     const handleChange = vi.fn();
     render(<UserSelect value="" onChange={handleChange} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Alice Smith/i)).toBeInTheDocument();
+      expect(screen.getByText('Search & select a team member...')).toBeInTheDocument();
     });
 
-    const select = screen.getByRole('combobox');
-    fireEvent.change(select, { target: { value: 'usr-1' } });
+    const trigger = screen.getByRole('button');
+    fireEvent.click(trigger);
 
-    expect(handleChange).toHaveBeenCalledWith('usr-1', mockUsers[0]);
+    await waitFor(() => {
+      expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Type name or email/i);
+    fireEvent.change(searchInput, { target: { value: 'Jones' } });
+
+    expect(screen.queryByText('Alice Smith')).not.toBeInTheDocument();
+    expect(screen.getByText('Bob Jones')).toBeInTheDocument();
+
+    // Select Bob Jones
+    fireEvent.click(screen.getByText('Bob Jones'));
+    expect(handleChange).toHaveBeenCalledWith('usr-2', mockUsers[1]);
+  });
+
+  it('allows unassigning or clearing owner', async () => {
+    const handleChange = vi.fn();
+    render(<UserSelect value="usr-1" onChange={handleChange} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+    });
+
+    const clearBtn = screen.getByTitle('Clear selection');
+    fireEvent.click(clearBtn);
+
+    expect(handleChange).toHaveBeenCalledWith('', null);
   });
 });
