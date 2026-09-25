@@ -1,3 +1,11 @@
+# [1.41.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.40.0...v1.41.0) (2026-09-25)
+
+
+### Features
+
+* add agent skills for CDB database migrations, API patterns, operations, and entity resolution ([2a7776b](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/2a7776bc8389b0b47a1ed6f7061119feaad83f38))
+* add new agent skills for database operations, API patterns, migrations, and entity resolution ([416f122](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/416f122c105ed34f42cf9437aaf2b1869ea9fb31))
+
 # [1.40.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.39.0...v1.40.0) (2026-09-24)
 
 
