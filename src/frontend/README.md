@@ -1,101 +1,43 @@
-# CDB Frontend Architecture (`src/frontend/`)
+# CDB — Frontend Web Application
 
-This directory contains the Next.js 15 App Router web client for **CDB (Client DataBase)**.
+The **CDB Frontend** is a modern web application built on **Next.js 15 (App Router)**, **React 19**, **Tailwind CSS**, and **TypeScript**.
 
-It provides a modern, fast, responsive interface for managing persons, companies, relationships, activities, pipelines, leads, opportunities, entity resolution review queues, and data ingestion.
-
----
-
-## 🏛️ Directory Structure & App Router Hierarchy
-
-```
-src/frontend/
-├── src/
-│   ├── app/                      # Next.js App Router pages and layouts
-│   │   ├── layout.tsx            # Global root layout (Navbar, Theme, Sidebar)
-│   │   ├── page.tsx              # Landing / Dashboard Overview page
-│   │   ├── persons/              # Directory: Unified Person Golden Records & Detail Pages
-│   │   ├── companies/            # Directory: Company Profiles & Member Relationships
-│   │   ├── review/               # Directory: Entity Resolution Merge Review Queue
-│   │   ├── activities/           # Pipeline & Engagements: Chronological Activity Feed
-│   │   ├── leads/                # Pipeline & Engagements: Lead Qualification Pipeline
-│   │   ├── opportunities/        # Pipeline & Engagements: Deal & Partnership Kanban/List
-│   │   ├── engagements/          # Pipeline & Engagements: Active Client Engagements
-│   │   ├── signals/              # Pipeline & Engagements: Signals Radar & Detail Investigation (/signals, /signals/[id])
-│   │   ├── analytics/            # Analytics: Signal Performance, SLA Latency & Revenue ROI (/analytics)
-│   │   ├── ingestion/            # Settings: Data Intake & File Upload Portal (LinkedIn/CSV/Notion)
-│   │   └── settings/             # Settings: System, API Keys & Platform Configurations
-│   │
-│   ├── components/               # Reusable UI & Layout Components
-│   │   ├── layout/               # Sidebar, AppHeader, NavGroup, UserMenu
-│   │   ├── ui/                   # Buttons, Modals, Badges, Tables, Inputs, Cards
-│   │   └── modules/              # Domain-specific components (PersonCard, ERReviewModal, etc.)
-│   │
-│   ├── lib/                      # Utilities & Shared Helpers
-│   │   ├── api.ts                # Fetch client configured for CDB API backend & CSRF/Tokens
-│   │   ├── utils.ts              # Styling helpers, string formatters, date utilities
-│   │   └── types/                # TypeScript interfaces mirroring API contracts
-│   │
-│   └── styles/                   # Global styles and Tailwind CSS configurations
-│
-├── public/                       # Static assets, icons, and logos
-├── Dockerfile                    # Multi-stage production container build
-├── next.config.js                # Next.js runtime & proxy configurations
-├── package.json                  # Dependencies (Next.js 15, React 19, Lucide, Tailwind)
-└── vitest.config.ts              # Unit and component test runner configuration
-```
+For development guidelines, UI conventions, and API client usage, see the [Frontend Development Skill](../../../.agents/skills/cdb-frontend-development/SKILL.md).
 
 ---
 
-## 🧭 Grouped Navigation Hierarchy
+## 🧭 Navigation & Routes Index
 
-The application navigation is organized into 4 clear functional categories:
+The application is structured into four primary functional categories:
 
-1. **Directory**
-   - **Persons** (`/persons`, `/persons/[id]`): Golden records of natural persons, contact intelligence, segment badges, engagement temperature, full history timeline (LinkedIn messages, Notion meeting notes, emails, calls), employment history, attached opportunities, attached leads, and the **`person_history` audit changelog** with field-level diffs and action dimensions.
-   - **Companies** (`/companies`, `/companies/[id]`): Company profiles, domain mappings, linked employees, firmographic profile data, key commercial KPIs, and integrated **AI Account Intelligence Brief** with commercial posture indicators (`growing`, `stable`, `at_risk`, `dormant`), relationship health meters (0–100 score with health drivers), executive narrative synthesis, **Ranked Next Best Actions (NBA)** with conflict reconciliation badges, and structured **Account Opportunity & Risk Signals** with active alert banners, evidence context, and recommended playbook actions.
-   - **Review Queue** (`/review`): Side-by-side comparison for ambiguous Entity Resolution pairs.
-
-2. **Pipeline & Engagements**
-   - **Activities** (`/activities`): Full chronological activity feed (meetings, calls, notes, messages).
-   - **Leads** (`/leads`): Interest qualification funnel (`New` → `Contacted` → `Qualified` → `Converted`) with conversation transcript & description viewer, default recency sorting (most recent lead first), signal strength badges, search, and one-click opportunity conversion modal.
-   - **Opportunities** (`/opportunities`): Interactive drag-and-drop Kanban deal pipeline with pipeline forecasting KPIs (Active Pipeline, Confidence-Adjusted Weighted Value, Win Rate %), first-class Title & Description fields, Confidence Level meters, automated Stale (30d+) & Expired (90d+) inactivity alerts, overdue resolution target warnings (`🚨 Overdue`), attached contact persons & companies management, and a complete opportunity history (audit log & activity timeline). Features direct **Prioritized Opportunity & Risk Signal Integration**:
-     - **Kanban Card Badges**: Surface prioritized signal count indicators (`⚠️ Risks`, `🚀 Opportunities`) alongside highest priority tier chips (`P0`–`P4`) directly on pipeline cards.
-     - **Workflow Signal Filtering**: Quick filter bar allowing sales reps to isolate deals with active signals, critical risks, or expansion triggers.
-     - **Dedicated Signals & Risks Drawer Tab**: Deep-dive into active signals associated with the opportunity and affected accounts, featuring "Why it matters now" commercial context, evidence excerpts, data quality & verification indicators, connected counterparties, affected company links, and inline lifecycle actions (`Acknowledge`, `Take Action`, `Resolve`, `Dismiss`).
-   - **Client Engagements** (`/engagements`, `/engagements/[id]`): Workspace for ongoing client projects and contracted delivery work. Connects client organization, attached contact person(s) with roles, signed contracts (ID / URL link / status / signed date), key terms & conditions (T&Cs), billing rates (daily, hourly, monthly, fixed), total contract budgets, timeline countdowns, and linked Notion meeting notes & activity feeds.
-     - **Signals Radar & Detail Investigation** (`/signals`, `/signals/[id]`): Real-time Opportunity & Risk Signals Radar scanning dormant strategic accounts, unanswered conversations, expiring contracts, leadership changes, market events (hiring/funding), and competitor signals. Features:
-       - **Business Impact Prioritization Engine**: Real-time 4-dimension composite scoring (Account Importance, Relationship Context, Urgency, Likely Business Impact) ranking signals by true commercial consequence. Clear color-coded distinction between **Opportunity Upside** (emerald/teal) and **Risk Downside** (rose/amber) with **P0 (Critical Override)**, **P1**, **P2**, **P3**, **P4** operational priority badges.
-       - **Layout View Modes**: Toggle between the classic **3-Column Command Center** (🟢 Opportunities, 🟡 Mixed, 🔴 Risks) and the **🏢 Group by Account** view aggregating active, snoozed, and resolved signals per client organisation.
-       - **Lifecycle & Triage Controls**: Full lifecycle state management with `Acknowledge`, `Snooze` (1, 3, 7, 14, 30 days with automated wake-up), `Resolve` (with resolution notes), and `Dismiss` modals.
-       - **Bulk Action Toolbar**: Multi-select signals across columns or accounts to perform bulk status updates (`Acknowledge`, `Snooze`, `Resolve`, `Dismiss`).
-       - **Deduplication & Re-open Intelligence**: SHA-256 evidence fingerprinting suppresses repetitive noise while automatically re-opening resolved or dismissed signals when meaningful new evidence emerges (flagged with `🔄 Re-opened (xN)` badges).
-       - **Deterministic Ownership & Follow-Up Routing**: Automatically assigns signal owners according to engagement lead / opportunity owner / account history hierarchy, supports manual re-assignment, and filters via **Owner** dropdown (`All`, `Unassigned`, `Assigned Only`).
-       - **Risk Escalation Paths**: Highlights high-severity risks and high-impact opportunities with prominent `🚨 ESCALATED` banners, dedicated **🚨 Escalated Risks** tab, auto-escalation for P0 / 7d+ SLA breaches, and manual escalation modals with risk rationale capture.
-       - **1-Click Commercial Deal Conversion**: Directly convert opportunity and risk signals into pipeline deals (`/opportunities`) with pre-populated valuations, probability, delivery context, evidence excerpts, and persistent bidirectional links (`Converted to Opportunity: Deal →`).
-       - **Single-Signal Investigation Dossier** (`/signals/[id]`): In-depth evidence breakdown, dedicated **Business Impact Prioritization Drivers** card with interactive progress bars for all 4 scoring dimensions, multi-entity conflict analysis across Company/Opportunity/Person scopes, classification uncertainty rationale, actionable advisory playbooks, direct entity navigation, audit cards with snooze/re-open history, and native multi-person signal connectivity via `connected_persons`.
-
-3. **Analytics**
-   - **Signal Performance & ROI** (`/analytics`): Standalone executive and operational intelligence portal for Opportunity & Risk detection. Features dynamic lookback timeframes (30d, 90d default, 180d, 1y, 2y), category filters (Opportunities, Risks, Mixed), primary KPI summary cards (Action/Acceptance Rate, MTTA latency with SLA breach rates, Influenced & Protected Revenue, and 90-day downstream opportunity & account reactivation conversions), precision proxies ($1 - \text{dismissal\_rate}$), and granular breakdowns with direct 1-click drill-down navigation into `/signals` by individual signal type rule, category, and severity level (`/signals?severity=high`, `/signals?category=opportunity`, `/signals?signal_type=...`).
-
-4. **Settings**
-   - **Data Ingestion** (`/ingestion`): File upload and intake portal for LinkedIn, Notion, and CSV imports.
-   - **System & Platform** (`/settings`): API keys, environment settings, user preferences, and service status.
+| Category | Route | Description |
+|----------|-------|-------------|
+| **Directory** | `/persons` | Golden contact profiles, career timelines, and audit changelog (`person_history`) |
+| | `/companies` | Company profiles, employee links, and **AI Account Intelligence Briefs** |
+| | `/review` | Interactive side-by-side Entity Resolution merge review queue |
+| **Pipeline & Engagements** | `/activities` | Chronological interaction feed (meetings, messages, calls) |
+| | `/leads` | Lead interest qualification funnel |
+| | `/opportunities` | Interactive drag-and-drop deal Kanban board with integrated signal alerts |
+| | `/engagements` | Active client consulting contract and delivery tracking workspaces |
+| | `/signals` | **Signals Radar** command center (Opportunities, Risks, and Hybrid signals) |
+| **Analytics** | `/analytics` | Signal ROI, MTTA turnaround latency, and revenue attribution metrics |
+| **Settings** | `/ingestion` | File upload & data intake portal (LinkedIn, Notion, CSV) |
+| | `/settings` | System configuration, API keys, and team user directory (`/settings/users`) |
 
 ---
 
-## ⚡ Local Development
+## ⚡ Quick Start
 
 ```bash
+cd src/frontend
+
 # Install dependencies
 npm install
 
-# Run development server with hot reload
+# Run dev server with hot reload
 npm run dev
 
-# Run Vitest test suite
+# Run test suite & typecheck
 npm test
-
-# Run TypeScript typecheck
 npm run typecheck
 ```

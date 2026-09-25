@@ -258,104 +258,22 @@ See [scripts/README.md](scripts/README.md) for the complete list of options and 
 
 CDB serves as the authoritative source of truth for identities, companies, and interaction data across the Jager ecosystem and automated workflow pipelines (e.g. n8n).
 
-### 1. Deployment & Network Topology
-* **Container Registry Distribution**: CDB Docker images are built and pushed to GitHub Container Registry (`ghcr.io/data-biz-ai-consultancy/cdb:production`) via automated release pipelines.
-* **Internal Network Communication**: n8n and companion services call CDB over the shared Docker bridge network (`http://cdb-api:8000`).
-* **Port Collision Avoidance**: PostgreSQL maps to host port `5433` to run harmoniously alongside existing Postgres instances on `5432`.
-
-### 2. Service-to-Service Authentication
-Background automation workflows authenticate using a dedicated service API key via the `X-API-Key` HTTP header:
-
-```bash
-# Automated ingestion payload example
-curl -X POST http://localhost:8000/api/v1/ingest/linkedin-connections \
-  -H "X-API-Key: ${CDB_API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d '{"records": [...]}'
-```
-
-### 3. Automated Ingestion Endpoints
-
-| Ingestion Channel | Endpoint | Description |
-| :--- | :--- | :--- |
-| **LinkedIn Connections** | `POST /api/v1/ingest/linkedin-connections` | Ingests connection exports, names, company titles, and LinkedIn profile URLs. |
-| **LinkedIn Messages** | `POST /api/v1/ingest/linkedin-messages` | Ingests message threads, timestamps, and conversation participants. |
-| **Notion Meeting Notes** | `POST /api/v1/ingest/notion-meeting-notes` | Ingests meeting notes, attendee lists, summaries, and action items into Activities. |
-| **Complete Backfill (1-Off / Sync)** | `POST /api/v1/ingest/backfill` | Backfills all unlinked LinkedIn companies, message threads, Notion notes, and recomputes segments. |
-| **Manual & CSV Data** | `POST /api/v1/ingest/manual` | Ingests custom CSV/XLSX spreadsheets with dynamic column mappings. |
+- **Authentication**: External pipelines authenticate with `X-API-Key: ${CDB_API_KEY}`.
+- **Port Allocation**: PostgreSQL runs on port `5433` (preventing conflicts with Jager on `5432`); Redis runs on `6380`.
+- **API Ingestion**: Standard endpoints for batch ingestion of LinkedIn Connections, LinkedIn Messages, and Notion Notes.
 
 ---
 
 ## 🔌 Native Data Connectors
 
-CDB includes native background data connectors to synchronize external platform data directly without requiring intermediate ETL pipelines or orchestration tooling.
+CDB includes native background connectors to synchronize external platform data directly:
 
-### Direct LinkedIn Connector
+| Connector | Source / API | Synced Data | Sync Modes |
+|-----------|--------------|-------------|------------|
+| **Direct LinkedIn** | Member Portability API | Connections, Profile URLs, 28-day Message Threads | On-demand REST sync / Celery Beat (6h) |
+| **Direct Notion** | Notion API (`/v1/databases`) | Meeting Notes, Attendees, Debriefs, Action Items | Direct Notion API / Jager DB Fallback / Celery Beat |
 
-The direct LinkedIn connector interfaces with the LinkedIn Member Portability API using a unified dual-ingestion architecture:
-
-1. **Static Historical Archive (`memberSnapshotData?domain=INBOX`)**:
-   - Ingests full conversation thread histories and participant profiles.
-2. **Live Rolling Stream (`memberChangeLogs?q=memberAndApplication`)**:
-   - Continuously ingests real-time messages and interactions over the past 28 days.
-   - Automatically infers contact names and links them against resolved contacts in `intake_linkedin_connections`.
-3. **Timestamp Fidelity & Self-Healing**:
-   - Computes `last_sent_at = MAX(sent_at)` for every thread and persists the authentic message datetime directly into `Activity.occurred_at` (preventing bulk insertion timestamps like `now()`).
-   - Re-syncing automatically heals previously corrupted activity records in the database.
-
-#### Configuration
-Set your LinkedIn token in `.env`:
-```env
-LINKEDIN_ACCESS_TOKEN=AQX...
-# Optional interval in hours for Celery Beat schedule (default: 6)
-LINKEDIN_SYNC_HOURS_INTERVAL=6
-```
-
-#### Connector API Endpoints
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/v1/connectors/linkedin/status` | Returns connector configuration status and active REST API versions. |
-| `POST` | `/api/v1/connectors/linkedin/sync` | Triggers on-demand synchronization. Supports `sync_messages=true`, `sync_connections=true`, and `async_run=true` (for Celery background offload). |
-
-#### Automated Celery Execution
-- **Celery Beat**: Configured in `cdb.workers.celery_app` to automatically run `sync_linkedin_direct` every 6 hours.
-- **On-Demand Background Task**: Passing `?async_run=true` to the sync endpoint immediately queues the job to Redis and Celery worker with an instant `200 OK` response.
-
----
-
-### Direct Notion Connector
-
-The direct Notion connector synchronizes meeting notes, debriefs, attendee lists, summaries, and action items directly into CDB without relying on external n8n workflows:
-
-1. **Dual-Mode Sync Support**:
-   - **Direct Notion API (Primary)**: Directly queries Notion databases (`/v1/databases/{id}/query`) and child blocks (`/v1/blocks/{id}/children`) using `NOTION_API_KEY`.
-   - **Jager PostgreSQL Fallback**: Reads directly from `s_notion.meeting_notes` if `JAGER_DATABASE_URL` is set.
-2. **Entity Linking & Intake Ingestion**:
-   - Extracts structured meeting metadata into `IntakeNotionMeetingNote`.
-   - Resolves meeting participants against golden records in `Person` table.
-   - Automatically populates `Activity` timeline with meeting debriefs and action items.
-
-#### Configuration
-Set your Notion token and target database IDs in `.env`:
-```env
-NOTION_API_KEY=secret_...
-# Optional interval in hours for Celery Beat schedule (default: 6)
-NOTION_SYNC_HOURS_INTERVAL=6
-# Comma-separated Notion database UUIDs (optional, defaults to standard meeting notes databases)
-NOTION_MEETING_NOTES_DATABASE_IDS=3876e98d4ef8807eab9be1b0b029246c,3876e98d4ef880a6a61ae99d8912694f,3a36e98d4ef88084a1aec60052a3cb80
-```
-
-#### Connector API Endpoints
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/v1/connectors/notion/status` | Returns Notion configuration status, API version, and monitored database IDs. |
-| `POST` | `/api/v1/connectors/notion/sync` | Triggers on-demand synchronization. Supports `source='auto'`, `'notion_api'`, `'jager_db'`, and `async_run=true` (for Celery background offload). |
-
-#### Automated Celery Execution
-- **Celery Beat**: Configured in `cdb.workers.celery_app` to automatically run `sync_notion_direct` every 6 hours.
-- **On-Demand Background Task**: Passing `?async_run=true` queues the job directly to the Celery worker.
+For configuration, sync endpoints, and Celery worker triggers, see the [Native Connectors Operations Skill](.agents/skills/cdb-connector-ops/SKILL.md).
 
 ---
 
@@ -412,17 +330,18 @@ cdb/
 
 ## 📖 Documentation Index
 
-All core technical specifications are colocated directly alongside their respective codebase modules:
+All core technical specifications and developer skills are colocated directly alongside their respective codebase modules:
 
-| Document | Location | Purpose |
-|----------|----------|---------|
-| **Database Schema** | [`src/backend/db/README.md`](src/backend/db/README.md) | Authoritative PostgreSQL 16 schema reference (core, junction, dimension tables, triggers, indexes) |
-| **API Specification** | [`src/backend/cdb/api/README.md`](src/backend/cdb/api/README.md) | REST API contracts, endpoints, error envelopes, and authentication |
-| **Entity Resolution Engine** | [`src/backend/cdb/services/entity_resolution/README.md`](src/backend/cdb/services/entity_resolution/README.md) | Normalization rules, matching signal hierarchy, and merge precedence |
-| **Opportunity & Risk Signal Catalog** | [`src/backend/cdb/services/signals/README.md`](src/backend/cdb/services/signals/README.md) | Commercial opportunity and churn risk taxonomy, 4-dimension business impact prioritization, playbooks |
+| Specification | Location | Purpose |
+|---------------|----------|---------|
+| **Repository Skills Index** | [`.agents/skills/`](.agents/skills/) | On-demand developer workflows (release, migrations, ER, connectors, signals, DB ops, frontend) |
+| **Database Architecture** | [`src/backend/db/README.md`](src/backend/db/README.md) | PostgreSQL 16 schema reference and ER diagram |
+| **API Overview** | [`src/backend/cdb/api/README.md`](src/backend/cdb/api/README.md) | REST API domain routers and global conventions (also see live `/docs`) |
+| **Entity Resolution Engine** | [`src/backend/cdb/services/entity_resolution/README.md`](src/backend/cdb/services/entity_resolution/README.md) | Normalization rules, matching hierarchy, and merge precedence |
+| **Opportunity & Risk Signals** | [`src/backend/cdb/services/signals/README.md`](src/backend/cdb/services/signals/README.md) | Commercial opportunity and churn risk taxonomy, NBA playbooks |
 | **Backend Architecture** | [`src/backend/README.md`](src/backend/README.md) | Clean Architecture layer structure, services, models, and workers |
-| **Frontend Architecture** | [`src/frontend/README.md`](src/frontend/README.md) | Next.js 15 App Router structure, categorized navigation, and state patterns |
-| **Scripts & DB Utilities** | [`scripts/README.md`](scripts/README.md) | Production-to-dev clone script and database operations |
+| **Frontend Architecture** | [`src/frontend/README.md`](src/frontend/README.md) | Next.js 15 App Router structure and navigation index |
+| **Scripts & Utilities** | [`scripts/README.md`](scripts/README.md) | Production-to-dev clone script and database operations |
 
 
 ---
