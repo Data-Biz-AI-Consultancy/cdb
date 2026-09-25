@@ -38,4 +38,6 @@ Operational procedures, runbooks, and deep architectural specs are codified as p
 - **[cdb-entity-resolution](.agents/skills/cdb-entity-resolution/SKILL.md)**: ER normalisation rules, candidate review queues, and ML scorer.
 - **[cdb-alembic-migrations](.agents/skills/cdb-alembic-migrations/SKILL.md)**: Safe schema migrations, rollback testing, and dimension seeding.
 - **[cdb-database-ops](.agents/skills/cdb-database-ops/SKILL.md)**: Database cloning (`clone_prod_to_dev.sh`), Docker management, safety checks.
+- **[cdb-connector-ops](.agents/skills/cdb-connector-ops/SKILL.md)**: Native LinkedIn & Notion connector configuration, sync triggers, Celery Beat.
+- **[cdb-frontend-development](.agents/skills/cdb-frontend-development/SKILL.md)**: Next.js 15 App Router architecture, UI components, API client, Vitest.
 - **[cdb-api-client-patterns](.agents/skills/cdb-api-client-patterns/SKILL.md)**: Auth headers, pagination envelopes, error handling, bulk operations.
