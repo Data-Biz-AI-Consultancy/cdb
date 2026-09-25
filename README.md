@@ -412,17 +412,18 @@ cdb/
 
 ## 📖 Documentation Index
 
-All core technical specifications are colocated directly alongside their respective codebase modules:
+All core technical specifications and developer skills are colocated directly alongside their respective codebase modules:
 
-| Document | Location | Purpose |
-|----------|----------|---------|
-| **Database Schema** | [`src/backend/db/README.md`](src/backend/db/README.md) | Authoritative PostgreSQL 16 schema reference (core, junction, dimension tables, triggers, indexes) |
-| **API Specification** | [`src/backend/cdb/api/README.md`](src/backend/cdb/api/README.md) | REST API contracts, endpoints, error envelopes, and authentication |
-| **Entity Resolution Engine** | [`src/backend/cdb/services/entity_resolution/README.md`](src/backend/cdb/services/entity_resolution/README.md) | Normalization rules, matching signal hierarchy, and merge precedence |
-| **Opportunity & Risk Signal Catalog** | [`src/backend/cdb/services/signals/README.md`](src/backend/cdb/services/signals/README.md) | Commercial opportunity and churn risk taxonomy, 4-dimension business impact prioritization, playbooks |
+| Specification | Location | Purpose |
+|---------------|----------|---------|
+| **Repository Skills Index** | [`.agents/skills/`](.agents/skills/) | On-demand developer workflows (release, migrations, ER, connectors, signals, DB ops) |
+| **Database Architecture** | [`src/backend/db/README.md`](src/backend/db/README.md) | PostgreSQL 16 schema reference and ER diagram |
+| **API Overview** | [`src/backend/cdb/api/README.md`](src/backend/cdb/api/README.md) | REST API domain routers and global conventions (also see `/docs`) |
+| **Entity Resolution Engine** | [`src/backend/cdb/services/entity_resolution/README.md`](src/backend/cdb/services/entity_resolution/README.md) | Normalization rules, matching hierarchy, and merge precedence |
+| **Opportunity & Risk Signals** | [`src/backend/cdb/services/signals/README.md`](src/backend/cdb/services/signals/README.md) | Commercial opportunity and churn risk taxonomy, NBA playbooks |
 | **Backend Architecture** | [`src/backend/README.md`](src/backend/README.md) | Clean Architecture layer structure, services, models, and workers |
-| **Frontend Architecture** | [`src/frontend/README.md`](src/frontend/README.md) | Next.js 15 App Router structure, categorized navigation, and state patterns |
-| **Scripts & DB Utilities** | [`scripts/README.md`](scripts/README.md) | Production-to-dev clone script and database operations |
+| **Frontend Architecture** | [`src/frontend/README.md`](src/frontend/README.md) | Next.js App Router structure and state patterns |
+| **Scripts & Utilities** | [`scripts/README.md`](scripts/README.md) | Production-to-dev clone script and database operations |
 
 
 ---

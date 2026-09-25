@@ -2,12 +2,13 @@
 
 ## Vibe Coding Instructions & Core Rules
 
-### 1. Documentation Integrity (Mandatory)
-- **All documentation must always be kept up to date per code change.**
-- Whenever modifying, adding, or removing features, APIs, schemas, configurations, or architecture:
+### 1. Documentation & Skill Integrity (Mandatory)
+- **All documentation and skill runbooks (`SKILL.md`) must always be kept up to date per code change.**
+- Whenever modifying, adding, or removing features, APIs, schemas, configurations, data models, or operational workflows:
   - Inspect relevant documentation under root and colocated `README.md` files (e.g., [API Spec](src/backend/cdb/api/README.md), [Database Schema](src/backend/db/README.md), [Entity Resolution](src/backend/cdb/services/entity_resolution/README.md), [Backend](src/backend/README.md), [Frontend](src/frontend/README.md), and root [README.md](README.md)).
-  - Synchronize documentation and code within the same change/PR.
-  - Never leave documentation stale or in a broken state after code modifications.
+  - Inspect and update all matching **`.agents/skills/<skill_name>/SKILL.md`** files (e.g. updating `cdb-signal-detection` when signals change, `cdb-add-connector` when connectors/intake models evolve, `cdb-api-client-patterns` when endpoints/envelopes change, `cdb-alembic-migrations` when schema conventions shift).
+  - Synchronize code, documentation, and skill definitions within the same change/PR.
+  - Never leave documentation or skills stale or in a broken state after code modifications.
 
 ### 2. CI & Code Quality Verification (Mandatory)
 - **Always run and pass all linters, formatters, and automated tests before finalizing any change.**
