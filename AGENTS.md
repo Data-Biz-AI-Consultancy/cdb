@@ -24,5 +24,17 @@
 - Whenever a file approaches or exceeds this threshold, it must be proactively refactored and decomposed into smaller, focused modules, components, custom hooks, services, or utilities.
 - Avoid monolithic files; maintain clean separation of concerns and co-locate subcomponents/utilities in dedicated folders when needed.
 
+---
 
+## 🧭 Repository Skills Index (`.agents/skills/`)
 
+Operational procedures, runbooks, and deep architectural specs are codified as progressive skills:
+
+- **[cdb-repo-architecture](.agents/skills/cdb-repo-architecture/SKILL.md)**: Open-core repo strategy, public vs `cdb-cloud` boundaries, licensing.
+- **[cdb-release-workflow](.agents/skills/cdb-release-workflow/SKILL.md)**: Semantic-release, Conventional Commits, Docker multi-arch GHCR builds.
+- **[cdb-signal-detection](.agents/skills/cdb-signal-detection/SKILL.md)**: Adding/modifying signals, catalog entries, NBA actions, and testing.
+- **[cdb-add-connector](.agents/skills/cdb-add-connector/SKILL.md)**: Ingestion pipeline for new data connectors (intake model → ER → API route).
+- **[cdb-entity-resolution](.agents/skills/cdb-entity-resolution/SKILL.md)**: ER normalisation rules, candidate review queues, and ML scorer.
+- **[cdb-alembic-migrations](.agents/skills/cdb-alembic-migrations/SKILL.md)**: Safe schema migrations, rollback testing, and dimension seeding.
+- **[cdb-database-ops](.agents/skills/cdb-database-ops/SKILL.md)**: Database cloning (`clone_prod_to_dev.sh`), Docker management, safety checks.
+- **[cdb-api-client-patterns](.agents/skills/cdb-api-client-patterns/SKILL.md)**: Auth headers, pagination envelopes, error handling, bulk operations.
