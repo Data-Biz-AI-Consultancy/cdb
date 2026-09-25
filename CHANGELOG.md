@@ -1,3 +1,10 @@
+# [1.42.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.41.0...v1.42.0) (2026-09-25)
+
+
+### Features
+
+* add cdb-jager-integration skill and register it in AGENTS.md ([dff1ea6](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/dff1ea63dc27a585f331b05a23b1dfa5a3e908c9))
+
 # [1.41.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.40.0...v1.41.0) (2026-09-25)
 
 
