@@ -352,7 +352,7 @@ Looking for a **hosted, managed version** of CDB without the self-hosting overhe
 
 **CDB Hub** is the commercial SaaS platform built on top of this open-source engine. It adds multi-tenancy, subscription billing, enterprise SSO, managed cloud infrastructure, and SLA-backed support tiers — while this repository remains fully open-source under **Apache 2.0**.
 
-> 📖 See the [CDB ↔ CDB Hub Boundary Specification](https://github.com/data-biz-ai-consultancy/cdb-hub/blob/main/docs/BOUNDARY.md) for the full documentation of what lives in each repository.
+> 📖 See the [CDB Hub Repository](https://github.com/data-biz-ai-consultancy/cdb-hub) and its boundary specifications for details on commercial capabilities.
 
 The existence of CDB Hub does **not** affect the open-source status, licensing, or community ownership of this repository.
 
