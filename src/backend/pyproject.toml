@@ -1,6 +1,6 @@
 [project]
 name = "cdb"
-version = "1.43.0"
+version = "1.44.0"
 description = "CDB (Client DataBase) - Open-source Personal CRM & Customer Data Platform"
 readme = "README.md"
 license = { text = "MIT" }

@@ -1,3 +1,10 @@
+# [1.44.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.43.0...v1.44.0) (2026-09-28)
+
+
+### Features
+
+* **DAT-163:** bump version to 1.43.0 ([327c8ee](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/327c8ee14058f5eb38a3da72c762fd809531960a))
+
 # [1.43.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.42.0...v1.43.0) (2026-09-28)
 
 
