@@ -67,7 +67,7 @@ app.include_router(cdb_core_router)
 # cdb-hub/src/backend/pyproject.toml
 [project]
 dependencies = [
-    "cdb==1.42.0",  # pinned to public core release
+    "cdb==1.43.0",  # pinned to public core release
     "stripe>=8.0.0",
     ...
 ]
@@ -88,7 +88,7 @@ To build and publish:
    ```bash
    uv publish --token ${{ secrets.PYPI_TOKEN }}
    ```
-3. `cdb-hub` pins: `cdb==1.42.0` in its `pyproject.toml`.
+3. `cdb-hub` pins: `cdb==1.43.0` in its `pyproject.toml`.
 
 ---
 

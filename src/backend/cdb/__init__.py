@@ -11,7 +11,7 @@ from cdb.main import app, create_application
 try:
     __version__ = version("cdb")
 except PackageNotFoundError:
-    __version__ = "1.42.0"
+    __version__ = "1.43.0"
 
 __all__ = [
     "__version__",
