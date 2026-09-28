@@ -1,6 +1,6 @@
 # CDB — Client DataBase
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.12](https://img.shields.io/badge/Python-3.12-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1.svg?logo=postgresql&logoColor=white)](https://postgresql.org)
@@ -350,7 +350,7 @@ All core technical specifications and developer skills are colocated directly al
 
 Looking for a **hosted, managed version** of CDB without the self-hosting overhead?
 
-**CDB Hub** is the commercial SaaS platform built on top of this open-source engine. It adds multi-tenancy, subscription billing, enterprise SSO, managed cloud infrastructure, and SLA-backed support tiers — while this repository remains fully open-source under **Apache 2.0**.
+**CDB Hub** is the commercial SaaS platform built on top of this open-source engine. It adds multi-tenancy, subscription billing, enterprise SSO, managed cloud infrastructure, and SLA-backed support tiers — while this repository remains fully open-source under the **MIT License**.
 
 > 📖 See the [CDB Hub Repository](https://github.com/data-biz-ai-consultancy/cdb-hub) and its boundary specifications for details on commercial capabilities.
 
@@ -380,6 +380,25 @@ The existence of CDB Hub does **not** affect the open-source status, licensing, 
 
 ---
 
+## 📦 Python Package (`cdb`)
+
+The core engine is published as a standalone, reusable Python package:
+
+```bash
+pip install cdb
+```
+
+Programmatic application & migration execution:
+```python
+from cdb import app, create_application
+from cdb.core.init_db import run_migrations
+
+# Run database migrations
+run_migrations("postgresql+psycopg2://user:pass@localhost:5432/cdb")
+```
+
+---
+
 ## 🏷️ Releases & Versioning
 
 This repository uses [Semantic Release](https://github.com/semantic-release/semantic-release) and [Conventional Commits](https://www.conventionalcommits.org/) for automated version management and changelog generation.
@@ -391,7 +410,7 @@ All commit messages to `main` must follow conventional commit specifications:
 - `feat!:`, `fix!:`, or `BREAKING CHANGE:` -> Triggers a **MAJOR** release (e.g., `v1.0.0`)
 - `docs:`, `chore:`, `style:`, `refactor:`, `test:` -> No release triggered.
 
-Automated releases update `CHANGELOG.md`, update versions in `pyproject.toml` and `package.json`, create a GitHub Release with tags (e.g. `v0.1.0`), and publish versioned Docker images to GitHub Container Registry (GHCR):
+Automated releases update `CHANGELOG.md`, update versions in `pyproject.toml` and `package.json`, create a GitHub Release with tags (e.g. `v0.1.0`), attach Python wheel/sdist packages (`cdb-X.Y.Z.whl`), and publish versioned Docker images to GitHub Container Registry (GHCR):
 - Backend: `ghcr.io/<org>/cdb-backend:v<version>`, `ghcr.io/<org>/cdb-backend:latest`, `ghcr.io/<org>/cdb-backend:production`
 - Frontend: `ghcr.io/<org>/cdb-frontend:v<version>`, `ghcr.io/<org>/cdb-frontend:latest`, `ghcr.io/<org>/cdb-frontend:production`
 
@@ -399,4 +418,4 @@ Automated releases update `CHANGELOG.md`, update versions in `pyproject.toml` an
 
 ## 📄 License
 
-Distributed under the **Apache 2.0** License. See [LICENSE](LICENSE) for details.
+Distributed under the **MIT** License. See [LICENSE](LICENSE) for details.

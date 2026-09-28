@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
@@ -12,24 +13,53 @@ from cdb.models.user import User
 logger = logging.getLogger(__name__)
 
 
-def run_migrations() -> None:
+def _resolve_alembic_paths() -> tuple[Path, Path] | None:
+    # 1. Source tree layout (src/backend/cdb/core/init_db.py -> src/backend/db)
+    base_dir = Path(__file__).resolve().parent.parent.parent
+    repo_ini = base_dir / "db" / "alembic.ini"
+    if repo_ini.exists():
+        return (repo_ini, base_dir / "db" / "alembic")
+
+    # 2. Installed package layout (where db package is colocated with cdb)
+    try:
+        import db as db_pkg
+
+        if db_pkg.__file__:
+            db_path = Path(db_pkg.__file__).resolve().parent
+            pkg_ini = db_path / "alembic.ini"
+            if pkg_ini.exists():
+                return (pkg_ini, db_path / "alembic")
+    except Exception:
+        pass
+
+    # 3. Working directory fallback
+    cwd_db = Path.cwd() / "db"
+    if (cwd_db / "alembic.ini").exists():
+        return (cwd_db / "alembic.ini", cwd_db / "alembic")
+
+    return None
+
+
+def run_migrations(db_url: str | None = None) -> None:
     """
     Executes Alembic migrations to upgrade the database schema to the latest head.
     """
     try:
-        from pathlib import Path
-
         from alembic import command
         from alembic.config import Config
 
-        # Locate alembic.ini
-        base_dir = Path(__file__).resolve().parent.parent.parent
-        ini_path = base_dir / "db" / "alembic.ini"
-        if ini_path.exists():
+        paths = _resolve_alembic_paths()
+        if paths:
+            ini_path, script_loc = paths
             alembic_cfg = Config(str(ini_path))
-            alembic_cfg.set_main_option("script_location", str(base_dir / "db" / "alembic"))
+            alembic_cfg.set_main_option("script_location", str(script_loc))
+            target_url = db_url or settings.SYNC_DATABASE_URL
+            if target_url:
+                alembic_cfg.set_main_option("sqlalchemy.url", target_url)
             command.upgrade(alembic_cfg, "head")
             logger.info("Alembic database migrations applied successfully to head.")
+        else:
+            logger.warning("Alembic configuration (alembic.ini) could not be located.")
     except Exception as exc:
         logger.warning("Could not automatically run Alembic migrations: %s", exc)
 
