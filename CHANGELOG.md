@@ -1,3 +1,10 @@
+# [1.45.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.44.0...v1.45.0) (2026-09-28)
+
+
+### Features
+
+* **hub:** add Cloud Hub nav group, Credits pill, and Cloud views ([4aa0dd5](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/4aa0dd5a8933c10880e751c9341ed7c271faca39))
+
 # [1.44.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.43.0...v1.44.0) (2026-09-28)
 
 
