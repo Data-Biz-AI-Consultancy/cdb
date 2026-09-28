@@ -87,6 +87,28 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    name: 'Cloud Hub',
+    items: [
+      {
+        href: '/billing',
+        label: 'Credits & Billing',
+        desc: 'Stripe subscription, refill packs & invoices',
+        badge: 'Hub',
+      },
+      {
+        href: '/network',
+        label: 'Consented Network',
+        desc: 'Privacy-preserving firmographics exchange',
+        badge: 'SaaS',
+      },
+      {
+        href: '/settings/organization',
+        label: 'Organization & GDPR',
+        desc: 'Tenant team members, data export & erasure',
+      },
+    ],
+  },
+  {
     name: 'Settings',
     items: [
       {
@@ -149,10 +171,13 @@ export default function SimpleNav() {
           <div className="flex items-center space-x-6">
             <Link
               href="/"
-              className="flex items-center space-x-2.5 font-bold text-lg text-emerald-400 tracking-wide hover:text-emerald-300 transition shrink-0"
+              className="flex items-center space-x-2 font-bold text-lg text-emerald-400 tracking-wide hover:text-emerald-300 transition shrink-0"
             >
               <CdbIcon className="w-6 h-6 shrink-0" />
               <span>CDB</span>
+              <span className="text-[10px] bg-emerald-950 text-emerald-400 font-bold px-1.5 py-0.5 rounded border border-emerald-800 tracking-wider">
+                HUB
+              </span>
             </Link>
 
             {/* Desktop Navigation Groups */}
@@ -252,6 +277,13 @@ export default function SimpleNav() {
 
           {/* Right Header Actions */}
           <div className="hidden md:flex items-center space-x-3">
+            <Link
+              href="/billing"
+              className="flex items-center gap-1.5 text-xs bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-emerald-300 px-2.5 py-1 rounded-md border border-slate-700 transition font-mono"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>9,450 Credits</span>
+            </Link>
             <span className="text-xs text-slate-400 border border-slate-800 bg-slate-900/50 px-2.5 py-1 rounded-md font-mono">
               {APP_VERSION}
             </span>
