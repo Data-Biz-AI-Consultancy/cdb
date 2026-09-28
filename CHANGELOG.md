@@ -1,3 +1,10 @@
+# [1.43.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.42.0...v1.43.0) (2026-09-28)
+
+
+### Features
+
+* **DAT-164:** extract and publish reusable cdb core package under MIT license ([35766c9](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/35766c9dcebb4133ca5d70c2337c042c1f69d881))
+
 # [1.42.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.41.0...v1.42.0) (2026-09-25)
 
 
