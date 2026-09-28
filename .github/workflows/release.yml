@@ -189,3 +189,44 @@ jobs:
       - name: Inspect final manifest
         run: |
           docker buildx imagetools inspect ${{ steps.repo.outputs.IMAGE }}:production
+
+  # ─── Step 4: Build & Publish CDB Python Package ──────────────────────────────
+  publish-package:
+    name: Build & Publish Python Package
+    needs: [release, merge]
+    if: needs.release.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Build Python wheel and sdist
+        working-directory: src/backend
+        run: |
+          uv build
+
+      - name: Upload Python Package Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdb-python-package
+          path: src/backend/dist/*
+          retention-days: 30
+
+      - name: Attach Wheels to GitHub Release
+        if: needs.release.outputs.new_release_published == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: v${{ needs.release.outputs.new_release_version }}
+        run: |
+          gh release upload "${TAG_NAME}" src/backend/dist/* --clobber || true

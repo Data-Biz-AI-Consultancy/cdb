@@ -2,22 +2,22 @@
 name: cdb-repo-architecture
 description: >-
   Use this skill when the user asks about the CDB open-core repo strategy,
-  what code belongs in the public `cdb` repo vs the private `cdb-cloud` repo,
-  the integration pattern between them, the license decision (Apache 2.0 vs AGPL/BSL),
-  or how to scaffold the `cdb-cloud` private repository for the first time.
+  what code belongs in the public `cdb` repo vs the private `cdb-hub` (or `cdb-cloud`) repo,
+  the integration pattern between them, licensing (MIT),
+  or how `cdb-hub` consumes the core backend artifact.
 ---
 
 # CDB Open Core Repository Architecture
 
-CDB follows the **Open Core** model (Option B): the public `cdb` repo is Apache 2.0 licensed;
-commercial SaaS features live in a **separate private** `cdb-cloud` repo that imports `cdb-backend`
+CDB follows the **Open Core** model: the public `cdb` repo is **MIT licensed**;
+commercial SaaS features live in a **separate private** `cdb-hub` repo that imports `cdb`
 as a pinned pip dependency.
 
 ---
 
 ## Repo Split Decision
 
-### Stays in `cdb` (public, Apache 2.0)
+### Stays in `cdb` (public, MIT)
 
 | Area | Paths |
 |------|-------|
@@ -32,94 +32,75 @@ as a pinned pip dependency.
 | Self-hosted Docker Compose | `docker-compose.yml` |
 | CI + tests for the above | `.github/workflows/ci.yml`, `src/backend/tests/` |
 
-### Goes into `cdb-cloud` (private, proprietary)
+### Goes into `cdb-hub` (private, proprietary)
 
-- Multi-tenancy layer (`Organization` model, `tenant_id`, row-level security)
-- Per-tenant API key management
-- Billing & subscription (Stripe/Paddle integration)
-- Self-serve onboarding & org creation flow
-- GDPR tooling (erasure endpoints, consent tracking, data export)
-- Per-tenant connector credential vault
-- Rate limiting & quota enforcement
-- SaaS-specific CI/CD (K8s deploy, multi-region)
-- Tenant-scoped Celery queue routing
-- Audit logging (data access log, security events)
-- Enterprise SSO / SAML
-- Admin portal (tenant management, usage metrics)
+- Multi-tenancy layer (`Tenant`, `Membership` models, `tenant_id`, context isolation)
+- Per-tenant API key management & RBAC
+- Billing & subscription (Stripe integration, credits & tiers: OSS, Lite, Business €20)
+- Consented firmographic network sharing & Zero-PII sanitization
+- GDPR tooling (Article 20 data export, Right to be forgotten erasure)
+- SaaS-specific CI/CD & orchestration
+- Admin portal (tenant management, invite workflows)
 
 ---
 
-## Integration Pattern (`cdb-cloud` imports `cdb` as a package)
+## Integration Pattern (`cdb-hub` imports `cdb` as a package)
 
 ```python
-# cdb-cloud/src/backend/main_cloud.py
-from cdb.main import app as core_app
-from saas.tenancy.middleware import TenantMiddleware
-from saas.billing.router import billing_router
-from saas.gdpr.router import gdpr_router
+# cdb-hub/src/backend/hub/main_hub.py
+from fastapi import FastAPI
+from hub.tenancy.middleware import TenantContextMiddleware
+from hub.billing.router import router as billing_router
+from hub.gdpr.router import router as compliance_router
+from hub.network.router import router as network_router
+from cdb.api.v1.router import api_v1_router as cdb_core_router
 
-core_app.add_middleware(TenantMiddleware)
-core_app.include_router(billing_router, prefix="/api/v1/billing")
-core_app.include_router(gdpr_router, prefix="/api/v1/gdpr")
+app = FastAPI(...)
+app.add_middleware(TenantContextMiddleware)
+app.include_router(billing_router)
+app.include_router(compliance_router)
+app.include_router(network_router)
+app.include_router(cdb_core_router)
 ```
 
 ```toml
-# cdb-cloud/src/backend/pyproject.toml
+# cdb-hub/src/backend/pyproject.toml
 [project]
 dependencies = [
-    "cdb-backend>=1.40.0",  # pinned to public core release
-    "stripe>=8.0",
+    "cdb==1.42.0",  # pinned to public core release
+    "stripe>=8.0.0",
     ...
 ]
+
+[tool.uv.sources]
+cdb = { path = "../../../cdb/src/backend", editable = true }
 ```
 
-The package name is already `cdb-backend` (`pyproject.toml` in `src/backend/`). On every `cdb` release,
-`cdb-cloud` bumps this pinned dependency.
-
 ---
 
-## Making `cdb-backend` Pip-Installable
+## Making `cdb` Pip-Installable
 
-The `src/backend/pyproject.toml` is already configured with `hatchling` as the build backend.
-To publish on a release:
+The `src/backend/pyproject.toml` is configured with `hatchling` as the build backend.
+To build and publish:
 
 1. Build: `cd src/backend && uv build`
-2. Publish to GHCR (as an OCI artifact) or PyPI:
+2. Publish to GitHub Releases (automatic on tagged release) or PyPI/GHCR:
    ```bash
-   # GHCR example (private registry usable by cdb-cloud):
-   uv publish --index ghcr+https://ghcr.io/YOUR_ORG/cdb-backend
+   uv publish --token ${{ secrets.PYPI_TOKEN }}
    ```
-3. `cdb-cloud` pins: `cdb-backend==1.40.0` in its `pyproject.toml`.
+3. `cdb-hub` pins: `cdb==1.42.0` in its `pyproject.toml`.
 
 ---
 
-## License Considerations
+## License Summary
 
-| Option | Impact |
-|--------|--------|
-| Keep Apache 2.0 | Competitors may host the core as a SaaS legally |
-| Switch to AGPL v3 | Competitors must open-source modifications if served over network |
-| Add Commons Clause | Prohibits commercial hosting without a license from you |
-| BSL (Business Source License) | OSS for use; commercial SaaS hosting requires your license |
-
-**Current status**: Apache 2.0. For pilot launch, keeping Apache 2.0 is fine.
-Evaluate AGPL v3 or Commons Clause before scaling.
-
----
-
-## Practical Migration Steps
-
-1. **Today**: Continue developing in `cdb` as-is (pilot work).
-2. **When multi-tenancy begins**: Create private `cdb-cloud` repo.
-3. **First commit in `cdb-cloud`**: `TenantMiddleware` + `Organization` model importing `cdb-backend`.
-4. **GDPR, billing, onboarding**: All go exclusively into `cdb-cloud`.
-5. Automate `cdb-cloud` to re-pin `cdb-backend` whenever `cdb` cuts a release (Renovate or Dependabot).
+**Status**: MIT License. Designed for single-tenant organizational use and transparent extension.
 
 ---
 
 ## References
 
-- [`pyproject.toml`](../../src/backend/pyproject.toml) — Package metadata for `cdb-backend`
+- [`pyproject.toml`](../../src/backend/pyproject.toml) — Package metadata for `cdb`
 - [`docker-compose.yml`](../../docker-compose.yml) — Self-hosted quickstart
 - [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — Release pipeline
 - [`src/backend/cdb/main.py`](../../src/backend/cdb/main.py) — Core FastAPI app entrypoint

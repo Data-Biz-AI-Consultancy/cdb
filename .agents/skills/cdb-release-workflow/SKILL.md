@@ -66,36 +66,42 @@ git commit -m "feat!: rename Signal.entity_id to Signal.subject_id"
 
 ---
 
-## Making cdb-backend Pip-Installable (for cdb-cloud)
+## Making cdb Pip-Installable (for cdb-hub & Community)
 
-The `pyproject.toml` at `src/backend/` is already configured with `hatchling`.
-To also publish the Python package on release, add a publish step to `release.yml`:
+The `pyproject.toml` at `src/backend/` is configured with `hatchling` as the build backend.
+The release workflow automatically builds and publishes wheel and sdist artifacts:
 
 ```yaml
-# Add after the existing merge job in .github/workflows/release.yml
-publish-pypi:
-  name: Publish cdb-backend to GHCR/PyPI
+# Step 4 in .github/workflows/release.yml
+publish-package:
+  name: Build & Publish Python Package
   needs: [release, merge]
-  if: needs.release.outputs.new_release_published == 'true'
+  if: needs.release.outputs.new_release_published == 'true' || github.event_name == 'workflow_dispatch'
   runs-on: ubuntu-latest
   steps:
     - uses: actions/checkout@v4
       with:
-        ref: main
-    - uses: astral-sh/setup-uv@v3
+        fetch-depth: 0
+    - uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        python-version: "3.12"
     - run: |
         cd src/backend
         uv build
-        uv publish --token ${{ secrets.PYPI_TOKEN }}
-        # Or publish to GHCR as OCI artifact if keeping private
+    - uses: actions/upload-artifact@v4
+      with:
+        name: cdb-python-package
+        path: src/backend/dist/*
+    - run: gh release upload "v${{ needs.release.outputs.new_release_version }}" src/backend/dist/* --clobber
 ```
 
-Once published, `cdb-cloud` pins it:
+Once published, `cdb-hub` pins it:
 
 ```toml
-# cdb-cloud/src/backend/pyproject.toml
+# cdb-hub/src/backend/pyproject.toml
 dependencies = [
-    "cdb-backend==1.40.0",   # bump this whenever cdb cuts a release
+    "cdb==1.42.0",   # bump this whenever cdb cuts a release
 ]
 ```
 
@@ -110,9 +116,9 @@ dependencies = [
    cd src/frontend && npm run typecheck && npm test
    ```
 3. Merge to `main` → release pipeline fires automatically.
-4. Verify new GitHub Release tag and CHANGELOG entry.
+4. Verify new GitHub Release tag, CHANGELOG entry, and attached `.whl`/`.tar.gz` packages.
 5. Verify GHCR images tagged `vX.Y.Z` and `production`.
-6. If `cdb-cloud` exists, open a PR there bumping `cdb-backend==X.Y.Z`.
+6. If `cdb-hub` exists, open a PR there bumping `cdb==X.Y.Z`.
 
 ---
 
