@@ -132,3 +132,9 @@ dependencies = [
 | [`src/backend/pyproject.toml`](../../src/backend/pyproject.toml) | Package version + build config |
 | [`src/frontend/package.json`](../../src/frontend/package.json) | Frontend version |
 | [`CHANGELOG.md`](../../CHANGELOG.md) | Auto-generated release notes |
+
+
+### Step 5 — Trigger Private Deployment (`trigger-deployment` job)
+- Sends a `repository_dispatch` webhook to `Data-Biz-AI-Consultancy/Jager-Deployment` with `event_type: deploy-release`.
+- Payload passes `service: "cdb"`, `version: X.Y.Z`, `tag: "vX.Y.Z"`, and `cdb_tag: "vX.Y.Z"`.
+- `Jager-Deployment` automatically checks out the released tag (never unpinned `main`), executes pre-flight secret validation, runs Compose, applies migrations, and executes post-deployment smoke tests.

@@ -230,3 +230,25 @@ jobs:
           TAG_NAME: v${{ needs.release.outputs.new_release_version }}
         run: |
           gh release upload "${TAG_NAME}" src/backend/dist/* --clobber || true
+
+  # ─── Step 5: Trigger Private Deployment ──────────────────────────────────────
+  trigger-deployment:
+    name: Trigger Private Deployment
+    needs: [release, merge, publish-package]
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Jager-Deployment Dispatch
+        env:
+          DEPLOYMENT_PAT: ${{ secrets.DEPLOYMENT_PAT }}
+        if: env.DEPLOYMENT_PAT != ''
+        run: |
+          TAG_NAME="v${{ needs.release.outputs.new_release_version }}"
+          echo "==> Triggering Jager-Deployment for CDB release ${TAG_NAME}..."
+          curl -L --fail-with-body \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.DEPLOYMENT_PAT }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/Data-Biz-AI-Consultancy/Jager-Deployment/dispatches \
+            -d "{\"event_type\":\"deploy-release\",\"client_payload\":{\"service\":\"cdb\",\"version\":\"${{ needs.release.outputs.new_release_version }}\",\"tag\":\"${TAG_NAME}\",\"cdb_tag\":\"${TAG_NAME}\",\"token\":\"${{ secrets.DEPLOYMENT_PAT }}\"}}"
