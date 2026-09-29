@@ -1,3 +1,10 @@
+# [1.46.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.45.0...v1.46.0) (2026-09-29)
+
+
+### Features
+
+* **release:** trigger Jager-Deployment dispatch with versioned release tag ([c15fb47](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/c15fb472151481c6fcf260fa3c8ed942f60ab487))
+
 # [1.45.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.44.0...v1.45.0) (2026-09-28)
 
 
