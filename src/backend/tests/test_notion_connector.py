@@ -30,14 +30,14 @@ from cdb.workers.tasks import (
 
 
 def test_format_uuid():
-    raw_32 = "3876e98d4ef8807eab9be1b0b029246c"
+    raw_32 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     formatted = format_uuid(raw_32)
-    assert formatted == "3876e98d-4ef8-807e-ab9b-e1b0b029246c"
+    assert formatted == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
     # Already formatted
     assert (
-        format_uuid("3876e98d-4ef8-807e-ab9b-e1b0b029246c")
-        == "3876e98d-4ef8-807e-ab9b-e1b0b029246c"
+        format_uuid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     )
     assert format_uuid("") == ""
 
@@ -214,7 +214,7 @@ async def test_fetch_database_pages_pagination():
     mock_client.post.side_effect = [resp1, resp2]
 
     pages = await service.fetch_database_pages(
-        "3876e98d4ef8807eab9be1b0b029246c",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         client=mock_client,
         filter_criteria={"property": "Status", "select": {"equals": "Done"}},
     )
@@ -375,6 +375,8 @@ async def test_celery_task_async_worker():
     # Test _sync_notion_direct_async
     with (
         patch("cdb.workers.tasks.AsyncSessionLocal"),
+        patch("cdb.core.config.settings.NOTION_API_KEY", "secret-key"),
+        patch("cdb.core.config.settings.NOTION_MEETING_NOTES_DATABASE_IDS", ["db-1"]),
         patch(
             "cdb.services.connectors.notion.NotionConnectorService.sync", new_callable=AsyncMock
         ) as mock_sync,

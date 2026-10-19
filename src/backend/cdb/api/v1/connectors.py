@@ -72,6 +72,7 @@ async def sync_linkedin_direct(
         db,
         sync_messages=sync_messages,
         sync_connections=sync_connections,
+        owner_name=settings.LINKEDIN_ACCOUNT_OWNER_NAME,
     )
 
 
@@ -85,14 +86,16 @@ async def get_notion_connector_status(
     """Returns configuration and connection status for the Notion connector."""
     is_api_configured = bool(settings.NOTION_API_KEY)
     is_jager_configured = bool(settings.JAGER_DATABASE_URL)
+    configured_ids = settings.NOTION_MEETING_NOTES_DATABASE_IDS
+    database_ids = list(configured_ids) if isinstance(configured_ids, list) else []
     return {
         "connector": "notion",
         "api_configured": is_api_configured,
         "jager_db_configured": is_jager_configured,
         "api_base_url": settings.NOTION_API_BASE_URL,
         "api_version": settings.NOTION_VERSION,
-        "database_count": len(settings.NOTION_MEETING_NOTES_DATABASE_IDS),
-        "database_ids": settings.NOTION_MEETING_NOTES_DATABASE_IDS,
+        "database_count": len(database_ids),
+        "database_ids": database_ids,
     }
 
 

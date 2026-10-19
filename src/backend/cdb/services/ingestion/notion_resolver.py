@@ -262,10 +262,8 @@ class NotionAttendeeIndex:
         matched_company_id: UUID | None = None
         matched_company_name: str | None = None
 
-        # Check for database-level default company (e.g. FaDi project notes)
-        fadi_db_ids = {"3a36e98d4ef88084a1aec60052a3cb80", "3a36e98d-4ef8-8084-a1ae-c60052a3cb80"}
-        note_db_id = (url or "").lower()
-        if any(f_db in note_db_id for f_db in fadi_db_ids) or re.search(
+        # Company hints from the meeting title or notes (not from a database id in the URL).
+        if re.search(
             r"\b(fashion\s+digital|fadi|pnc|peek\s*&\s*cloppenburg)\b",
             f"{clean_title.lower()} {content_full[:1500].lower()}",
         ):

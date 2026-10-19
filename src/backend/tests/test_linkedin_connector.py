@@ -9,10 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cdb.models.activity import Activity
 from cdb.models.intake import IntakeLinkedInMessage
 from cdb.models.person import Person
-from cdb.services.connectors.linkedin import (
-    LinkedInConnectorService,
-    parse_flexible_datetime,
-)
+from cdb.services.connectors.linkedin import LinkedInConnectorService
+from cdb.services.connectors.linkedin_records import parse_flexible_datetime
 
 
 def test_parse_flexible_datetime():
@@ -151,7 +149,12 @@ async def test_direct_sync_preserves_activity_timestamp(db_session: AsyncSession
         )
         mock_changelog.return_value = []
 
-        res = await service.sync(db_session, sync_messages=True, sync_connections=False)
+        res = await service.sync(
+            db_session,
+            sync_messages=True,
+            sync_connections=False,
+            owner_name="Jimmy Pang",
+        )
         assert res["conversations_ingested"] == 1
 
     # 2. Check Intake record
@@ -297,7 +300,12 @@ async def test_resync_heals_existing_conversation_and_activity(db_session: Async
         mock_fetch.return_value = raw_messages
         mock_changelog.return_value = []
 
-        res = await service.sync(db_session, sync_messages=True, sync_connections=False)
+        res = await service.sync(
+            db_session,
+            sync_messages=True,
+            sync_connections=False,
+            owner_name="Jimmy Pang",
+        )
         assert res["conversations_skipped"] == 1
 
     # 4. Verify healing in DB

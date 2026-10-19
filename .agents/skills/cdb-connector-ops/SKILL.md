@@ -10,17 +10,23 @@ description: >-
 
 CDB includes native background connectors to synchronize external platform data directly without requiring intermediate orchestration tools.
 
+Self-hosted operators put connector secrets in deployment env vars. Those values are empty by default and are never seeded with a personal workspace. SaaS tenants do not use these env vars: CDB Hub stores each tenant's Notion and LinkedIn credentials in its encrypted vault and passes the decrypted token, Notion API key, and database IDs explicitly into the core connector constructors.
+
 ---
 
 ## 1. Direct LinkedIn Connector
 
 Syncs connections, profile URLs, and 28-day message interaction histories via LinkedIn's Member Portability API.
 
-### Configuration (`.env`)
+### Configuration (`.env`, self-hosted only)
 ```env
 LINKEDIN_ACCESS_TOKEN=AQX...
+# Optional. Empty labels the account owner as "LinkedIn account".
+LINKEDIN_ACCOUNT_OWNER_NAME=
 LINKEDIN_SYNC_HOURS_INTERVAL=6   # Celery Beat interval in hours (default: 6)
 ```
+
+`LINKEDIN_ACCESS_TOKEN` is required for LinkedIn sync. The Celery task returns `not_configured` and does not call LinkedIn when the token is unset.
 
 ### Endpoints
 - **Status Probe**: `GET /api/v1/connectors/linkedin/status`
@@ -45,14 +51,17 @@ LINKEDIN_SYNC_HOURS_INTERVAL=6   # Celery Beat interval in hours (default: 6)
 
 Syncs meeting notes, attendee lists, summaries, and action items directly into `IntakeNotionMeetingNote` and `Activity` records.
 
-### Configuration (`.env`)
+### Configuration (`.env`, self-hosted only)
 ```env
 NOTION_API_KEY=secret_...
 NOTION_SYNC_HOURS_INTERVAL=6
-NOTION_MEETING_NOTES_DATABASE_IDS=3876e98d4ef8807eab9be1b0b029246c,3876e98d4ef880a6a61ae99d8912694f
+# Operator-supplied. Required only when Notion API sync is enabled.
+NOTION_MEETING_NOTES_DATABASE_IDS=your-database-id-1,your-database-id-2
 # Optional Jager DB Fallback URL
 JAGER_DATABASE_URL=postgresql://jager:jager@localhost:5432/jager
 ```
+
+`NOTION_API_KEY` and `NOTION_MEETING_NOTES_DATABASE_IDS` are required together for `notion_api` sync, and for `auto` when the API key is set. The Celery task returns `not_configured` and does not call Notion when either value is missing for that source. `jager_db` uses `JAGER_DATABASE_URL` and does not read the Notion key or database IDs. An empty database-id env value stays empty.
 
 ### Sync Modes
 1. **`notion_api` (Default)**: Directly queries Notion REST API `/v1/databases/{id}/query`.
