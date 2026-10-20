@@ -1,3 +1,15 @@
+# [1.47.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.46.0...v1.47.0) (2026-10-20)
+
+
+### Bug Fixes
+
+* **DAT-146:** resolve issues with credential validation and improve error messaging ([ef1bc65](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/ef1bc65a9df734f8abab5540126b08e5b0c1acd9))
+
+
+### Features
+
+* **DAT-146:** enhance LinkedIn and Notion connector configurations ([30e517a](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/30e517aaeeb14bc4f137e8235914c5556d2e2f64))
+
 # [1.46.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.45.0...v1.46.0) (2026-09-29)
 
 
