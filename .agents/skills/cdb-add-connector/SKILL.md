@@ -24,9 +24,9 @@ Whether deployed in **Single-Tenant (OSS Core)** or **Multi-Tenant (`cdb-cloud` 
 1. **Compound Tenant Uniqueness**: External IDs (`source_id`) must be unique *per tenant*, not globally (`UNIQUE(tenant_id, source_id)`).
 2. **Tenant-Scoped Entity Resolution**: Deduplication queries (`Person`, `Company`) must strictly filter `WHERE tenant_id = :tenant_id` to prevent cross-tenant data leakage.
 3. **Credential Storage Modes**:
-   - **Self-Hosted / BYO-Key**: Ingest API accepts client-provided API tokens or reads global environment variables.
-   - **Managed SaaS (`cdb-cloud`)**: Ingestion service looks up tenant credentials from the encrypted credential vault.
-4. **Worker Isolation**: Celery sync tasks must accept an explicit `tenant_id` parameter to allow per-tenant scheduling, rate-limiting, and queue routing.
+   - **Self-hosted (OSS core)**: The operator owns deployment env vars (`LINKEDIN_ACCESS_TOKEN`, optional `LINKEDIN_ACCOUNT_OWNER_NAME`, `NOTION_API_KEY`, `NOTION_MEETING_NOTES_DATABASE_IDS`). Defaults are empty. Notion database IDs are required only when Notion sync is enabled. Do not ship personal workspace IDs or account-owner names as code defaults. Celery tasks are this self-hosted path: if the LinkedIn token, or the Notion key and database IDs for the chosen source, are unset, the task returns `not_configured` and does not call the external API.
+   - **SaaS (`cdb-hub`)**: Credentials are a Hub vault lookup, not a core env default. The Hub runner decrypts that tenant's BYO or operator-managed row and passes `access_token`, Notion `api_key`, and `database_ids` into the core constructors. Core must not replace an explicit argument with `settings`. An explicit empty `database_ids` list stays empty.
+4. **Worker Isolation**: Celery sync tasks must accept an explicit `tenant_id` parameter to allow per-tenant scheduling, rate-limiting, and queue routing. SaaS scheduling belongs in Hub and supplies vault credentials; it does not read core connector env vars.
 
 ---
 
@@ -226,8 +226,10 @@ from cdb.workers.celery_app import celery_app
 @celery_app.task(name="cdb.tasks.sync_mysource_for_tenant")
 def sync_mysource_for_tenant(tenant_id: str, credentials: dict | None = None):
     """Syncs a single tenant's data source with rate limiting."""
-    # 1. Fetch credentials (from vault or args)
-    # 2. Call connector client
+    # 1. SaaS: use credentials passed from the Hub vault. Do not read core env defaults.
+    #    Self-hosted: credentials may be omitted; the task reads operator env vars and
+    #    returns not_configured when the required secret or database IDs are unset.
+    # 2. Call connector client with those explicit values
     # 3. Call ingest_mysource_records()
 ```
 

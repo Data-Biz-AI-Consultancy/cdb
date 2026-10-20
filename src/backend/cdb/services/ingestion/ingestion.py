@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cdb.core.config import settings
 from cdb.models.activity import Activity
 from cdb.models.company import Company
 from cdb.models.er import ERCandidatePair
@@ -266,8 +267,9 @@ async def ingest_linkedin_messages(
         if rec.participant_names:
             # Parse participant name (filter out owner if name known)
             names = [n.strip() for n in rec.participant_names.split(",") if n.strip()]
+            owner_label = (settings.LINKEDIN_ACCOUNT_OWNER_NAME or "").strip().lower()
             for name in names:
-                if name.lower() not in ["jimmy pang", "jimmy"]:
+                if owner_label and name.lower() == owner_label:
                     p = (
                         (
                             await db.execute(

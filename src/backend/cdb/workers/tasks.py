@@ -30,7 +30,15 @@ def evaluate_segments_background():
 
 
 async def _sync_linkedin_direct_async(sync_messages: bool = True, sync_connections: bool = True):
+    from cdb.core.config import settings
     from cdb.services.connectors.linkedin import LinkedInConnectorService
+
+    if not (settings.LINKEDIN_ACCESS_TOKEN or "").strip():
+        return {
+            "status": "not_configured",
+            "connector": "linkedin",
+            "message": "LINKEDIN_ACCESS_TOKEN is not configured.",
+        }
 
     async with AsyncSessionLocal() as session:
         service = LinkedInConnectorService()
@@ -38,6 +46,7 @@ async def _sync_linkedin_direct_async(sync_messages: bool = True, sync_connectio
             session,
             sync_messages=sync_messages,
             sync_connections=sync_connections,
+            owner_name=settings.LINKEDIN_ACCOUNT_OWNER_NAME,
         )
 
 
@@ -52,8 +61,50 @@ def sync_linkedin_direct_background(sync_messages: bool = True, sync_connections
     )
 
 
+def _notion_self_hosted_block(source: str) -> dict[str, str] | None:
+    """Return a not-configured result when the chosen self-hosted source lacks credentials."""
+    from cdb.core.config import settings
+
+    api_key = (settings.NOTION_API_KEY or "").strip()
+    database_ids = [
+        str(db_id).strip()
+        for db_id in (settings.NOTION_MEETING_NOTES_DATABASE_IDS or [])
+        if str(db_id).strip()
+    ]
+    jager_url = (settings.JAGER_DATABASE_URL or "").strip()
+
+    if source == "jager_db":
+        return None
+    if source == "notion_api" and (not api_key or not database_ids):
+        return {
+            "status": "not_configured",
+            "connector": "notion",
+            "source": source,
+            "message": "NOTION_API_KEY and NOTION_MEETING_NOTES_DATABASE_IDS are required for Notion API sync.",
+        }
+    if source != "notion_api" and api_key and not database_ids:
+        return {
+            "status": "not_configured",
+            "connector": "notion",
+            "source": source,
+            "message": "NOTION_MEETING_NOTES_DATABASE_IDS are required when Notion sync uses the API.",
+        }
+    if source != "notion_api" and not api_key and not jager_url:
+        return {
+            "status": "not_configured",
+            "connector": "notion",
+            "source": source,
+            "message": "Neither NOTION_API_KEY nor JAGER_DATABASE_URL is configured for Notion sync.",
+        }
+    return None
+
+
 async def _sync_notion_direct_async(source: str = "auto"):
     from cdb.services.connectors.notion import NotionConnectorService
+
+    blocked = _notion_self_hosted_block(source)
+    if blocked is not None:
+        return blocked
 
     async with AsyncSessionLocal() as session:
         service = NotionConnectorService()

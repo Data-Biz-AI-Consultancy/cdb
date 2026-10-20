@@ -127,6 +127,28 @@ async def test_notion_company_resolution_ignores_past_bio_intros():
         content=content,
     )
 
-    # Scoped database or explicit title context should resolve to Fashion Digital, NOT HelloFresh
+    # Title/content mention Fashion Digital. The database id in the URL is not a company hint.
     assert res.company_id == p_and_c.id
     assert res.company_id != hellofresh.id
+
+
+@pytest.mark.asyncio
+async def test_notion_company_resolution_ignores_database_id_in_url():
+    """A Notion URL that only contains a database id must not select a company."""
+    fashion = Company(id=uuid.uuid4(), name="Fashion Digital", domain="fashiondigital.de")
+    peek = Company(id=uuid.uuid4(), name="Peek & Cloppenburg", domain="peek-cloppenburg.de")
+    index = NotionAttendeeIndex(
+        persons=[],
+        companies=[fashion, peek],
+        person_companies={},
+        person_company_ids={},
+    )
+
+    res = index.detect_meeting_entities(
+        title="Weekly sync",
+        attendees="",
+        url="https://notion.so/3a36e98d4ef88084a1aec60052a3cb80",
+        content="Discussed the roadmap and next steps.",
+    )
+
+    assert res.company_id is None

@@ -84,17 +84,17 @@ class Settings(BaseSettings):
     LINKEDIN_VERSION: str = "202312"
     LINKEDIN_RESTLI_PROTOCOL_VERSION: str = "2.0.0"
     LINKEDIN_SYNC_HOURS_INTERVAL: int = 6
+    # Optional display name for the account that owns the LinkedIn token.
+    # Empty means sync labels the owner as "LinkedIn account".
+    LINKEDIN_ACCOUNT_OWNER_NAME: str = ""
 
     # Notion Direct Connector
     NOTION_API_KEY: str | None = None
     NOTION_API_BASE_URL: str = "https://api.notion.com/v1"
     NOTION_VERSION: str = "2022-06-28"
     NOTION_SYNC_HOURS_INTERVAL: int = 6
-    NOTION_MEETING_NOTES_DATABASE_IDS: list[str] | str = [
-        "3876e98d4ef8807eab9be1b0b029246c",  # Interview Meeting notes
-        "3876e98d4ef880a6a61ae99d8912694f",  # Meetups & Seminars
-        "3a36e98d4ef88084a1aec60052a3cb80",  # FaDi meeting notes
-    ]
+    # Operator-supplied comma-separated IDs. Required only when Notion sync is enabled.
+    NOTION_MEETING_NOTES_DATABASE_IDS: list[str] | str = Field(default_factory=list)
 
     # Opportunity & Risk Signals Periodic Detection
     SIGNALS_EVALUATION_HOURS_INTERVAL: int = 6
@@ -126,12 +126,8 @@ class Settings(BaseSettings):
     @field_validator("NOTION_MEETING_NOTES_DATABASE_IDS", mode="before")
     @classmethod
     def assemble_notion_databases(cls, v: Any) -> list[str]:
-        if not v:
-            return [
-                "3876e98d4ef8807eab9be1b0b029246c",
-                "3876e98d4ef880a6a61ae99d8912694f",
-                "3a36e98d4ef88084a1aec60052a3cb80",
-            ]
+        if v is None or v == "":
+            return []
         if isinstance(v, str):
             if v.startswith("["):
                 try:
@@ -145,7 +141,7 @@ class Settings(BaseSettings):
             return [i.strip() for i in v.split(",") if i.strip()]
         if isinstance(v, list):
             return [str(i).strip() for i in v if str(i).strip()]
-        return v
+        return []
 
 
 settings = Settings()

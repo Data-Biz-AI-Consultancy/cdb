@@ -62,13 +62,14 @@ class NotionConnectorService:
         version: str | None = None,
         database_ids: list[str] | None = None,
     ) -> None:
-        self.api_key = api_key or settings.NOTION_API_KEY
+        self.api_key = settings.NOTION_API_KEY if api_key is None else api_key
         self.api_base_url = (api_base_url or settings.NOTION_API_BASE_URL).rstrip("/")
         self.version = version or settings.NOTION_VERSION
+        # An explicit list, including [], is the caller's config and must not fall back.
         self.database_ids = (
-            database_ids
+            list(database_ids)
             if database_ids is not None
-            else list(settings.NOTION_MEETING_NOTES_DATABASE_IDS)
+            else list(settings.NOTION_MEETING_NOTES_DATABASE_IDS or [])
         )
 
     def _get_headers(self) -> dict[str, str]:
