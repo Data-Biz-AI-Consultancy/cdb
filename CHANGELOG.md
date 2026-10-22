@@ -1,3 +1,10 @@
+# [1.49.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.48.0...v1.49.0) (2026-10-22)
+
+
+### Features
+
+* **DAT-150:** implement single-organization identity policy ([6421628](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/64216281c7bfe1ce080312915fc7cd72452da3ee))
+
 # [1.48.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.47.0...v1.48.0) (2026-10-22)
 
 
