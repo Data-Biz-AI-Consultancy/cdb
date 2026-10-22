@@ -99,6 +99,12 @@ class Settings(BaseSettings):
     # Opportunity & Risk Signals Periodic Detection
     SIGNALS_EVALUATION_HOURS_INTERVAL: int = 6
 
+    # Single-organization internal identity. Empty lists match nobody.
+    # Host tokens default to generic labels; embedding apps replace the policy.
+    INTERNAL_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
+    INTERNAL_MEMBER_EMAILS: list[str] = Field(default_factory=list)
+    INTERNAL_HOST_IDENTIFIERS: list[str] = Field(default_factory=lambda: ["host", "me"])
+
     # Optional Jager Database URL (for legacy data healing/migration)
     JAGER_DATABASE_URL: str | None = None
 
@@ -126,22 +132,36 @@ class Settings(BaseSettings):
     @field_validator("NOTION_MEETING_NOTES_DATABASE_IDS", mode="before")
     @classmethod
     def assemble_notion_databases(cls, v: Any) -> list[str]:
-        if v is None or v == "":
-            return []
-        if isinstance(v, str):
-            if v.startswith("["):
-                try:
-                    import json
+        return _assemble_csv_list(v)
 
-                    parsed = json.loads(v)
-                    if isinstance(parsed, list):
-                        return [str(x).strip() for x in parsed if str(x).strip()]
-                except Exception:
-                    pass
-            return [i.strip() for i in v.split(",") if i.strip()]
-        if isinstance(v, list):
-            return [str(i).strip() for i in v if str(i).strip()]
+    @field_validator(
+        "INTERNAL_EMAIL_DOMAINS",
+        "INTERNAL_MEMBER_EMAILS",
+        "INTERNAL_HOST_IDENTIFIERS",
+        mode="before",
+    )
+    @classmethod
+    def assemble_internal_identity_lists(cls, v: Any) -> list[str]:
+        return _assemble_csv_list(v)
+
+
+def _assemble_csv_list(v: Any) -> list[str]:
+    if v is None or v == "":
         return []
+    if isinstance(v, str):
+        if v.startswith("["):
+            try:
+                import json
+
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return [str(x).strip() for x in parsed if str(x).strip()]
+            except Exception:
+                pass
+        return [i.strip() for i in v.split(",") if i.strip()]
+    if isinstance(v, list | tuple):
+        return [str(i).strip() for i in v if str(i).strip()]
+    return []
 
 
 settings = Settings()

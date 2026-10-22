@@ -11,10 +11,10 @@ from typing import Any
 
 from sqlalchemy import func, select
 
+from cdb.core.internal_identity import InternalIdentityPolicy, get_internal_identity_policy
 from cdb.models.activity import Activity
 
 _SPEAKER_RE = re.compile(r"^([A-Za-z0-9\s\.\-_]+?):\s*(.*)$")
-_DEFAULT_HOST_IDENTIFIERS: tuple[str, ...] = ("jimmy", "pang", "host", "databiz", "me")
 
 
 def get_activity_searchable_text(act: Any) -> str:
@@ -29,20 +29,25 @@ def get_activity_searchable_text(act: Any) -> str:
 
 def is_last_speaker_host(
     raw_content: str | None,
-    host_identifiers: tuple[str, ...] = _DEFAULT_HOST_IDENTIFIERS,
+    host_identifiers: tuple[str, ...] | None = None,
 ) -> bool:
     """
     Parses a multiline transcript or chat snippet in raw_content to determine
     if the last speaker line was sent by the internal host/team.
+
+    Omitted host tokens come from the active internal-identity policy.
     """
     if not raw_content:
         return False
+    if host_identifiers is None:
+        policy = get_internal_identity_policy()
+    else:
+        policy = InternalIdentityPolicy(host_identifiers=host_identifiers)
     lines = [line_str.strip() for line_str in raw_content.splitlines() if line_str.strip()]
     for line in reversed(lines):
-        m = _SPEAKER_RE.match(line)
-        if m:
-            last_speaker = m.group(1).strip().lower()
-            return any(h in last_speaker for h in host_identifiers)
+        match = _SPEAKER_RE.match(line)
+        if match:
+            return policy.matches_host_name(match.group(1))
     return False
 
 

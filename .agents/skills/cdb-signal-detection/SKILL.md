@@ -27,6 +27,8 @@ signals/__init__.py      ← exports detect_all_signals()
 
 Full reference: [`signals/README.md`](../../src/backend/cdb/services/signals/README.md)
 
+`Person.is_internal` and `is_last_speaker_host` use the single-organization policy in `cdb.core.internal_identity`. Explicit markers are `attributes.is_internal` and a tag containing `internal`. Email domains, exact member emails, and host-name tokens come from settings or a policy registered by the embedding process. Do not hardcode a personal name or an employer domain. Schema routing and tenant registries stay in CDB Hub.
+
 ---
 
 ## Step 1 — Add the Catalog Entry

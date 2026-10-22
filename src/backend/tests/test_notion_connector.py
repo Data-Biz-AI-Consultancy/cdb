@@ -573,6 +573,7 @@ async def test_ingest_notion_meeting_notes_creates_activity_with_or_without_pers
         first_name="Jimmy",
         last_name="Pang",
         primary_email="jimmy@test.com",
+        attributes={"is_internal": True},
     )
     person = Person(
         first_name="Nicola",
@@ -635,7 +636,12 @@ async def test_ingest_notion_meeting_notes_creates_activity_with_or_without_pers
 @pytest.mark.asyncio
 async def test_backfill_notion_meeting_notes_into_activities(db_session: AsyncSession):
     # Setup host Jimmy Pang, external person Yarek, company emnify
-    host_jimmy = Person(first_name="Jimmy", last_name="Pang", primary_email="jimmy@test.com")
+    host_jimmy = Person(
+        first_name="Jimmy",
+        last_name="Pang",
+        primary_email="jimmy@test.com",
+        attributes={"is_internal": True},
+    )
     yarek = Person(first_name="Yarek", last_name="Matacz", primary_email="yarek@test.com")
     company_emnify = Company(name="emnify", domain="emnify.com")
     company_lightdash = Company(name="Lightdash", domain="lightdash.com")
@@ -736,7 +742,12 @@ async def test_backfill_notion_meeting_notes_diacritics_and_disambiguation(
     3. Trailing ISO timestamp without space 'Jimmy Pang and Paul Dudley2026-05-21T...' matches Paul Dudley rather than Paul Ekeland
     4. Stopwords like 'Business', 'Claude', 'Data' do not match contacts with first names Business/Claude/Data
     """
-    host_jimmy = Person(first_name="Jimmy", last_name="Pang", primary_email="jimmy.host@test.com")
+    host_jimmy = Person(
+        first_name="Jimmy",
+        last_name="Pang",
+        primary_email="jimmy.host@test.com",
+        attributes={"is_internal": True},
+    )
     tony_tushar = Person(first_name="Tony", last_name="Tushar Jr", primary_email="tony.t@test.com")
     tony_zeljkovic = Person(
         first_name="Tony", last_name="Zeljković", primary_email="tony.z@test.com"

@@ -5,6 +5,7 @@ from sqlalchemy import DateTime, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from cdb.core.internal_identity import get_internal_identity_policy
 from cdb.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
@@ -45,25 +46,13 @@ class Person(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     @property
     def is_internal(self) -> bool:
-        """Determines if the person is an internal team member/employee."""
-        if not self.attributes:
-            attr = {}
-        else:
-            attr = self.attributes
+        """True for an explicit marker or the active single-organization policy."""
+        attr = self.attributes or {}
         if attr.get("is_internal") is True:
             return True
         tags = attr.get("tags") or []
         if any("internal" in str(t).lower() for t in tags):
             return True
-        fn = (self.first_name or "").strip().lower()
-        ln = (self.last_name or "").strip().lower()
-        if fn == "jimmy" and ln == "pang":
-            return True
-        emails = [self.primary_email] + (self.secondary_emails or [])
-        for em in emails:
-            if not em:
-                continue
-            em_low = em.strip().lower()
-            if em_low.endswith("@databiz.ai") or "jimmy.pang" in em_low:
-                return True
-        return False
+        policy = get_internal_identity_policy()
+        emails = [self.primary_email, *(self.secondary_emails or [])]
+        return any(policy.matches_email(email) for email in emails)

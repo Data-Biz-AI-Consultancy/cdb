@@ -45,6 +45,11 @@ CDB follows the **Open Core** model:
 - Ingestion workers, Celery pipelines, and direct data connectors (LinkedIn, Notion, CSV).
 - Self-hosted single-tenant Docker Compose setup and core CI/CD.
 - Self-hosted Next.js web application.
+- Single-organization internal identity (`Person.is_internal`, host-name tokens). No tenant routing.
+
+### Single-organization identity
+
+`Person.is_internal` and host-speaker checks are configuration for one organization per core database. Settings `INTERNAL_EMAIL_DOMAINS`, `INTERNAL_MEMBER_EMAILS`, and `INTERNAL_HOST_IDENTIFIERS` supply the default (email lists empty; host tokens `host` and `me`). An embedding process may call `register_internal_identity_policy()` or bind `internal_identity_policy_context` for the active task. Self-hosted core does not register a policy. Schema routing and tenant registries stay in `cdb-hub`.
 
 ### ❌ What Must NEVER Be Added to `cdb` (Open-Source Core)
 - Multi-tenant database isolation or tenant routing logic.
