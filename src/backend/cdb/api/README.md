@@ -13,7 +13,7 @@ CDB provides a RESTful API built on **FastAPI**.
 
 ### Authentication
 - **User JWT Bearer**: Passed via `Authorization: Bearer <token>` (obtained from `POST /api/v1/auth/login`).
-- **Machine API Key**: Passed via `X-API-Key: <key>` for backend pipelines and automated integrations (e.g., Jager).
+- **Deployment API key**: `X-API-Key` must match the self-hosted operator's `CDB_API_KEY`. An empty value rejects every machine key. Core does not ship a built-in development or production key.
 
 ### Standard Response Envelope
 All paginated collection endpoints return:

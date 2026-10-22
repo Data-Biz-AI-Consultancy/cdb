@@ -56,8 +56,8 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_PASSWORD: str = "admin123456"
     FIRST_SUPERUSER_FULL_NAME: str = "CDB Admin"
 
-    # Service-to-service API key
-    CDB_API_KEY: str = "development-api-key"
+    # Self-hosted operator deployment credential. Empty rejects every machine key.
+    CDB_API_KEY: str = ""
 
     # Storage Configuration (Local default / Cloudflare R2 ready)
     STORAGE_BACKEND: str = "local"  # "local" | "r2" | "s3"

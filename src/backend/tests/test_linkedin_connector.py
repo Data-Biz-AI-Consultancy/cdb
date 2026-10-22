@@ -326,8 +326,9 @@ async def test_resync_heals_existing_conversation_and_activity(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_connectors_api_endpoints(client: AsyncClient):
-    headers = {"X-API-Key": "development-api-key"}
+async def test_connectors_api_endpoints(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("cdb.api.deps.settings.CDB_API_KEY", "test-deployment-key")
+    headers = {"X-API-Key": "test-deployment-key"}
     # Status endpoint
     resp = await client.get("/api/v1/connectors/linkedin/status", headers=headers)
     assert resp.status_code == 200

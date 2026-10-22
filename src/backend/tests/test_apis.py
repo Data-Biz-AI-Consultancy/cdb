@@ -452,9 +452,12 @@ async def test_lead_lifecycle_and_conversion(client: AsyncClient, auth_headers: 
 
 
 @pytest.mark.asyncio
-async def test_ingestion_and_er_queue(client: AsyncClient, auth_headers: dict[str, str]):
+async def test_ingestion_and_er_queue(
+    client: AsyncClient, auth_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+):
     # Ingest LinkedIn Connection
-    api_key_header = {"X-API-Key": "development-api-key"}
+    monkeypatch.setattr("cdb.api.deps.settings.CDB_API_KEY", "test-deployment-key")
+    api_key_header = {"X-API-Key": "test-deployment-key"}
     ingest_resp = await client.post(
         "/api/v1/ingest/linkedin-connections",
         json={

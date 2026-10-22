@@ -1,4 +1,6 @@
+import secrets
 import uuid
+from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, Header, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -12,6 +14,38 @@ from cdb.core.security import decode_token
 from cdb.models.user import User
 
 security_scheme = HTTPBearer(auto_error=False)
+
+ApiKeyAuthenticator = Callable[[str | None], Awaitable[bool]]
+
+_api_key_authenticators: list[ApiKeyAuthenticator] = []
+
+
+def register_api_key_authenticator(authenticator: ApiKeyAuthenticator) -> None:
+    """Register an embedding-process check consulted after the deployment key misses."""
+    if authenticator not in _api_key_authenticators:
+        _api_key_authenticators.append(authenticator)
+
+
+def unregister_api_key_authenticator(authenticator: ApiKeyAuthenticator) -> None:
+    _api_key_authenticators[:] = [
+        item for item in _api_key_authenticators if item is not authenticator
+    ]
+
+
+def _deployment_key_matches(provided: str | None) -> bool:
+    expected = settings.CDB_API_KEY if isinstance(settings.CDB_API_KEY, str) else ""
+    if not expected or not provided:
+        return False
+    return secrets.compare_digest(provided.encode(), expected.encode())
+
+
+async def _api_key_accepted(x_api_key: str | None) -> bool:
+    if _deployment_key_matches(x_api_key):
+        return True
+    for authenticator in tuple(_api_key_authenticators):
+        if await authenticator(x_api_key):
+            return True
+    return False
 
 
 async def get_current_user(
@@ -65,11 +99,9 @@ async def require_admin(
 async def require_api_key(
     x_api_key: str | None = Header(None, alias="X-API-Key"),
 ) -> str:
-    valid_keys = {settings.CDB_API_KEY, "development-api-key", "production-api-key"}
-    valid_keys = {k for k in valid_keys if k}
-    if not x_api_key or x_api_key not in valid_keys:
+    if not await _api_key_accepted(x_api_key):
         raise UnauthorizedError("Invalid or missing service API key")
-    return x_api_key
+    return x_api_key or ""
 
 
 async def get_current_user_or_api_key(
@@ -77,9 +109,7 @@ async def get_current_user_or_api_key(
     x_api_key: str | None = Header(None, alias="X-API-Key"),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
-    valid_keys = {settings.CDB_API_KEY, "development-api-key", "production-api-key"}
-    valid_keys = {k for k in valid_keys if k}
-    if x_api_key and x_api_key in valid_keys:
+    if await _api_key_accepted(x_api_key):
         return None
     if credentials and credentials.scheme.lower() == "bearer":
         return await get_current_user(credentials=credentials, db=db)

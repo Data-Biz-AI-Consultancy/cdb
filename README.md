@@ -258,7 +258,7 @@ See [scripts/README.md](scripts/README.md) for the complete list of options and 
 
 CDB serves as the authoritative source of truth for identities, companies, and interaction data across the Jager ecosystem and automated workflow pipelines (e.g. n8n).
 
-- **Authentication**: External pipelines authenticate with `X-API-Key: ${CDB_API_KEY}`.
+- **Authentication**: Self-hosted operators set `CDB_API_KEY` and send it as `X-API-Key`. That deployment credential is the only machine key the server accepts. An empty value rejects every machine key. There is no built-in development or production key.
 - **Port Allocation**: PostgreSQL runs on port `5433` (preventing conflicts with Jager on `5432`); Redis runs on `6380`.
 - **API Ingestion**: Standard endpoints for batch ingestion of LinkedIn Connections, LinkedIn Messages, and Notion Notes.
 

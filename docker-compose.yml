@@ -24,7 +24,7 @@ services:
       - CELERY_BROKER_URL=redis://cdb-redis:6379/0
       - CELERY_RESULT_BACKEND=redis://cdb-redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-${CDB_SECRET_KEY:-development-secret-key-at-least-32-characters-long}}
-      - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
+      - CDB_API_KEY=${CDB_API_KEY:-}
       - LINKEDIN_ACCESS_TOKEN=${LINKEDIN_ACCESS_TOKEN:-${LINKEDIN_MEMBER_DATA_PORTABILITY_API_TOKEN:-}}
       - NOTION_API_KEY=${NOTION_API_KEY:-}
       - NOTION_SYNC_HOURS_INTERVAL=${NOTION_SYNC_HOURS_INTERVAL:-6}
@@ -58,7 +58,7 @@ services:
       - CELERY_BROKER_URL=redis://cdb-redis:6379/0
       - CELERY_RESULT_BACKEND=redis://cdb-redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-${CDB_SECRET_KEY:-development-secret-key-at-least-32-characters-long}}
-      - CDB_API_KEY=${CDB_API_KEY:-development-api-key}
+      - CDB_API_KEY=${CDB_API_KEY:-}
       - LINKEDIN_ACCESS_TOKEN=${LINKEDIN_ACCESS_TOKEN:-${LINKEDIN_MEMBER_DATA_PORTABILITY_API_TOKEN:-}}
       - NOTION_API_KEY=${NOTION_API_KEY:-}
       - NOTION_SYNC_HOURS_INTERVAL=${NOTION_SYNC_HOURS_INTERVAL:-6}
