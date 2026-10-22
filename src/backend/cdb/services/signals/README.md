@@ -4,6 +4,8 @@ The **Signals Engine** continuously scans contacts, companies, pipeline deals, a
 
 For step-by-step instructions on implementing new detectors, adding NBA playbooks, and testing, see the [Signal Detection Skill](../../../../.agents/skills/cdb-signal-detection/SKILL.md).
 
+Internal participants come from `Person.is_internal` and `is_last_speaker_host`. Both read the single-organization policy in `cdb.core.internal_identity` (`attributes.is_internal`, an `internal` tag, configured member emails, email domains, and host-name tokens). Schema routing and tenant registries stay in CDB Hub.
+
 ---
 
 ## 🏗️ Architecture & Data Flow

@@ -26,6 +26,7 @@ src/backend/cdb/
 1. **Keep `models/` (DB) and `schemas/` (API) Separate**: Physical tables live in `models/`; public serialized JSON shapes live in `schemas/`.
 2. **Thin Handlers, Rich Services**: Route functions in `api/` handle HTTP concerns only; business logic resides in `services/`.
 3. **Async Everywhere**: Use `async`/`await` for all database queries (`AsyncSession`) and I/O operations.
+4. **One organization per database**: `Person.is_internal` and unanswered-conversation host detection read `cdb.core.internal_identity`. Defaults come from `INTERNAL_EMAIL_DOMAINS`, `INTERNAL_MEMBER_EMAILS`, and `INTERNAL_HOST_IDENTIFIERS` (email lists empty; host tokens `host` and `me`). An embedding process calls `register_internal_identity_policy()` or sets `internal_identity_policy_context`. Schema routing and tenant registries stay in CDB Hub.
 
 ---
 

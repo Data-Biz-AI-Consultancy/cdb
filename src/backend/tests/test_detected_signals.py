@@ -821,7 +821,7 @@ async def test_detect_unanswered_conversations_host_reply_and_recruiter_exclusio
         title="Catch up chat",
         raw_content=(
             "Alan Wong: Can we discuss project budget?\n"
-            "Jimmy Pang: Sure Alan, let's schedule a call next week."
+            "Host: Sure Alan, let's schedule a call next week."
         ),
     )
 
