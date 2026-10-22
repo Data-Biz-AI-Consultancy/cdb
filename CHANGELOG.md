@@ -1,3 +1,10 @@
+# [1.48.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.47.0...v1.48.0) (2026-10-22)
+
+
+### Features
+
+* **DAT-151:** update API key handling and documentation ([af8cc6e](https://github.com/Data-Biz-AI-Consultancy/cdb/commit/af8cc6ebfe85aa06dacf2447211543c94f677647))
+
 # [1.47.0](https://github.com/Data-Biz-AI-Consultancy/cdb/compare/v1.46.0...v1.47.0) (2026-10-20)
 
 
