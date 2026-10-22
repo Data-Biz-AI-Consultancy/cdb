@@ -21,8 +21,11 @@ CDB supports two authentication mechanisms:
 1. **User JWT Bearer Token** (Interactive & Frontend Users):
    - Obtain via `POST /api/v1/auth/login` (`username`, `password`).
    - Header: `Authorization: Bearer <jwt_access_token>`
-2. **Machine API Key** (Jager & External Pipelines):
+2. **Deployment API key** (self-hosted operator credential for Jager and other pipelines):
+   - Set `CDB_API_KEY` in the environment. An empty value rejects every key.
    - Header: `X-API-Key: <CDB_API_KEY>`
+   - The server compares that value in constant time. It does not accept a built-in `development-api-key` or `production-api-key`.
+   - An embedding process may register an additional authenticator. Core does not store tenant API keys.
 
 ---
 

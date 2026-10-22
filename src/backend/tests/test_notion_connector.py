@@ -396,8 +396,9 @@ def test_sync_notion_direct_background():
 
 
 @pytest.mark.asyncio
-async def test_notion_connector_endpoints(client: AsyncClient):
-    headers = {"X-API-Key": "development-api-key"}
+async def test_notion_connector_endpoints(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("cdb.api.deps.settings.CDB_API_KEY", "test-deployment-key")
+    headers = {"X-API-Key": "test-deployment-key"}
 
     # Test GET status
     resp = await client.get("/api/v1/connectors/notion/status", headers=headers)

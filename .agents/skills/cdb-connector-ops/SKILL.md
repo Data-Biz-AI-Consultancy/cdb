@@ -29,6 +29,9 @@ LINKEDIN_SYNC_HOURS_INTERVAL=6   # Celery Beat interval in hours (default: 6)
 `LINKEDIN_ACCESS_TOKEN` is required for LinkedIn sync. The Celery task returns `not_configured` and does not call LinkedIn when the token is unset.
 
 ### Endpoints
+
+`X-API-Key` must be the self-hosted operator's `CDB_API_KEY`. Core does not treat `development-api-key` or `production-api-key` as valid unless that exact value is what the operator configured.
+
 - **Status Probe**: `GET /api/v1/connectors/linkedin/status`
 - **Trigger Sync**:
   ```bash
@@ -69,6 +72,9 @@ JAGER_DATABASE_URL=postgresql://jager:jager@localhost:5432/jager
 3. **`auto`**: Uses Notion API if token exists, falling back to Jager DB.
 
 ### Endpoints
+
+`X-API-Key` must be the self-hosted operator's `CDB_API_KEY`.
+
 - **Status Probe**: `GET /api/v1/connectors/notion/status`
 - **Trigger Sync**:
   ```bash
